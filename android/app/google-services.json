@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "11772484864",
+    "project_id": "brikle",
+    "storage_bucket": "brikle.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:11772484864:android:cfc5e729a296266e10a7e5",
+        "android_client_info": {
+          "package_name": "com.brikle.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "11772484864-i3ggcjjfvoloni0k89ammqh1iuqasube.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxVPAG_U2gWUvTmn1n8_gqOxxXRLkHce8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "11772484864-i3ggcjjfvoloni0k89ammqh1iuqasube.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
