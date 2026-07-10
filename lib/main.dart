@@ -20,7 +20,7 @@ Future<void> main() async {
 
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
-  Get.put(WishlistController(), permanent: true);
+  // Get.put(WishlistController(), permanent: true);
 
   runApp(const MyApp());
 }

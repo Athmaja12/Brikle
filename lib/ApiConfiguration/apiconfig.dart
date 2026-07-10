@@ -29,15 +29,10 @@ class ApiConfig {
   static String productPriceTiersUrl(int productId) =>
       '$baseUrl/api/customer-products/$productId/price-tiers/';
   // ── Cart ───────────────────────────────────────────────────────────────────
-  // GET → Fetch cart items
+  // Single endpoint for all cart operations — GET (list), POST (add),
+  // PATCH (update quantity), DELETE (remove) — all identified by
+  // `variant` in the request body, not by URL path.
   static String get cartUrl => '$baseUrl/api/cart/add/';
-
-  // POST → Add item
-  static String get addToCartUrl => '$baseUrl/api/cart/add/';
-
-  // PATCH / DELETE → Single cart item
-  static String cartItemUrl(int productId) =>
-      '$baseUrl/api/cart/add/$productId/';
 
   static String get carouselUrl => '$baseUrl/api/carousels/';
   static String get categoriesUrl => '$baseUrl/api/superadmin/categories/';
@@ -49,6 +44,8 @@ class ApiConfig {
       '$baseUrl/api/categories/$categoryId/details/';
   static String categoryFilterOptionsUrl(int categoryId) =>
       '$baseUrl/api/categories/filter-options/?category_id=$categoryId';
+  static String materialDetailsUrl(int materialId) =>
+      '$baseUrl/api/superadmin/materials/$materialId/';
 
   // ── Address ─────────────────────────────────────────────
   static String get addressesUrl => '$baseUrl/api/customer/addresses/';
@@ -70,13 +67,12 @@ class ApiConfig {
       '$baseUrl/api/customer-orders/$orderId/';
 
   // ── Wishlist ───────────────────────────────────────────────────────────────
-  static String get wishlistUrl => '$baseUrl/api/wishlist/';
-  static String wishlistItemUrl(int productId) =>
-      '$baseUrl/api/wishlist/$productId/';
-  static String wishlistMoveToCartUrl(int productId) =>
-      '$baseUrl/api/wishlist/$productId/move-to-cart/';
-  static String get wishlistMoveAllToCartUrl =>
-      '$baseUrl/api/wishlist/move-all-to-cart/';
+ // ── Wishlist ───────────────────────────────────────────────
+
+static String get wishlistUrl => '$baseUrl/api/wishlist/';
+
+static String wishlistItemUrl(int variantId) =>
+    '$baseUrl/api/wishlist/$variantId/';
 }
 
 /// Thrown by ApiService on network errors or non-2xx responses.

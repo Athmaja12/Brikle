@@ -1,8 +1,11 @@
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
+import 'package:brikle/AppStyle/sharedproduct_card.dart';
+import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/Model/home_model.dart';
+import 'package:brikle/HomePage/View/notificationpage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -105,13 +108,13 @@ class _Header extends StatelessWidget {
                 text: TextSpan(
                   children: [
                     TextSpan(
-                      text: 'B',
+                      text: 'Br',
                       style: AppTextStyles.brikleLogoAccent(
                         context,
                       ).copyWith(fontSize: 20),
                     ),
                     TextSpan(
-                      text: 'rikle',
+                      text: 'ikle',
                       style: AppTextStyles.brikleLogoDark(
                         context,
                       ).copyWith(fontSize: 20),
@@ -120,9 +123,30 @@ class _Header extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Icon(Icons.shopping_bag_outlined),
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  // TODO: Navigate to Wishlist Screen
+                  // Get.to(() => const WishlistScreen());
+                },
+                child: const Icon(
+                  Icons.favorite_border_rounded,
+                  size: 22,
+                  color: Colors.black87,
+                ),
+              ),
               SizedBox(width: Responsive.space(context, 16)),
-              const Icon(Icons.notifications_none_rounded),
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  Get.to(() => const NotificationScreen());
+                },
+                child: const Icon(
+                  Icons.notifications_none_rounded,
+                  size: 24,
+                  color: Colors.black87,
+                ),
+              ),
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
@@ -361,6 +385,9 @@ class _ProductCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
+        // No longer "min" — let the column fill the grid cell so the
+        // Expanded image below can absorb the remaining space instead
+        // of the Column trying to be taller than the cell allows.
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -384,16 +411,43 @@ class _ProductCard extends StatelessWidget {
               const Icon(Icons.favorite_border, size: 18),
             ],
           ),
-          SizedBox(
-            height: 90,
+          const SizedBox(height: 6),
+          // ← Expanded instead of a fixed height: this is the only
+          // flexible element, so it grows/shrinks to make everything
+          // else fit exactly inside whatever height the grid gives it.
+          Expanded(
             child: product.imageUrl.isNotEmpty
-                ? Image.network(product.imageUrl, fit: BoxFit.contain)
-                : const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 60,
-                    color: Colors.black26,
+                ? Image.network(
+                    product.imageUrl,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        size: 50,
+                        color: Colors.black26,
+                      ),
+                    ),
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return const Center(
+                        child: SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    },
+                  )
+                : const Center(
+                    child: Icon(
+                      Icons.inventory_2_outlined,
+                      size: 50,
+                      color: Colors.black26,
+                    ),
                   ),
           ),
+          const SizedBox(height: 6),
           Text(
             product.name,
             maxLines: 2,
@@ -436,6 +490,7 @@ class _ProductCard extends StatelessWidget {
                 // TODO: wire to CartController.addToCart(product.variantId)
               },
               style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 side: const BorderSide(color: AppColors.inputBorder),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -463,9 +518,10 @@ class _TopDealsSection extends StatelessWidget {
     return Obx(() {
       if (controller.topDeals.isEmpty) return const SizedBox.shrink();
       return Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: Responsive.space(context, 16),
-          vertical: Responsive.space(context, 12),
+        padding: EdgeInsets.only(
+          left: Responsive.space(context, 16),
+          right: Responsive.space(context, 16),
+          top: Responsive.space(context, 12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,10 +547,19 @@ class _TopDealsSection extends StatelessWidget {
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.62,
+                // childAspectRatio: 0.62,
+                mainAxisExtent:
+                    280, // Adjust this value to control the height of the cards
               ),
-              itemBuilder: (context, index) =>
-                  _ProductCard(product: controller.topDeals[index]),
+              itemBuilder: (context, index) => SharedProductCard(
+                product: CategoryProductItem(
+                  variantId: controller.topDeals[index].variantId,
+                  materialId: controller.topDeals[index].materialId,
+                  name: controller.topDeals[index].name,
+                  imageUrl: controller.topDeals[index].imageUrl,
+                  price: controller.topDeals[index].dealPrice,
+                ),
+              ),
             ),
           ],
         ),
@@ -513,8 +578,10 @@ class _CategoryBanner extends StatelessWidget {
     return Obx(() {
       final banner = controller.currentBanner;
       return Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: Responsive.space(context, 16),
+        padding: EdgeInsets.only(
+          left: Responsive.space(context, 16),
+          right: Responsive.space(context, 16),
+          bottom: Responsive.space(context, 12),
         ),
         child: Container(
           // height: Responsive.height(context, 150),
@@ -586,7 +653,7 @@ class _BestsellingSection extends StatelessWidget {
     return Obx(() {
       if (controller.isBestsellingLoading.value) {
         return const Padding(
-          padding: EdgeInsets.all(24),
+          padding: EdgeInsets.all(10),
           child: Center(child: CircularProgressIndicator()),
         );
       }
@@ -596,9 +663,10 @@ class _BestsellingSection extends StatelessWidget {
       }
 
       return Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: Responsive.space(context, 16),
-          vertical: Responsive.space(context, 16),
+        padding: EdgeInsets.only(
+          left: Responsive.space(context, 16),
+          right: Responsive.space(context, 16),
+          top: Responsive.space(context, 12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -626,16 +694,19 @@ class _BestsellingSection extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 0.62,
+                // childAspectRatio: 0.62,
+                mainAxisExtent:
+                    280, // Adjust this value to control the height of the cards
               ),
               itemBuilder: (context, index) {
                 final item = controller.bestselling[index];
-
                 return _ProductCard(
                   product: DealItem(
                     dealId: item.id,
                     variantId: item
-                        .id, // bestselling has no variant id yet — see question 2 below
+                        .id, // bestselling has no real variant id — placeholder, as before
+                    materialId: item
+                        .id, // ← ADDED: BestSellingItem.id is the material's own id
                     name: item.name,
                     imageUrl: item.imageUrl ?? '',
                     retailPrice: item.retailPrice ?? 2999,
@@ -683,7 +754,7 @@ class _PromoGrid extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 child: Image.asset(
                   tile.assetPath,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   width: double.infinity,
                   height: double.infinity,
                 ),

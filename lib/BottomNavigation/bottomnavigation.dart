@@ -21,12 +21,12 @@ class CustomBottomNav extends StatelessWidget {
   static const double _figmaBarHeight = 68;
   static const double _figmaRadius = 14;
   static const double _figmaPaddingTop = 8;
-  static const double _figmaPaddingRight = 34.73;
+  static const double _figmaPaddingRight = 15;
   static const double _figmaPaddingBottom = 8;
-  static const double _figmaPaddingLeft = 34.72;
+  static const double _figmaPaddingLeft = 15;
   static const double _figmaIconSize = 22;
 
- static const List<_NavItemData> _items = [
+  static const List<_NavItemData> _items = [
     _NavItemData(
       icon: Icons.home_rounded,
       outlineIcon: Icons.home_outlined,
@@ -40,7 +40,7 @@ class CustomBottomNav extends StatelessWidget {
     _NavItemData(
       icon: Icons.receipt_long_rounded,
       outlineIcon: Icons.receipt_long_outlined,
-      label: 'Orders',
+      label: 'Calculate',
     ),
     _NavItemData(
       icon: Icons.shopping_cart_rounded,

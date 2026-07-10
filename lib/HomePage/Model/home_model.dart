@@ -38,6 +38,7 @@ class CategoryItem {
 class DealItem {
   final int dealId;
   final int variantId;
+  final int materialId;
   final String name;
   final String imageUrl;
   final double retailPrice;
@@ -48,6 +49,7 @@ class DealItem {
   const DealItem({
     required this.dealId,
     required this.variantId,
+    required this.materialId,
     required this.name,
     required this.imageUrl,
     required this.retailPrice,
@@ -69,6 +71,7 @@ class DealItem {
     return DealItem(
       dealId: json['id'] as int? ?? 0,
       variantId: variant['id'] as int? ?? 0,
+      materialId: material['id'] as int? ?? 0,
       name: material['name']?.toString() ?? '',
       imageUrl: material['master_image']?.toString() ?? '',
       retailPrice: _toDouble(variant['retail_price_with_gst']),

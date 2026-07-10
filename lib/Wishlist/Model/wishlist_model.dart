@@ -1,35 +1,40 @@
-// lib/Wishlist/Model/wishlist_model.dart
+import 'package:brikle/ApiConfiguration/apiconfig.dart';
 
-class WishlistModel {
-  final int id; // wishlist entry id (used for delete/move-to-cart)
-  final int productId; // the underlying product id
-  final String productName;
-  final String? productImage;
-  final double price;
-  final bool isActive;
-  final DateTime? addedAt;
+String _fullImageUrl(String? path) {
+  if (path == null || path.isEmpty) return '';
+  if (path.startsWith('http')) return path;
+  final base = ApiConfig.baseUrl;
+  if (base.isEmpty) return '';
+  return '$base$path';
+}
 
-  WishlistModel({
+class WishlistItem {
+  final int id;           // wishlist entry id — used for DELETE /api/wishlist/{id}/
+  final int variantId;    // "variant" in JSON
+  final String materialName;
+  final String sizeDimension;
+  final String imageUrl;
+  final double retailPrice; // "retail_price" comes as a String from API e.g. "100.00"
+  final String createdAt;
+
+  const WishlistItem({
     required this.id,
-    required this.productId,
-    required this.productName,
-    this.productImage,
-    required this.price,
-    this.isActive = true,
-    this.addedAt,
+    required this.variantId,
+    required this.materialName,
+    required this.sizeDimension,
+    required this.imageUrl,
+    required this.retailPrice,
+    required this.createdAt,
   });
 
-  factory WishlistModel.fromJson(Map<String, dynamic> json) {
-    return WishlistModel(
-      id: json['id'] as int,
-      productId: json['product'] as int,
-      productName: json['product_name']?.toString() ?? '',
-      productImage: json['product_image']?.toString(),
-      price: double.tryParse(json['price']?.toString() ?? '0') ?? 0,
-      isActive: json['is_active'] as bool? ?? true,
-      addedAt: json['added_at'] != null
-          ? DateTime.tryParse(json['added_at'].toString())
-          : null,
-    );
-  }
+  factory WishlistItem.fromJson(Map<String, dynamic> json) => WishlistItem(
+        id: (json['id'] as num).toInt(),
+        variantId: (json['variant'] as num).toInt(),
+        materialName: json['material_name']?.toString() ?? '',
+        sizeDimension: json['size_dimension']?.toString() ?? '',
+        imageUrl: _fullImageUrl(json['master_image']?.toString()),
+        // retail_price comes as a String e.g. "100.00" — parse safely
+        retailPrice: double.tryParse(json['retail_price']?.toString() ?? '0') ?? 0,
+        createdAt: json['created_at']?.toString() ?? '',
+      );
 }

@@ -2,10 +2,12 @@ import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/circularbackbutton.dart';
 import 'package:brikle/AppStyle/responsive.dart';
+import 'package:brikle/AppStyle/sharedproduct_card.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Category/Controller/categorydeatail_controller.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -475,7 +477,7 @@ class _ProductGrid extends StatelessWidget {
             childAspectRatio: 0.52,
           ),
           itemBuilder: (context, index) =>
-              _ProductCard(product: products[index]),
+              SharedProductCard(product: products[index]),
         ),
       );
     });

@@ -83,13 +83,13 @@ class _SearchHeader extends StatelessWidget {
                 text: TextSpan(
                   children: [
                     TextSpan(
-                      text: 'B',
+                      text: 'Br',
                       style: AppTextStyles.brikleLogoAccent(
                         context,
                       ).copyWith(fontSize: 20),
                     ),
                     TextSpan(
-                      text: 'rikle',
+                      text: 'ikle',
                       style: AppTextStyles.brikleLogoDark(
                         context,
                       ).copyWith(fontSize: 20),
@@ -98,9 +98,20 @@ class _SearchHeader extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Icon(Icons.shopping_bag_outlined),
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  // TODO: Navigate to Wishlist Screen
+                  // Get.to(() => const WishlistScreen());
+                },
+                child: const Icon(
+                  Icons.favorite_border_rounded,
+                  size: 22,
+                  color: Colors.black87,
+                ),
+              ),
               SizedBox(width: Responsive.space(context, 16)),
-              const Icon(Icons.notifications_none_rounded),
+              const Icon(Icons.notifications_none_rounded), 
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),

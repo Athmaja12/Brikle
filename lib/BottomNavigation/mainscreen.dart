@@ -1,5 +1,6 @@
 import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
+import 'package:brikle/Calculation/View/calculatiorPage.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/View/homepage.dart';
 import 'package:brikle/MyOrdersPage/View/myorderspage.dart';
@@ -25,7 +26,7 @@ class _MainScreenState extends State<MainScreen> {
   late final List<Widget> _pages = [
     const HomeScreen(),
     CategoryPage(), // Category
-    OrdersListView(), // Orders
+    const CalculatorPage(), // Orders
     const CartScreen(),
     const ProfileView(),
   ];

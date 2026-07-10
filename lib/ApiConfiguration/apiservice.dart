@@ -190,13 +190,53 @@ class ApiService {
     return response['results'] as List? ?? [];
   }
 
-  /// POST /api/cart/add/  — body: { product_id: int }
+  // ══════════════════════════════════════════════════════════════════════
+  // CART
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// GET /api/cart/add/
+  /// response: { grand_total_with_gst, cart_items: [...] }
+  static Future<Map<String, dynamic>> getCart() async {
+    return _get(ApiConfig.cartUrl, headers: await _authHeaders());
+  }
+
+  /// POST /api/cart/add/  — body: { variant, quantity }
   static Future<Map<String, dynamic>> addToCart({
-    required int productId,
+    required int variantId,
+    required int quantity,
   }) async {
-    return _post(ApiConfig.addToCartUrl, {
-      'product_id': productId,
+    return _post(ApiConfig.cartUrl, {
+      'variant': variantId,
+      'quantity': quantity,
     }, headers: await _authHeaders());
+  }
+
+  /// PATCH /api/cart/add/  — body: { variant, quantity }
+  static Future<Map<String, dynamic>> updateCartItem({
+    required int variantId,
+    required int quantity,
+  }) async {
+    return _patch(ApiConfig.cartUrl, {
+      'variant': variantId,
+      'quantity': quantity,
+    }, headers: await _authHeaders());
+  }
+
+  /// DELETE /api/cart/add/  — body: { variant }
+  static Future<void> removeCartItem({required int variantId}) async {
+    await _delete(
+      ApiConfig.cartUrl,
+      body: {'variant': variantId},
+      headers: await _authHeaders(),
+    );
+  }
+
+  /// GET /api/superadmin/materials/{id}/
+  static Future<Map<String, dynamic>> getMaterialDetails(int materialId) async {
+    return _get(
+      ApiConfig.materialDetailsUrl(materialId),
+      headers: await _authHeaders(),
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -288,44 +328,8 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   /// GET /api/customer/wishlist/
-  /// response: bare List of wishlist items
-  static Future<List<dynamic>> getWishlist() async {
-    final response = await _get(
-      ApiConfig.wishlistUrl,
-      headers: await _authHeaders(),
-    );
-    return response['results'] as List? ?? [];
-  }
+ 
 
-  /// POST /api/customer/wishlist/
-  /// body:     { product_id: int }
-  /// response: wishlist item object
-  static Future<Map<String, dynamic>> addToWishlist({
-    required int productId,
-  }) async {
-    return _post(ApiConfig.wishlistUrl, {
-      'product_id': productId,
-    }, headers: await _authHeaders());
-  }
-
-  /// DELETE /api/customer/wishlist/{product_id}/
-  static Future<void> removeFromWishlist({required int productId}) async {
-    await _delete(
-      ApiConfig.wishlistItemUrl(productId),
-      headers: await _authHeaders(),
-    );
-  }
-
-  /// POST /api/wishlist/{product_id}/move-to-cart/
-  static Future<Map<String, dynamic>> moveWishlistItemToCart({
-    required int productId,
-  }) async {
-    return _post(
-      ApiConfig.wishlistMoveToCartUrl(productId),
-      {},
-      headers: await _authHeaders(),
-    );
-  }
 
   /// GET /api/categories/{id}/details/
   static Future<Map<String, dynamic>> getCategoryDetails(int categoryId) async {
@@ -345,14 +349,7 @@ class ApiService {
     );
   }
 
-  /// POST /api/customer/wishlist/move-all-to-cart/
-  static Future<Map<String, dynamic>> moveAllWishlistToCart() async {
-    return _post(
-      ApiConfig.wishlistMoveAllToCartUrl,
-      {},
-      headers: await _authHeaders(),
-    );
-  }
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // HTTP HELPERS
@@ -421,12 +418,17 @@ class ApiService {
 
   static Future<void> _delete(
     String url, {
+    Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
     http.Response response;
     try {
       response = await http
-          .delete(Uri.parse(url), headers: headers ?? _jsonHeaders)
+          .delete(
+            Uri.parse(url),
+            headers: headers ?? _jsonHeaders,
+            body: body != null ? jsonEncode(body) : null,
+          )
           .timeout(const Duration(seconds: 20));
     } catch (_) {
       throw ApiException(
@@ -441,27 +443,6 @@ class ApiService {
           'Something went wrong (code ${response.statusCode}).',
       statusCode: response.statusCode,
     );
-  }
-
-  static Map<String, dynamic> _handleResponse(http.Response response) {
-    print("STATUS CODE => ${response.statusCode}");
-    print("RESPONSE BODY => ${response.body}");
-
-    // Reject non-2xx before attempting JSON decode
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      // Try to extract a message, but don't crash if body isn't JSON
-      String? message;
-      try {
-        final decoded = _decode(response);
-        message = _extractErrorMessage(decoded);
-      } catch (_) {}
-      throw ApiException(
-        message ?? 'Something went wrong (code ${response.statusCode}).',
-        statusCode: response.statusCode,
-      );
-    }
-
-    return _decode(response);
   }
 
   // AFTER:
@@ -500,5 +481,56 @@ class ApiService {
       if (value is String) return value;
     }
     return null;
+  }
+
+  static Map<String, dynamic> _handleResponse(http.Response response) {
+    print("STATUS CODE => ${response.statusCode}");
+    print("RESPONSE BODY => ${response.body}");
+
+    // Reject non-2xx before attempting JSON decode
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      // Try to extract a message, but don't crash if body isn't JSON
+      String? message;
+      try {
+        final decoded = _decode(response);
+        message = _extractErrorMessage(decoded);
+      } catch (_) {}
+      throw ApiException(
+        message ?? 'Something went wrong (code ${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
+    }
+
+    return _decode(response);
+  }
+
+  // GET /api/wishlist/
+ static Future<List<dynamic>> getWishlist() async {
+  final response = await _get(
+    ApiConfig.wishlistUrl,
+    headers: await _authHeaders(),
+  );
+
+  return response["wishlist_items"] ?? [];
+}
+static Future<void> addToWishlist({
+  required int variantId,
+}) async {
+  await _post(
+    ApiConfig.wishlistUrl,
+    {
+      "variant": variantId,
+    },
+    headers: await _authHeaders(),
+  );
+}
+
+  static Future<void> removeFromWishlist({
+    required int wishlistId,
+  }) async {
+    await _delete(
+      ApiConfig.wishlistItemUrl(wishlistId),
+      headers: await _authHeaders(),
+    );
   }
 }

@@ -32,6 +32,7 @@ class PriceTier {
 /// (no variant = no price = nothing to show as a product card).
 class CategoryProductItem {
   final int variantId;
+  final int materialId;
   final String name;
   final String imageUrl;
   final String? brandName;
@@ -45,6 +46,7 @@ class CategoryProductItem {
 
   const CategoryProductItem({
     required this.variantId,
+    required this.materialId,
     required this.name,
     required this.imageUrl,
     this.brandName,
@@ -91,6 +93,7 @@ class CategoryProductItem {
 
     return CategoryProductItem(
       variantId: variant['id'] as int,
+      materialId: fallbackMaterial['id'] as int,
       name:
           variantMaterial['name']?.toString() ??
           fallbackMaterial['name']?.toString() ??
