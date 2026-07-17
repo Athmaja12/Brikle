@@ -9,15 +9,15 @@ class SplashView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(SplashController()); // starts the nav timer on first build
+    if (!Get.isRegistered<SplashController>()) {
+      Get.put(SplashController());
+    }
     return Scaffold(
       backgroundColor: AppColors.primaryGreen,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // TODO: replace with your logo asset:
-            // Image.asset('assets/images/logo.png', width: 90, height: 90)
             const Icon(Icons.water_drop_rounded, size: 90, color: Colors.white),
             const SizedBox(height: 12),
             Text('Brikle', style: AppTextStyles.splashAppName(context)),

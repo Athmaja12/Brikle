@@ -118,6 +118,13 @@ class OtpController extends GetxController {
       if (flow == OtpFlow.signup) {
         debugPrint('[OtpController] signup flow — saving session + going Home');
         // verifyRegisterOtp already returns access + refresh tokens
+
+        debugPrint("===== VERIFY RESPONSE =====");
+        debugPrint(response.toString());
+        debugPrint("ACCESS  : ${response['access']}");
+        debugPrint("REFRESH : ${response['refresh']}");
+        debugPrint("===========================");
+
         await SessionManager.saveSession(
           accessToken: response['access'] as String,
           refreshToken: response['refresh'] as String,

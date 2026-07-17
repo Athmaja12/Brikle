@@ -2,6 +2,7 @@ import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:brikle/ProfilePage/Model/profile_model.dart';
+import 'package:brikle/ProfilePage/View/couponscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,10 +15,7 @@ class ProfileView extends StatefulWidget {
 }
 
 class _ProfileViewState extends State<ProfileView> {
-  // Controller is already registered by the binding / parent route.
-  // Use Get.find so we never double-register it.
   late final ProfileController _ctrl = Get.put(ProfileController());
-
   bool _notificationsOn = true;
 
   @override
@@ -26,7 +24,6 @@ class _ProfileViewState extends State<ProfileView> {
       backgroundColor: const Color(0xFFF3F4F6),
       body: SafeArea(
         child: Obx(() {
-          // Full-screen loader on first fetch
           if (_ctrl.isLoading.value) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primaryGreen),
@@ -36,25 +33,30 @@ class _ProfileViewState extends State<ProfileView> {
           return Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.space(context, 16),
-                    vertical: Responsive.space(context, 20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(context),
-                      SizedBox(height: Responsive.space(context, 20)),
-                      _buildQuickActions(context),
-                      SizedBox(height: Responsive.space(context, 20)),
-                      _buildSavedAddresses(context),
-                      SizedBox(height: Responsive.space(context, 20)),
-                      _buildAppSettings(context),
-                      SizedBox(height: Responsive.space(context, 16)),
-                      _buildDeleteAccount(context),
-                      SizedBox(height: Responsive.space(context, 20)),
-                    ],
+                child: RefreshIndicator(
+                  color: AppColors.primaryGreen,
+                  onRefresh: _ctrl.refreshAll,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.space(context, 16),
+                      vertical: Responsive.space(context, 20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(context),
+                        SizedBox(height: Responsive.space(context, 20)),
+                        _buildQuickActions(context),
+                        SizedBox(height: Responsive.space(context, 20)),
+                        _buildSavedAddresses(context),
+                        SizedBox(height: Responsive.space(context, 20)),
+                        _buildAppSettings(context),
+                        SizedBox(height: Responsive.space(context, 16)),
+                        _buildDeleteAccount(context),
+                        SizedBox(height: Responsive.space(context, 20)),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -70,7 +72,6 @@ class _ProfileViewState extends State<ProfileView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Avatar circle with initials
         Container(
           width: Responsive.space(context, 52),
           height: Responsive.space(context, 52),
@@ -89,8 +90,6 @@ class _ProfileViewState extends State<ProfileView> {
           ),
         ),
         SizedBox(width: Responsive.space(context, 12)),
-
-        // Name + phone
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,8 +163,6 @@ class _ProfileViewState extends State<ProfileView> {
             ],
           ),
         ),
-
-        // Notification bell
         GestureDetector(
           onTap: () => setState(() => _notificationsOn = !_notificationsOn),
           child: Container(
@@ -214,6 +211,14 @@ class _ProfileViewState extends State<ProfileView> {
           icon: Icons.edit_outlined,
           label: 'Edit Profile',
           onTap: _showEditProfileSheet,
+        ),
+        SizedBox(width: Responsive.space(context, 10)),
+        _actionCard(
+          context,
+          icon: Icons.local_offer_outlined,
+          label: 'Coupons',
+          iconColor: AppColors.primaryGreen,
+          onTap: () => Get.to(() => CouponScreen()),
         ),
       ],
     );
@@ -299,10 +304,7 @@ class _ProfileViewState extends State<ProfileView> {
                     }
                     return _addressItem(context, address: addrs[i ~/ 2]);
                   }),
-
                 const Divider(height: 1, color: Color(0xFFE5E7EB)),
-
-                // Add New Location button
                 Padding(
                   padding: EdgeInsets.all(Responsive.space(context, 14)),
                   child: GestureDetector(
@@ -408,7 +410,6 @@ class _ProfileViewState extends State<ProfileView> {
               ],
             ),
           ),
-          // Edit button
           GestureDetector(
             onTap: () => _showEditAddressSheet(address),
             child: Icon(
@@ -596,6 +597,7 @@ class _ProfileViewState extends State<ProfileView> {
 
   // ── Bottom Sheets ───────────────────────────────────────────────────────────
 
+  // EDIT PROFILE SHEET
   void _showEditProfileSheet() {
     final nameCtrl = TextEditingController(text: _ctrl.fullName);
     final emailCtrl = TextEditingController(text: _ctrl.email);
@@ -684,13 +686,15 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  // ADD ADDRESS SHEET
   void _showAddAddressSheet() {
     final street1Ctrl = TextEditingController();
     final street2Ctrl = TextEditingController();
     final pincodeCtrl = TextEditingController();
     final gstCtrl = TextEditingController();
     bool isPrimary = false;
-    String customerType = 'home_owner'; // assumption — see note below
+    String customerType = 'home_owner';
+    bool isLoading = false;
 
     Get.bottomSheet(
       isScrollControlled: true,
@@ -711,15 +715,25 @@ class _ProfileViewState extends State<ProfileView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Add New Location',
-                  style: GoogleFonts.manrope(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.inputText,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Add New Address',
+                        style: GoogleFonts.manrope(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inputText,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Get.back(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 Text(
                   'Account Type',
@@ -734,7 +748,7 @@ class _ProfileViewState extends State<ProfileView> {
                   children: [
                     Expanded(
                       child: _AccountTypeChip(
-                        label: 'Individual',
+                        label: 'Home Owner',
                         selected: customerType == 'home_owner',
                         onTap: () =>
                             setSheet(() => customerType = 'home_owner'),
@@ -753,19 +767,32 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
                 const SizedBox(height: 16),
 
-                _sheetField('Street Address 1', street1Ctrl),
+                _addressSheetField(
+                  label: 'Street Address 1 *',
+                  controller: street1Ctrl,
+                  hint: 'House/Building/Street',
+                ),
                 const SizedBox(height: 14),
-                _sheetField('Street Address 2', street2Ctrl),
+                _addressSheetField(
+                  label: 'Street Address 2',
+                  controller: street2Ctrl,
+                  hint: 'Area/Landmark (Optional)',
+                ),
                 const SizedBox(height: 14),
-                _sheetField(
-                  'Pincode',
-                  pincodeCtrl,
+                _addressSheetField(
+                  label: 'Pincode *',
+                  controller: pincodeCtrl,
                   keyboard: TextInputType.number,
+                  hint: 'Enter 6-digit pincode',
                 ),
 
                 if (customerType == 'contractor') ...[
                   const SizedBox(height: 14),
-                  _sheetField('GST Number', gstCtrl),
+                  _addressSheetField(
+                    label: 'GST Number',
+                    controller: gstCtrl,
+                    hint: 'Enter GST number (Optional)',
+                  ),
                 ],
 
                 const SizedBox(height: 12),
@@ -786,51 +813,111 @@ class _ProfileViewState extends State<ProfileView> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Get.back(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textGray,
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.manrope(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textGray,
+                          ),
+                        ),
                       ),
                     ),
-                    onPressed: () async {
-                      if (street1Ctrl.text.trim().isEmpty ||
-                          pincodeCtrl.text.trim().isEmpty) {
-                        return;
-                      }
-                      if (customerType == 'contractor' &&
-                          !_ctrl.isGstValid(gstCtrl.text)) {
-                        Get.snackbar(
-                          'Invalid GST',
-                          'Enter a valid GST number.',
-                        );
-                        return;
-                      }
-                      await _ctrl.addAddress(
-                        streetAddress1: street1Ctrl.text.trim(),
-                        streetAddress2: street2Ctrl.text.trim(),
-                        pincode: pincodeCtrl.text.trim(),
-                        isPrimary: isPrimary,
-                        customerType: customerType,
-                        gstNumber: customerType == 'contractor'
-                            ? gstCtrl.text.trim()
-                            : null,
-                      );
-                      Get.back();
-                    },
-                    child: Text(
-                      'Add Address',
-                      style: GoogleFonts.manrope(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                if (street1Ctrl.text.trim().isEmpty) {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please enter street address',
+                                  );
+                                  return;
+                                }
+                                if (pincodeCtrl.text.trim().isEmpty) {
+                                  Get.snackbar('Error', 'Please enter pincode');
+                                  return;
+                                }
+                                if (pincodeCtrl.text.trim().length != 6) {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please enter a valid 6-digit pincode',
+                                  );
+                                  return;
+                                }
+                                if (customerType == 'contractor' &&
+                                    gstCtrl.text.trim().isNotEmpty &&
+                                    !_ctrl.isGstValid(gstCtrl.text.trim())) {
+                                  Get.snackbar(
+                                    'Invalid GST',
+                                    'Enter a valid GST number.',
+                                  );
+                                  return;
+                                }
+
+                                setSheet(() => isLoading = true);
+
+                                await _ctrl.addAddress(
+                                  streetAddress1: street1Ctrl.text.trim(),
+                                  streetAddress2: street2Ctrl.text.trim(),
+                                  pincode: pincodeCtrl.text.trim(),
+                                  isPrimary: isPrimary,
+                                  customerType: customerType,
+                                  gstNumber:
+                                      customerType == 'contractor' &&
+                                          gstCtrl.text.trim().isNotEmpty
+                                      ? gstCtrl.text.trim().toUpperCase()
+                                      : null,
+                                );
+
+                                setSheet(() => isLoading = false);
+                                Get.back();
+                              },
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                'Add Address',
+                                style: GoogleFonts.manrope(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -839,6 +926,7 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  // EDIT ADDRESS SHEET
   void _showEditAddressSheet(AddressModel address) {
     final street1Ctrl = TextEditingController(text: address.streetAddress1);
     final street2Ctrl = TextEditingController(text: address.streetAddress2);
@@ -846,6 +934,7 @@ class _ProfileViewState extends State<ProfileView> {
     final gstCtrl = TextEditingController(text: address.gstNumber ?? '');
     bool isPrimary = address.isPrimary;
     String customerType = address.customerType ?? 'home_owner';
+    bool isLoading = false;
 
     Get.bottomSheet(
       isScrollControlled: true,
@@ -866,15 +955,25 @@ class _ProfileViewState extends State<ProfileView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Edit Address',
-                  style: GoogleFonts.manrope(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.inputText,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Edit Address',
+                        style: GoogleFonts.manrope(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inputText,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Get.back(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 Text(
                   'Account Type',
@@ -889,7 +988,7 @@ class _ProfileViewState extends State<ProfileView> {
                   children: [
                     Expanded(
                       child: _AccountTypeChip(
-                        label: 'Individual',
+                        label: 'Home Owner',
                         selected: customerType == 'home_owner',
                         onTap: () =>
                             setSheet(() => customerType = 'home_owner'),
@@ -908,19 +1007,32 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
                 const SizedBox(height: 16),
 
-                _sheetField('Street Address 1', street1Ctrl),
+                _addressSheetField(
+                  label: 'Street Address 1 *',
+                  controller: street1Ctrl,
+                  hint: 'House/Building/Street',
+                ),
                 const SizedBox(height: 14),
-                _sheetField('Street Address 2', street2Ctrl),
+                _addressSheetField(
+                  label: 'Street Address 2',
+                  controller: street2Ctrl,
+                  hint: 'Area/Landmark (Optional)',
+                ),
                 const SizedBox(height: 14),
-                _sheetField(
-                  'Pincode',
-                  pincodeCtrl,
+                _addressSheetField(
+                  label: 'Pincode *',
+                  controller: pincodeCtrl,
                   keyboard: TextInputType.number,
+                  hint: 'Enter 6-digit pincode',
                 ),
 
                 if (customerType == 'contractor') ...[
                   const SizedBox(height: 14),
-                  _sheetField('GST Number', gstCtrl),
+                  _addressSheetField(
+                    label: 'GST Number',
+                    controller: gstCtrl,
+                    hint: 'Enter GST number (Optional)',
+                  ),
                 ],
 
                 const SizedBox(height: 12),
@@ -941,51 +1053,112 @@ class _ProfileViewState extends State<ProfileView> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Get.back(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textGray,
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.manrope(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textGray,
+                          ),
+                        ),
                       ),
                     ),
-                    onPressed: () async {
-                      if (street1Ctrl.text.trim().isEmpty ||
-                          pincodeCtrl.text.trim().isEmpty) {
-                        return;
-                      }
-                      if (customerType == 'contractor' &&
-                          !_ctrl.isGstValid(gstCtrl.text)) {
-                        Get.snackbar(
-                          'Invalid GST',
-                          'Enter a valid GST number.',
-                        );
-                        return;
-                      }
-                      await _ctrl.addAddress(
-                        streetAddress1: street1Ctrl.text.trim(),
-                        streetAddress2: street2Ctrl.text.trim(),
-                        pincode: pincodeCtrl.text.trim(),
-                        isPrimary: isPrimary,
-                        customerType: customerType,
-                        gstNumber: customerType == 'contractor'
-                            ? gstCtrl.text.trim().toUpperCase()
-                            : null,
-                      );
-                      Get.back();
-                    },
-                    child: Text(
-                      'Save Address',
-                      style: GoogleFonts.manrope(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                if (street1Ctrl.text.trim().isEmpty) {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please enter street address',
+                                  );
+                                  return;
+                                }
+                                if (pincodeCtrl.text.trim().isEmpty) {
+                                  Get.snackbar('Error', 'Please enter pincode');
+                                  return;
+                                }
+                                if (pincodeCtrl.text.trim().length != 6) {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please enter a valid 6-digit pincode',
+                                  );
+                                  return;
+                                }
+                                if (customerType == 'contractor' &&
+                                    gstCtrl.text.trim().isNotEmpty &&
+                                    !_ctrl.isGstValid(gstCtrl.text.trim())) {
+                                  Get.snackbar(
+                                    'Invalid GST',
+                                    'Enter a valid GST number.',
+                                  );
+                                  return;
+                                }
+
+                                setSheet(() => isLoading = true);
+
+                                await _ctrl.updateAddress(
+                                  addressId: address.id,
+                                  streetAddress1: street1Ctrl.text.trim(),
+                                  streetAddress2: street2Ctrl.text.trim(),
+                                  pincode: pincodeCtrl.text.trim(),
+                                  isPrimary: isPrimary,
+                                  customerType: customerType,
+                                  gstNumber:
+                                      customerType == 'contractor' &&
+                                          gstCtrl.text.trim().isNotEmpty
+                                      ? gstCtrl.text.trim().toUpperCase()
+                                      : null,
+                                );
+
+                                setSheet(() => isLoading = false);
+                                Get.back();
+                              },
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                'Save Address',
+                                style: GoogleFonts.manrope(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -994,8 +1167,64 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  // ── Shared helpers ──────────────────────────────────────────────────────────
+  // ── Shared Helpers ──────────────────────────────────────────────────────────
 
+  // Helper for address sheet fields (with label)
+  Widget _addressSheetField({
+    required String label,
+    required TextEditingController controller,
+    TextInputType keyboard = TextInputType.text,
+    int maxLines = 1,
+    String? hint,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.manrope(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textGray,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboard,
+          maxLines: maxLines,
+          style: GoogleFonts.manrope(fontSize: 14, color: AppColors.inputText),
+          decoration: InputDecoration(
+            hintText: hint ?? '',
+            hintStyle: GoogleFonts.manrope(
+              fontSize: 14,
+              color: AppColors.textGray,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primaryGreen),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper for simple fields (without label)
   Widget _sheetField(
     String hint,
     TextEditingController ctrl, {
@@ -1030,7 +1259,6 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  /// Returns up to 2 uppercase initials from a full name.
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';

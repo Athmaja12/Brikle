@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthApiService {
-  static const String baseUrl = "http://192.168.1.65:8000/api";
+  static const String baseUrl = "https://backend.brikle.in/api";
 
   Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
     final response = await http.post(

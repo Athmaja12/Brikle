@@ -1,3 +1,4 @@
+import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/custombutton.dart';
@@ -53,8 +54,16 @@ class LoginView extends GetView<LoginController> {
 
         final data = await _authApiService.loginWithGoogle(idToken);
         debugPrint('[LoginView] Google login successful: $data');
-        if (!context.mounted) return;
 
+        // ⚠️ This was missing — without it the user is logged out on restart
+        await SessionManager.saveSession(
+          accessToken: data['access'] as String,
+          refreshToken: data['refresh'] as String,
+          customerId: data['customer_id'] as int?,
+          phoneNumber: data['phone_number'] as String?,
+        );
+
+        if (!context.mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const MainScreen()),

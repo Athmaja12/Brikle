@@ -1,5 +1,7 @@
+import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingPageData {
   final String title;
@@ -56,12 +58,13 @@ class OnboardingController extends GetxController {
 
   void skip() => _goToAuth();
 
-  void _goToAuth() {
-    // TODO: check stored login/token here.
-    // final hasCredentials = StorageService.hasToken();
-    // Get.offAllNamed(hasCredentials ? '/login' : '/register');
-    Get.offAllNamed('/login');
-  }
+void _goToAuth() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('has_seen_onboarding', true);
+
+  final loggedIn = await SessionManager.isLoggedIn();
+  Get.offAllNamed(loggedIn ? '/home' : '/login');
+}
 
   @override
   void onClose() {

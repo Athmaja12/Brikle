@@ -15,7 +15,7 @@ class ApiConfig {
 
   // ── Profile ────────────────────────────────────────────────────────────────
   static String get profileUrl => '$baseUrl/api/customer-profile/';
-  static String get profileEditUrl => '$baseUrl/api/customer-profile/edit/';
+  static String get profileEditUrl => '$baseUrl/api/customer-profile/';
   static String get deleteAccountUrl => '$baseUrl/api/customer-delete-account/';
 
   // ── Addresses ──────────────────────────────────────────────────────────────
@@ -53,27 +53,50 @@ class ApiConfig {
   static String addressByIdUrl(int id) =>
       '$baseUrl/api/customer/addresses/$id/';
 
-  // ── Coupon ──────────────────────────────────────────────
-  static String get applyCouponUrl => '$baseUrl/api/apply-coupon/';
-
   // ── Checkout ────────────────────────────────────────────
-  static String get checkoutUrl => '$baseUrl/api/customer/checkout/';
+  static String get checkoutUrl => '$baseUrl/api/checkout/';
+  static String get placeOrderUrl => '$baseUrl/api/order/place/';
 
   // ── Pincode ─────────────────────────────────────────────
   static String get checkPincodeUrl => '$baseUrl/api/customer-check-pincode/';
+
+  // ── Vehicles ────────────────────────────────────────────
+  static String get availableVehiclesUrl =>
+      '$baseUrl/api/user/vehicles/available/';
+
+  // ── Coupon ──────────────────────────────────────────────
+  static String get myCouponsUrl => '$baseUrl/api/user/my-coupons/';
+
+ 
   // ── Orders ──────────────────────────────────────────────
   static String get customerOrdersUrl => '$baseUrl/api/customer-orders/';
   static String customerOrderDetailUrl(int orderId) =>
       '$baseUrl/api/customer-orders/$orderId/';
 
   // ── Wishlist ───────────────────────────────────────────────────────────────
- // ── Wishlist ───────────────────────────────────────────────
+  // ── Wishlist ───────────────────────────────────────────────
 
-static String get wishlistUrl => '$baseUrl/api/wishlist/';
+  static String get wishlistUrl => '$baseUrl/api/wishlist/';
 
-static String wishlistItemUrl(int variantId) =>
-    '$baseUrl/api/wishlist/$variantId/';
+  static String wishlistItemUrl(int variantId) =>
+      '$baseUrl/api/wishlist/$variantId/';
+
+
+      // ══════════════════════════════════════════════════════════════════════
+  // CALCULATOR
+  // ══════════════════════════════════════════════════════════════════════
+ 
+  static String get calculatorListUrl => '$baseUrl/api/calculator/';
+ 
+  static String calculatorDetailUrl(int id) => '$baseUrl/api/calculator/$id/';
+ 
+  static String get paintDropdownUrl => '$baseUrl/api/paint/drop-down/';
+ 
+  static String get paintCalculateUrl => '$baseUrl/api/calculator/paint/';
 }
+
+
+
 
 /// Thrown by ApiService on network errors or non-2xx responses.
 class ApiException implements Exception {

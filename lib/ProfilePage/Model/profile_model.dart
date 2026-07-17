@@ -5,6 +5,7 @@ class ProfileModel {
   final String? email;
   final String phoneNumber;
   final String address;
+  final String pincode; // ← NEW
   final bool isVerified;
 
   ProfileModel({
@@ -12,40 +13,45 @@ class ProfileModel {
     this.email,
     this.phoneNumber = '',
     this.address = '',
+    this.pincode = '', // ← NEW
     this.isVerified = false,
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
     return ProfileModel(
-      fullName:    json['full_name']?.toString()    ?? '',
-      email:       json['email']?.toString(),
+      fullName: json['full_name']?.toString() ?? '',
+      email: json['email']?.toString(),
       phoneNumber: json['phone_number']?.toString() ?? '',
-      address:     json['address']?.toString()      ?? '',
-      isVerified:  json['is_verified'] == true,
+      address: json['address']?.toString() ?? '',
+      pincode: json['pincode']?.toString() ?? '', // ← NEW
+      isVerified: json['is_verified'] == true,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'full_name':    fullName,
-        'email':        email,
-        'phone_number': phoneNumber,
-        'address':      address,
-        'is_verified':  isVerified,
-      };
+    'full_name': fullName,
+    'email': email,
+    'phone_number': phoneNumber,
+    'address': address,
+    'pincode': pincode, // ← NEW
+    'is_verified': isVerified,
+  };
 
   ProfileModel copyWith({
-    String?  fullName,
-    String?  email,
-    String?  phoneNumber,
-    String?  address,
-    bool?    isVerified,
+    String? fullName,
+    String? email,
+    String? phoneNumber,
+    String? address,
+    String? pincode, // ← NEW
+    bool? isVerified,
   }) {
     return ProfileModel(
-      fullName:    fullName    ?? this.fullName,
-      email:       email       ?? this.email,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
       phoneNumber: phoneNumber ?? this.phoneNumber,
-      address:     address     ?? this.address,
-      isVerified:  isVerified  ?? this.isVerified,
+      address: address ?? this.address,
+      pincode: pincode ?? this.pincode, // ← NEW
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 }
@@ -78,7 +84,8 @@ class AddressModel {
       id: json['id']?.toString() ?? '',
       // fallback to old `address_line` in case any legacy records
       // don't have street_address1 populated yet
-      streetAddress1: json['street_address1']?.toString() ??
+      streetAddress1:
+          json['street_address1']?.toString() ??
           json['address_line']?.toString() ??
           '',
       streetAddress2: json['street_address2']?.toString() ?? '',
@@ -90,21 +97,22 @@ class AddressModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'street_address1': streetAddress1,
-        'street_address2': streetAddress2,
-        'pincode': pincode,
-        'is_primary': isPrimary,
-        if (customerType != null) 'customer_type': customerType,
-        if (gstNumber != null) 'gst_number': gstNumber,
-      };
+    'id': id,
+    'street_address1': streetAddress1,
+    'street_address2': streetAddress2,
+    'pincode': pincode,
+    'is_primary': isPrimary,
+    if (customerType != null) 'customer_type': customerType,
+    if (gstNumber != null) 'gst_number': gstNumber,
+  };
 
   /// Combined display line for the address card, e.g.
   /// "Building 4B, Phase 1, Infopark Kakkanad - 682042"
   String get fullAddress {
-    final parts = [streetAddress1, streetAddress2]
-        .where((s) => s.trim().isNotEmpty)
-        .join(', ');
+    final parts = [
+      streetAddress1,
+      streetAddress2,
+    ].where((s) => s.trim().isNotEmpty).join(', ');
     return pincode.trim().isNotEmpty ? '$parts - $pincode' : parts;
   }
 
@@ -125,6 +133,41 @@ class AddressModel {
       isPrimary: isPrimary ?? this.isPrimary,
       customerType: customerType ?? this.customerType,
       gstNumber: gstNumber ?? this.gstNumber,
+    );
+  }
+}
+
+class CouponModel {
+  final int id;
+  final String couponCode;
+  final int rewardMaterialId;
+  final String rewardMaterialName;
+  final int discountPercentage;
+  final DateTime expiryDate;
+  final bool isUsed;
+  final bool isExpired;
+
+  CouponModel({
+    required this.id,
+    required this.couponCode,
+    required this.rewardMaterialId,
+    required this.rewardMaterialName,
+    required this.discountPercentage,
+    required this.expiryDate,
+    required this.isUsed,
+    required this.isExpired,
+  });
+
+  factory CouponModel.fromJson(Map<String, dynamic> json) {
+    return CouponModel(
+      id: json["id"],
+      couponCode: json["coupon_code"] ?? "",
+      rewardMaterialId: json["reward_material_id"] ?? 0,
+      rewardMaterialName: json["reward_material_name"] ?? "",
+      discountPercentage: json["discount_percentage"] ?? 0,
+      expiryDate: DateTime.parse(json["expiry_date"]),
+      isUsed: json["is_used"] ?? false,
+      isExpired: json["is_expired"] ?? false,
     );
   }
 }

@@ -177,7 +177,7 @@ class HomeController extends GetxController {
       topDeals.value = (results[3] as List)
           .map((e) => DealItem.fromJson(e as Map<String, dynamic>))
           .toList();
-  // ← NEW: auto-check serviceability for the profile's pincode
+      // ← NEW: auto-check serviceability for the profile's pincode
       if (deliverToPincode.value != '—') {
         checkPincode(deliverToPincode.value);
       }
@@ -210,11 +210,13 @@ class HomeController extends GetxController {
     debugPrint(
       '[HomeController] _loadBestselling(categoryId: $categoryId) started',
     );
+    
     try {
       final results = await ApiService.getBestSelling(categoryId);
       debugPrint(
         '[HomeController] ✅ getBestSelling OK — ${results.length} items for categoryId=$categoryId',
       );
+      debugPrint(results.toString());
       bestselling.value = results
           .map((e) => BestSellingItem.fromJson(e as Map<String, dynamic>))
           .toList();

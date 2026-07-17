@@ -9,7 +9,12 @@ class CategoryController extends GetxController {
   final RxList<CategoryGridItem> categories = <CategoryGridItem>[].obs;
   final RxBool isLoading = true.obs;
 
-  final RxString deliverToPincode = '—'.obs; // ← NEW
+  final RxString deliverToPincode = '—'.obs;
+
+  // ── Pincode serviceability (mirrors HomeController) ──────────────────
+  final RxBool isPincodeServiceable = true.obs;
+  final RxString pincodeMessage = ''.obs;
+  final RxBool isCheckingPincode = false.obs;
 
   final OfferBanner offerBanner = const OfferBanner(
     title: 'Build Stronger, Build Better',
@@ -21,7 +26,8 @@ class CategoryController extends GetxController {
     CategoryPromoTile(
       assetPath: 'assets/images/putty.png',
       categoryName: 'Electricals',
-      semanticLabel: 'Putty & Primers from top brands. Get guaranteed lowest prices.',
+      semanticLabel:
+          'Putty & Primers from top brands. Get guaranteed lowest prices.',
     ),
     CategoryPromoTile(
       assetPath: 'assets/images/paint.png',
@@ -43,10 +49,13 @@ class CategoryController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _loadAll();
+    refresh();
   }
 
-  Future<void> _loadAll() async {
+  /// Renamed from _loadAll → public refresh() so RefreshIndicator (pull
+  /// to refresh) and the pincode sheet can both call it, same pattern
+  /// as HomeController.refresh().
+  Future<void> refresh() async {
     isLoading.value = true;
     try {
       final results = await Future.wait([
@@ -60,6 +69,10 @@ class CategoryController extends GetxController {
 
       final profile = results[1] as Map<String, dynamic>;
       deliverToPincode.value = profile['pincode']?.toString() ?? '—';
+
+      if (deliverToPincode.value != '—') {
+        checkPincode(deliverToPincode.value);
+      }
     } on ApiException catch (e) {
       debugPrint('[CategoryController] failed: ${e.message}');
       Get.snackbar('Could not load Categories', e.message);
@@ -70,15 +83,34 @@ class CategoryController extends GetxController {
     }
   }
 
+  Future<void> checkPincode(String pincode) async {
+    isCheckingPincode.value = true;
+    try {
+      final response = await ApiService.checkPincode(pincode);
+      isPincodeServiceable.value = response['is_serviceable'] as bool? ?? false;
+      pincodeMessage.value = response['message']?.toString() ?? '';
+      if (isPincodeServiceable.value) {
+        deliverToPincode.value = response['pincode']?.toString() ?? pincode;
+      }
+    } on ApiException catch (e) {
+      isPincodeServiceable.value = false;
+      pincodeMessage.value = e.message;
+    } catch (e) {
+      isPincodeServiceable.value = false;
+      pincodeMessage.value = 'Could not check delivery for this pincode.';
+    } finally {
+      isCheckingPincode.value = false;
+    }
+  }
 
-void openCategory(BuildContext context, CategoryGridItem category) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => CategoryProductsScreenWrapper(categoryId: category.id),
-    ),
-  );
-}
+  void openCategory(BuildContext context, CategoryGridItem category) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryProductsScreenWrapper(categoryId: category.id),
+      ),
+    );
+  }
 
   void openCategoryByName(BuildContext context, String categoryName) {
     final match = categories.firstWhereOrNull(

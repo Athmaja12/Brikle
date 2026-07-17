@@ -1,8 +1,11 @@
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
+import 'package:brikle/AppStyle/pincode.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/Category/Controller/category_controller.dart';
 import 'package:brikle/Category/Model/category_model.dart';
+import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
+import 'package:brikle/Wishlist/View/wishlist_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -22,14 +25,17 @@ class CategoryPage extends GetView<CategoryController> {
           if (controller.isLoading.value) {
             return const Center(child: CircularProgressIndicator());
           }
-          return ListView(
-            children: [
-              _SearchHeader(controller: controller),
-              _CategoriesGridSection(controller: controller),
-              _OfferZoneBanner(controller: controller),
-              _PromoGridSection(controller: controller),
-              const SizedBox(height: 24),
-            ],
+          return RefreshIndicator(
+            onRefresh: controller.refresh,
+            child: ListView(
+              children: [
+                _SearchHeader(controller: controller),
+                _CategoriesGridSection(controller: controller),
+                _OfferZoneBanner(controller: controller),
+                _PromoGridSection(controller: controller),
+                const SizedBox(height: 24),
+              ],
+            ),
           );
         }),
       ),
@@ -58,24 +64,37 @@ class _SearchHeader extends StatelessWidget {
               Icon(Icons.location_on, color: AppColors.primaryGreen, size: 18),
               SizedBox(width: Responsive.space(context, 4)),
               Obx(
-                () => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Deliver To', style: AppTextStyles.termsText(context)),
-                    Row(
-                      children: [
-                        Text(
-                          controller.deliverToPincode.value,
-                          style: AppTextStyles.fieldLabel(context).copyWith(
-                            color: AppColors.textDark,
-                            fontWeight: FontWeight.w600,
+                () => GestureDetector(
+                  onTap: () => showPincodeSheet(
+                    context: context,
+                    deliverToPincode: controller.deliverToPincode,
+                    isCheckingPincode: controller.isCheckingPincode,
+                    isPincodeServiceable: controller.isPincodeServiceable,
+                    pincodeMessage: controller.pincodeMessage,
+                    onCheck: controller.checkPincode,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Deliver To',
+                        style: AppTextStyles.termsText(context),
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            controller.deliverToPincode.value,
+                            style: AppTextStyles.fieldLabel(context).copyWith(
+                              color: AppColors.textDark,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        const Icon(Icons.keyboard_arrow_down, size: 16),
-                      ],
-                    ),
-                  ],
+                          const Icon(Icons.keyboard_arrow_down, size: 16),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const Spacer(),
@@ -100,18 +119,49 @@ class _SearchHeader extends StatelessWidget {
               const Spacer(),
               InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  // TODO: Navigate to Wishlist Screen
-                  // Get.to(() => const WishlistScreen());
-                },
-                child: const Icon(
-                  Icons.favorite_border_rounded,
-                  size: 22,
-                  color: Colors.black87,
-                ),
+                onTap: () => Get.to(() => const WishlistScreen()),
+                child: Obx(() {
+                  final count = Get.find<WishlistController>().items.length;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(
+                        Icons.favorite_border_rounded,
+                        size: 22,
+                        color: Colors.black87,
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          top: -4,
+                          right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            constraints: const BoxConstraints(
+                              minWidth: 10,
+                              minHeight: 10,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                }),
               ),
               SizedBox(width: Responsive.space(context, 16)),
-              const Icon(Icons.notifications_none_rounded), 
+              const Icon(Icons.notifications_none_rounded),
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
@@ -271,88 +321,30 @@ class _OfferZoneBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final banner = controller.offerBanner;
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.space(context, 16),
-        vertical: Responsive.space(context, 12),
+      padding: EdgeInsets.only(
+        left: Responsive.space(context, 16),
+        right: Responsive.space(context, 16),
+        bottom: Responsive.space(context, 12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Offer Zone',
-            style: AppTextStyles.welcomeBackTitle(
-              context,
-            ).copyWith(fontSize: 18),
-          ),
-          SizedBox(height: Responsive.space(context, 12)),
-          Container(
-            constraints: BoxConstraints(
-              minHeight: Responsive.height(context, 150),
-            ),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.brown.shade900,
-              borderRadius: BorderRadius.circular(16),
-              image: banner.imageUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(banner.imageUrl),
-                      fit: BoxFit.cover,
-                      colorFilter: ColorFilter.mode(
-                        Colors.black.withOpacity(0.3),
-                        BlendMode.darken,
-                      ),
-                    )
-                  : null,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  banner.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  banner.subtitle,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  banner.discountText,
-                  style: const TextStyle(
-                    color: Color(0xFFF5A623),
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF5A623),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'SHOP NOW',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CategoryPage()),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: 16 / 9, // matches the Figma banner card proportions
+            child: Image.asset(
+              'assets/images/banner.png',
+              width: double.infinity,
+              fit: BoxFit.cover,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -45,6 +45,9 @@ dependencies:
   firebase_auth: ^5.3.1
   google_sign_in: ^6.2.1
 
+  # --- Added for the Material Calculator screens (Consumer / context.read) ---
+  provider: ^6.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -65,11 +68,21 @@ flutter:
   assets:
     - assets\images\Construction Materials.jpg
     - assets\images\image1.png
+    - assets\images\banner.png
     - assets\images\onboarding1.png
     - assets\images\putty.png
     - assets\images\paint.png
     - assets\images\cement1.png
     - assets\images\brush.png
+    - assets\images\paints.png
+    - assets\images\cements.png
+    - assets\images\block.png
+    - assets\images\steel.png
+    - assets\images\fixit.png
+
+
+
+
     - .env
 
   # To add assets to your application, add an assets section, like this:

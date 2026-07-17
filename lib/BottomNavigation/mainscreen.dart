@@ -21,12 +21,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
 
-  final _homeCtrl = Get.put(HomeController());
+  final _homeCtrl = Get.find<HomeController>();
 
   late final List<Widget> _pages = [
     const HomeScreen(),
     CategoryPage(), // Category
-    const CalculatorPage(), // Orders
+    const MaterialCalculatorScreen(), // Orders
     const CartScreen(),
     const ProfileView(),
   ];

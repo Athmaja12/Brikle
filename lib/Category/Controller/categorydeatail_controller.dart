@@ -15,26 +15,39 @@ class CategoryProductsController extends GetxController {
     null,
   );
 
-  // Selected filters — instant-apply, Flipkart/Amazon style (no "Apply" button).
   final RxnInt selectedBrandId = RxnInt();
   final RxString selectedType = ''.obs;
   final RxString selectedQuantity = ''.obs;
 
+  // ── Pincode serviceability ────────────────────────────────────────
+  final RxString deliverToPincode = '—'.obs;
+  final RxBool isPincodeServiceable = true.obs;
+  final RxString pincodeMessage = ''.obs;
+  final RxBool isCheckingPincode = false.obs;
+
   @override
   void onInit() {
     super.onInit();
-    _load();
+    refresh();
   }
 
-  Future<void> _load() async {
+  /// Public refresh() — used both on init and by pull-to-refresh.
+  Future<void> refresh() async {
     isLoading.value = true;
     try {
       final results = await Future.wait([
         ApiService.getCategoryDetails(categoryId),
         ApiService.getCategoryFilterOptions(categoryId),
+        ApiService.getProfile(),
       ]);
       category.value = CategoryDetail.fromJson(results[0]);
       filterOptions.value = CategoryFilterOptions.fromJson(results[1]);
+
+      final profile = results[2] as Map<String, dynamic>;
+      deliverToPincode.value = profile['pincode']?.toString() ?? '—';
+      if (deliverToPincode.value != '—') {
+        checkPincode(deliverToPincode.value);
+      }
     } on ApiException catch (e) {
       debugPrint('[CategoryProductsController] failed: ${e.message}');
       Get.snackbar('Could not load category', e.message);
@@ -45,10 +58,26 @@ class CategoryProductsController extends GetxController {
     }
   }
 
-  /// Client-side filtering against the already-fetched product list —
-  /// instant results as filters change, matching Flipkart/Amazon's
-  /// immediate-apply UX. Switch to server-side query params here later
-  /// if the backend adds filtering support to the details endpoint.
+  Future<void> checkPincode(String pincode) async {
+    isCheckingPincode.value = true;
+    try {
+      final response = await ApiService.checkPincode(pincode);
+      isPincodeServiceable.value = response['is_serviceable'] as bool? ?? false;
+      pincodeMessage.value = response['message']?.toString() ?? '';
+      if (isPincodeServiceable.value) {
+        deliverToPincode.value = response['pincode']?.toString() ?? pincode;
+      }
+    } on ApiException catch (e) {
+      isPincodeServiceable.value = false;
+      pincodeMessage.value = e.message;
+    } catch (e) {
+      isPincodeServiceable.value = false;
+      pincodeMessage.value = 'Could not check delivery for this pincode.';
+    } finally {
+      isCheckingPincode.value = false;
+    }
+  }
+
   List<CategoryProductItem> get filteredProducts {
     final all = category.value?.products ?? [];
     return all.where((p) {
@@ -75,9 +104,6 @@ class CategoryProductsController extends GetxController {
     selectedQuantity.value = '';
   }
 
-  /// Switching category from the filter dropdown reloads this same screen
-  /// with the new category_id — simplest option, same architecture as
-  /// tapping a category card from the grid.
   void switchCategory(BuildContext context, int newCategoryId) {
     Navigator.pushReplacement(
       context,

@@ -1,7 +1,13 @@
+// lib/ApiConfiguration/apiservice.dart - Complete updated file with fix
+
 import 'dart:convert';
+import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
+import 'package:brikle/Calculation/Model/calculation_model.dart';
+import 'package:brikle/Calculation/Model/productCalculator_model.dart';
 import 'package:http/http.dart' as http;
+
 
 class ApiService {
   ApiService._();
@@ -12,9 +18,7 @@ class ApiService {
 
   static Future<Map<String, String>> _authHeaders() async {
     final token = await SessionManager.getAccessToken();
-
     print("ACCESS TOKEN => $token");
-
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
@@ -25,11 +29,6 @@ class ApiService {
   // AUTH
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/customer-register/
-  /// body: { full_name, phone_number, pincode, street_address1,
-  ///         street_address2, customer_type, gst_number? }
-  /// response: { id, phone_number, customer_type, gst_number, is_verified,
-  ///             otp, addresses: [...] }
   static Future<Map<String, dynamic>> register({
     required String fullName,
     required String phoneNumber,
@@ -53,9 +52,6 @@ class ApiService {
     return _post(ApiConfig.registerUrl, body);
   }
 
-  /// POST /api/customer-verify-otp/
-  /// body:     { phone_number, otp }
-  /// response: { message, access, refresh }
   static Future<Map<String, dynamic>> verifyRegisterOtp({
     required String phoneNumber,
     required String otp,
@@ -66,23 +62,14 @@ class ApiService {
     });
   }
 
-  /// POST /api/customer-resend-otp/
-  /// body:     { phone_number }
-  /// response: { message }  (may also include otp in dev/test mode)
   static Future<Map<String, dynamic>> resendOtp({required String phoneNumber}) {
     return _post(ApiConfig.resendOtpUrl, {'phone_number': phoneNumber});
   }
 
-  /// POST /api/customer-login/
-  /// body:     { phone_number }
-  /// response: { phone_number, otp }
   static Future<Map<String, dynamic>> login({required String phoneNumber}) {
     return _post(ApiConfig.loginUrl, {'phone_number': phoneNumber});
   }
 
-  /// POST /api/customer-login-verify/
-  /// body:     { phone_number, otp }
-  /// response: { message, access, refresh, customer_id }
   static Future<Map<String, dynamic>> verifyLoginOtp({
     required String phoneNumber,
     required String otp,
@@ -93,9 +80,6 @@ class ApiService {
     });
   }
 
-  /// POST /api/customer-logout/
-  /// body:     { refresh: "your_refresh_token" }
-  /// response: { refresh }
   static Future<Map<String, dynamic>> logout({
     required String refreshToken,
   }) async {
@@ -108,99 +92,105 @@ class ApiService {
   // PROFILE
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// GET /api/customer-profile/
-  /// response: { full_name, email, phone_number, address, is_verified }
   static Future<Map<String, dynamic>> getProfile() async {
     return _get(ApiConfig.profileUrl, headers: await _authHeaders());
   }
 
-  /// PUT/PATCH /api/customer-profile/edit/
-  /// body:     { full_name, email, address }  (all optional for PATCH)
-  /// response: { full_name, email, address }
+  /// ✅ FIXED: PATCH /api/customer-profile/ (without /edit/)
+  /// body: { full_name, email, phone_number, address, pincode } (all optional)
+  /// response: { full_name, email, phone_number, customer_type, gst_number, is_verified, address, pincode }
   static Future<Map<String, dynamic>> updateProfile({
     String? fullName,
     String? email,
+    String? phoneNumber,
     String? address,
+    String? pincode,
+    String? customerType,
+    String? gstNumber,
   }) async {
     final body = <String, dynamic>{};
     if (fullName != null) body['full_name'] = fullName;
     if (email != null) body['email'] = email;
+    if (phoneNumber != null) body['phone_number'] = phoneNumber;
     if (address != null) body['address'] = address;
+    if (pincode != null) body['pincode'] = pincode;
+    if (customerType != null) body['customer_type'] = customerType;
+    if (gstNumber != null) body['gst_number'] = gstNumber;
 
+    // ✅ FIX: Use profileUrl (without /edit/)
     return _patch(
-      ApiConfig.profileEditUrl,
+      ApiConfig.profileUrl, // Changed from ApiConfig.profileEditUrl
       body,
       headers: await _authHeaders(),
     );
   }
 
-  /// DELETE /api/customer-delete-account/
-  /// response: none (204)
   static Future<void> deleteAccount() async {
     await _delete(ApiConfig.deleteAccountUrl, headers: await _authHeaders());
   }
 
-  /// POST /api/customer-check-pincode/
-  /// body: { pincode }
-  /// response: { pincode, is_serviceable, message }
+  // ══════════════════════════════════════════════════════════════════════════
+  // PINCODE
+  // ══════════════════════════════════════════════════════════════════════════
+
   static Future<Map<String, dynamic>> checkPincode(String pincode) async {
     return _post(ApiConfig.checkPincodeUrl, {
       'pincode': pincode,
     }, headers: await _authHeaders());
   }
 
-  /// GET /api/customer-carousel/
-  /// The API returns a raw JSON List → _decode() wraps it as {'results': [...]}
-  static Future<List<dynamic>> getCarousel() async {
+  // ══════════════════════════════════════════════════════════════════════════
+  // VEHICLES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<List<VehicleModel>> getAvailableVehicles() async {
     final response = await _get(
-      ApiConfig.carouselUrl,
+      ApiConfig.availableVehiclesUrl,
       headers: await _authHeaders(),
     );
-    return response['carousels'] as List? ?? [];
-  }
-  // print("CAROUSEL RESPONSE => $response");
-
-  /// GET /api/superadmin/categories/
-  /// response: { count, next, previous, results: [...] }
-  static Future<List<dynamic>> getCategories() async {
-    final response = await _get(
-      ApiConfig.categoriesUrl,
-      headers: await _authHeaders(),
-    );
-    return response['results'] as List? ?? [];
+    final results = response['results'] as List? ?? [];
+    return results.map((e) => VehicleModel.fromJson(e)).toList();
   }
 
-  /// GET /api/deals-of-the-week/
-  /// response: { count, next, previous, results: [...] }
-  static Future<List<dynamic>> getDealsOfWeek() async {
-    final response = await _get(
-      ApiConfig.dealsOfWeekUrl,
-      headers: await _authHeaders(),
-    );
-    return response['results'] as List? ?? [];
+  // ══════════════════════════════════════════════════════════════════════════
+  // CHECKOUT & ORDER
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<Map<String, dynamic>> checkout({
+    required String pincode,
+    required String requestedDeliveryDate,
+    int? couponId,
+  }) async {
+    final body = <String, dynamic>{
+      'pincode': pincode,
+      'requested_delivery_date': requestedDeliveryDate,
+    };
+    if (couponId != null) body['coupon_id'] = couponId;
+    return _post(ApiConfig.checkoutUrl, body, headers: await _authHeaders());
   }
 
-  /// GET /api/best-selling/?category_id={id}
-  /// response: { count, next, previous, results: [...] }
-  static Future<List<dynamic>> getBestSelling(int categoryId) async {
-    final response = await _get(
-      ApiConfig.bestSellingUrl(categoryId),
-      headers: await _authHeaders(),
-    );
-    return response['results'] as List? ?? [];
+  static Future<Map<String, dynamic>> placeOrder({
+    required String paymentMethod,
+    required String shippingAddress,
+    required String pincode,
+    required String requestedDeliveryDate,
+  }) async {
+    return _post(ApiConfig.placeOrderUrl, {
+      'payment_method': paymentMethod,
+      'shipping_address': shippingAddress,
+      'pincode': pincode,
+      'requested_delivery_date': requestedDeliveryDate,
+    }, headers: await _authHeaders());
   }
 
-  // ══════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
   // CART
-  // ══════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
 
-  /// GET /api/cart/add/
-  /// response: { grand_total_with_gst, cart_items: [...] }
   static Future<Map<String, dynamic>> getCart() async {
     return _get(ApiConfig.cartUrl, headers: await _authHeaders());
   }
 
-  /// POST /api/cart/add/  — body: { variant, quantity }
   static Future<Map<String, dynamic>> addToCart({
     required int variantId,
     required int quantity,
@@ -211,7 +201,6 @@ class ApiService {
     }, headers: await _authHeaders());
   }
 
-  /// PATCH /api/cart/add/  — body: { variant, quantity }
   static Future<Map<String, dynamic>> updateCartItem({
     required int variantId,
     required int quantity,
@@ -222,7 +211,6 @@ class ApiService {
     }, headers: await _authHeaders());
   }
 
-  /// DELETE /api/cart/add/  — body: { variant }
   static Future<void> removeCartItem({required int variantId}) async {
     await _delete(
       ApiConfig.cartUrl,
@@ -231,7 +219,133 @@ class ApiService {
     );
   }
 
-  /// GET /api/superadmin/materials/{id}/
+  // ══════════════════════════════════════════════════════════════════════════
+  // CALCULATOR
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// GET api/calculator/
+  /// Returns the 5-card list for the "Material Calculator" screen.
+  static Future<CalculatorListResponse> getCalculatorList() async {
+    final response = await _get(
+      ApiConfig.calculatorListUrl,
+      headers: await _authHeaders(),
+    );
+    return CalculatorListResponse.fromJson(response);
+  }
+
+  /// GET api/calculator/{id}/
+  /// Called when a card's "Open Calculator" button is tapped. The
+  /// `redirect_slug` in the result tells you which calculator screen to push.
+  static Future<CalculatorDetailModel> getCalculatorDetail(int id) async {
+    final response = await _get(
+      ApiConfig.calculatorDetailUrl(id),
+      headers: await _authHeaders(),
+    );
+    return CalculatorDetailModel.fromJson(response);
+  }
+
+  /// GET api/paint/drop-down/
+  /// Populates the "Paint type" dropdown on the Paint Calculator screen.
+  static Future<List<PaintDropdownItem>> getPaintDropdown() async {
+    final response = await _get(
+      ApiConfig.paintDropdownUrl,
+      headers: await _authHeaders(),
+    );
+    final paints = response['paints'] as List? ?? [];
+    return paints.map((e) => PaintDropdownItem.fromJson(e)).toList();
+  }
+
+  /// POST api/calculator/paint/
+  /// Fired on "Calculate" and on debounced field changes.
+  static Future<PaintEstimateModel> calculatePaint({
+    required int materialId,
+    required double wallLength,
+    required double wallHeight,
+    required int numberOfWalls,
+    required int numberOfCoats,
+  }) async {
+    final response = await _post(
+      ApiConfig.paintCalculateUrl,
+      {
+        'material_id': materialId,
+        'wall_length': wallLength,
+        'wall_height': wallHeight,
+        'number_of_walls': numberOfWalls,
+        'number_of_coats': numberOfCoats,
+      },
+      headers: await _authHeaders(),
+    );
+    return PaintEstimateModel.fromJson(response);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PRODUCTS & CATEGORIES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<List<dynamic>> getCarousel() async {
+    final response = await _get(
+      ApiConfig.carouselUrl,
+      headers: await _authHeaders(),
+    );
+    return response['carousels'] as List? ?? [];
+  }
+
+  static Future<List<dynamic>> getCategories() async {
+    final response = await _get(
+      ApiConfig.categoriesUrl,
+      headers: await _authHeaders(),
+    );
+    return response['results'] as List? ?? [];
+  }
+
+  static Future<List<dynamic>> getDealsOfWeek() async {
+    final response = await _get(
+      ApiConfig.dealsOfWeekUrl,
+      headers: await _authHeaders(),
+    );
+    return response['results'] as List? ?? [];
+  }
+
+  static Future<List<dynamic>> getBestSelling(int categoryId) async {
+    final response = await _get(
+      ApiConfig.bestSellingUrl(categoryId),
+      headers: await _authHeaders(),
+    );
+    return response['results'] as List? ?? [];
+  }
+
+  static Future<List<dynamic>> getProducts() async {
+    final response = await _get(
+      ApiConfig.customerProductsUrl,
+      headers: await _authHeaders(),
+    );
+    return response['results'] ?? [];
+  }
+
+  static Future<List<dynamic>> getProductPriceTiers(int productId) async {
+    final response = await _get(
+      ApiConfig.productPriceTiersUrl(productId),
+      headers: await _authHeaders(),
+    );
+    return response['results'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> getCategoryDetails(int categoryId) async {
+    return _get(
+      ApiConfig.categoryDetailsUrl(categoryId),
+      headers: await _authHeaders(),
+    );
+  }
+
+  static Future<Map<String, dynamic>> getCategoryFilterOptions(
+    int categoryId,
+  ) async {
+    return _get(
+      ApiConfig.categoryFilterOptionsUrl(categoryId),
+      headers: await _authHeaders(),
+    );
+  }
+
   static Future<Map<String, dynamic>> getMaterialDetails(int materialId) async {
     return _get(
       ApiConfig.materialDetailsUrl(materialId),
@@ -243,10 +357,6 @@ class ApiService {
   // ADDRESSES
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/customer/addresses/
-  /// body:     { street_address1, street_address2, pincode, is_primary,
-  ///             customer_type?, gst_number? }
-  /// response: { id, street_address1, street_address2, pincode, is_primary, ... }
   static Future<Map<String, dynamic>> addAddress({
     required String streetAddress1,
     required String streetAddress2,
@@ -268,10 +378,6 @@ class ApiService {
     return _post(ApiConfig.addressListUrl, body, headers: await _authHeaders());
   }
 
-  /// PATCH /api/customer/addresses/{id}/
-  /// body:     { street_address1, street_address2, pincode, is_primary,
-  ///             customer_type?, gst_number? }  (all optional for PATCH)
-  /// response: { id, street_address1, street_address2, pincode, is_primary, ... }
   static Future<Map<String, dynamic>> updateAddress({
     required String addressId,
     String? streetAddress1,
@@ -296,57 +402,41 @@ class ApiService {
     );
   }
 
-  static Future<List<dynamic>> getProducts() async {
-    print("PRODUCT URL => ${ApiConfig.customerProductsUrl}");
-
-    final response = await _get(
-      ApiConfig.customerProductsUrl,
-      headers: await _authHeaders(),
-    );
-
-    print("PRODUCT RESPONSE => $response");
-
-    return response['results'] ?? [];
-  }
-
-  // ADD THIS ↓
-  static Future<List<dynamic>> getProductPriceTiers(int productId) async {
-    print("PRICE TIERS URL => ${ApiConfig.productPriceTiersUrl(productId)}");
-
-    final response = await _get(
-      ApiConfig.productPriceTiersUrl(productId),
-      headers: await _authHeaders(),
-    );
-
-    print("PRICE TIERS RESPONSE (product $productId) => $response");
-
-    return response['results'] ?? [];
-  }
-
   // ══════════════════════════════════════════════════════════════════════════
   // WISHLIST
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// GET /api/customer/wishlist/
- 
+  static Future<List<dynamic>> getWishlist() async {
+    final response = await _get(
+      ApiConfig.wishlistUrl,
+      headers: await _authHeaders(),
+    );
+    return response["wishlist_items"] ?? [];
+  }
 
+  static Future<void> addToWishlist({required int variantId}) async {
+    await _post(ApiConfig.wishlistUrl, {
+      "variant": variantId,
+    }, headers: await _authHeaders());
+  }
 
-  /// GET /api/categories/{id}/details/
-  static Future<Map<String, dynamic>> getCategoryDetails(int categoryId) async {
-    return _get(
-      ApiConfig.categoryDetailsUrl(categoryId),
+  static Future<void> removeFromWishlist({required int variantId}) async {
+    await _delete(
+      ApiConfig.wishlistItemUrl(variantId),
       headers: await _authHeaders(),
     );
   }
 
-  /// GET /api/categories/filter-options/?category_id={id}
-  static Future<Map<String, dynamic>> getCategoryFilterOptions(
-    int categoryId,
-  ) async {
-    return _get(
-      ApiConfig.categoryFilterOptionsUrl(categoryId),
+  // ══════════════════════════════════════════════════════════════════════════
+  // COUPONS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<List<dynamic>> getMyCoupons() async {
+    final response = await _get(
+      ApiConfig.myCouponsUrl,
       headers: await _authHeaders(),
     );
+    return response['results'] ?? [];
   }
 
 
@@ -435,7 +525,6 @@ class ApiService {
         'Could not reach the server. Check your connection and try again.',
       );
     }
-    // 204 No Content — success, nothing to parse
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     final decoded = _decode(response);
     throw ApiException(
@@ -445,15 +534,14 @@ class ApiService {
     );
   }
 
-  // AFTER:
   static dynamic _decodeRaw(http.Response response) {
     print("_decodeRaw => statusCode: ${response.statusCode}");
-    print("_decodeRaw => body: '${response.body}'"); // ✅ NEW
-    print("_decodeRaw => bodyLength: ${response.body.length}"); // ✅ NEW
+    print("_decodeRaw => body: '${response.body}'");
+    print("_decodeRaw => bodyLength: ${response.body.length}");
     try {
       return response.body.isNotEmpty ? jsonDecode(response.body) : null;
     } catch (e) {
-      print("_decodeRaw => jsonDecode FAILED: $e"); // ✅ NEW
+      print("_decodeRaw => jsonDecode FAILED: $e");
       throw ApiException(
         'Unexpected server response. Please try again.',
         statusCode: response.statusCode,
@@ -465,7 +553,6 @@ class ApiService {
     final raw = _decodeRaw(response);
     if (raw == null) return <String, dynamic>{};
     if (raw is Map<String, dynamic>) return raw;
-    // If server returned a List at the top level, wrap it
     if (raw is List) return {'results': raw};
     throw ApiException(
       'Unexpected server response. Please try again.',
@@ -484,12 +571,16 @@ class ApiService {
   }
 
   static Map<String, dynamic> _handleResponse(http.Response response) {
-    print("STATUS CODE => ${response.statusCode}");
-    print("RESPONSE BODY => ${response.body}");
-
-    // Reject non-2xx before attempting JSON decode
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      // Try to extract a message, but don't crash if body isn't JSON
+      // Detect HTML error pages (Django debug page, nginx 502, etc.)
+      final trimmed = response.body.trimLeft();
+      if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
+        throw ApiException(
+          'Server error (${response.statusCode}). Please try again later.',
+          statusCode: response.statusCode,
+        );
+      }
+
       String? message;
       try {
         final decoded = _decode(response);
@@ -500,37 +591,6 @@ class ApiService {
         statusCode: response.statusCode,
       );
     }
-
     return _decode(response);
-  }
-
-  // GET /api/wishlist/
- static Future<List<dynamic>> getWishlist() async {
-  final response = await _get(
-    ApiConfig.wishlistUrl,
-    headers: await _authHeaders(),
-  );
-
-  return response["wishlist_items"] ?? [];
-}
-static Future<void> addToWishlist({
-  required int variantId,
-}) async {
-  await _post(
-    ApiConfig.wishlistUrl,
-    {
-      "variant": variantId,
-    },
-    headers: await _authHeaders(),
-  );
-}
-
-  static Future<void> removeFromWishlist({
-    required int wishlistId,
-  }) async {
-    await _delete(
-      ApiConfig.wishlistItemUrl(wishlistId),
-      headers: await _authHeaders(),
-    );
   }
 }

@@ -1,13 +1,38 @@
+import 'dart:async';
+
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/AppStyle/sharedproduct_card.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/Category/View/category_page.dart';
+import 'package:brikle/Category/View/categorydetail_screen.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/Model/home_model.dart';
 import 'package:brikle/HomePage/View/notificationpage.dart';
+import 'package:brikle/Product/View/productdetails_page.dart';
+import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
+import 'package:brikle/Wishlist/View/wishlist_screen.dart';
+import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
+// Guards against malformed/empty URLs (e.g. "", "http://", stray
+// whitespace) that pass a plain isNotEmpty/!= null check but aren't real
+// network URLs — these crash image resolution with "No host specified
+// in URI file:///" instead of falling through to errorBuilder. Same
+// guard used in sharedproduct_card.dart, productdetails_page.dart, and
+// the bestselling card.
+bool _isValidImageUrl(String? url) {
+  if (url == null) return false;
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) return false;
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) return false;
+  if (!(uri.isScheme('HTTP') || uri.isScheme('HTTPS'))) return false;
+  if (uri.host.isEmpty) return false;
+  return true;
+}
 
 class HomeScreen extends GetView<HomeController> {
   const HomeScreen({super.key});
@@ -75,7 +100,6 @@ class _Header extends StatelessWidget {
             children: [
               Icon(Icons.location_on, color: AppColors.primaryGreen, size: 18),
               SizedBox(width: Responsive.space(context, 4)),
-              // Replace the Obx(() => Column(... 'Deliver To' ...)) block inside _Header with:
               Obx(
                 () => GestureDetector(
                   onTap: () => _showPincodeSheet(context, controller),
@@ -125,15 +149,46 @@ class _Header extends StatelessWidget {
               const Spacer(),
               InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  // TODO: Navigate to Wishlist Screen
-                  // Get.to(() => const WishlistScreen());
-                },
-                child: const Icon(
-                  Icons.favorite_border_rounded,
-                  size: 22,
-                  color: Colors.black87,
-                ),
+                onTap: () => Get.to(() => const WishlistScreen()),
+                child: Obx(() {
+                  final count = Get.find<WishlistController>().items.length;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(
+                        Icons.favorite_border_rounded,
+                        size: 22,
+                        color: Colors.black87,
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          top: -4,
+                          right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            constraints: const BoxConstraints(
+                              minWidth: 10,
+                              minHeight: 10,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                }),
               ),
               SizedBox(width: Responsive.space(context, 16)),
               InkWell(
@@ -181,7 +236,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-// ── Carousel ─────────────────────────────────────────────────────────────
+// ── Carousel — now auto-advances, image-URL-guarded ─────────────────────
 class _CarouselSection extends StatefulWidget {
   final HomeController controller;
   const _CarouselSection({required this.controller});
@@ -193,6 +248,38 @@ class _CarouselSection extends StatefulWidget {
 class _CarouselSectionState extends State<_CarouselSection> {
   final PageController _pageController = PageController();
   int _page = 0;
+  Timer? _autoPlayTimer;
+
+  static const _autoPlayInterval = Duration(seconds: 4);
+  static const _autoPlayAnimationDuration = Duration(milliseconds: 450);
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoPlay();
+  }
+
+  void _startAutoPlay() {
+    _autoPlayTimer?.cancel();
+    _autoPlayTimer = Timer.periodic(_autoPlayInterval, (_) {
+      final items = widget.controller.carousels;
+      if (items.length <= 1 || !_pageController.hasClients) return;
+
+      final nextPage = (_page + 1) % items.length;
+      _pageController.animateToPage(
+        nextPage,
+        duration: _autoPlayAnimationDuration,
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoPlayTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,18 +296,33 @@ class _CarouselSectionState extends State<_CarouselSection> {
           children: [
             SizedBox(
               height: Responsive.height(context, 160),
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: items.length,
-                onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (context, i) => ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    items[i].imageUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    errorBuilder: (_, __, ___) =>
-                        Container(color: AppColors.dotInactive),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification is ScrollStartNotification &&
+                      notification.dragDetails != null) {
+                    _startAutoPlay();
+                  }
+                  return false;
+                },
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: items.length,
+                  onPageChanged: (i) => setState(() => _page = i),
+                  itemBuilder: (context, i) => ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    // FIX: was Image.network(items[i].imageUrl, ...)
+                    // unconditionally with only an errorBuilder — an
+                    // empty/malformed string crashes before errorBuilder
+                    // can catch it. Now gated behind _isValidImageUrl.
+                    child: _isValidImageUrl(items[i].imageUrl)
+                        ? Image.network(
+                            items[i].imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            errorBuilder: (_, __, ___) =>
+                                Container(color: AppColors.dotInactive),
+                          )
+                        : Container(color: AppColors.dotInactive),
                   ),
                 ),
               ),
@@ -251,7 +353,7 @@ class _CarouselSectionState extends State<_CarouselSection> {
   }
 }
 
-// ── Categories ───────────────────────────────────────────────────────────
+// ── Categories — image-URL-guarded ───────────────────────────────────────
 class _CategoriesSection extends StatelessWidget {
   final HomeController controller;
   const _CategoriesSection({super.key, required this.controller});
@@ -284,20 +386,28 @@ class _CategoriesSection extends StatelessWidget {
                     final selected =
                         controller.selectedCategoryIndex.value == index;
 
-                    // Figma spec is on a 390-wide base frame; scale card, image box,
-                    // and radii by the same factor so proportions hold on any screen.
                     final scale = MediaQuery.of(context).size.width / 390;
                     const cardWidth = 105.0;
                     const cardHeight = 116.0;
                     const imageBoxHeight = 98.0;
 
                     return GestureDetector(
-                      onTap: () => controller.onCategoryTap(index),
+                      onTap: () {
+                        controller.onCategoryTap(index);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CategoryProductsScreenWrapper(
+                              categoryId: cat.id,
+                            ),
+                          ),
+                        );
+                      },
                       child: Container(
                         width: cardWidth * scale,
                         height: cardHeight * scale,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF228B22), // rgba(34,139,34,1)
+                          color: const Color(0xFF228B22),
                           borderRadius: BorderRadius.circular(8),
                           border: selected
                               ? Border.all(
@@ -308,8 +418,6 @@ class _CategoriesSection extends StatelessWidget {
                         ),
                         child: Stack(
                           children: [
-                            // Light green image area, pinned to top — shorter than the
-                            // card so the dark green shows through as a strip at the bottom
                             Positioned(
                               top: 0,
                               left: 0,
@@ -318,14 +426,19 @@ class _CategoriesSection extends StatelessWidget {
                                 height: imageBoxHeight * scale,
                                 padding: EdgeInsets.all(6 * scale),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFFE6F7E6,
-                                  ), // rgba(230,247,230,1)
+                                  color: const Color(0xFFE6F7E6),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
-                                  child: cat.imageUrl != null
+                                  // FIX: old check was `cat.imageUrl != null`,
+                                  // which is ALWAYS true — CategoryItem.imageUrl
+                                  // is built via _fullImageUrl() in home_model.dart,
+                                  // which always returns a String ('' when there's
+                                  // nothing), never null. So this branch used to
+                                  // always try Image.network, including on ''.
+                                  // Now checks real validity instead.
+                                  child: _isValidImageUrl(cat.imageUrl)
                                       ? Image.network(
                                           cat.imageUrl!,
                                           fit: BoxFit.contain,
@@ -335,7 +448,6 @@ class _CategoriesSection extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            // Remaining strip of dark green at the bottom holds the name
                             Positioned(
                               left: 0,
                               right: 0,
@@ -359,7 +471,7 @@ class _CategoriesSection extends StatelessWidget {
                         ),
                       ),
                     );
-                  }); // ← closes inner Obx
+                  });
                 },
               ),
             ),
@@ -385,9 +497,6 @@ class _ProductCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
-        // No longer "min" — let the column fill the grid cell so the
-        // Expanded image below can absorb the remaining space instead
-        // of the Column trying to be taller than the cell allows.
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -408,15 +517,12 @@ class _ProductCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.favorite_border, size: 18),
+              WishlistHeart(variantId: product.variantId, size: 18),
             ],
           ),
           const SizedBox(height: 6),
-          // ← Expanded instead of a fixed height: this is the only
-          // flexible element, so it grows/shrinks to make everything
-          // else fit exactly inside whatever height the grid gives it.
           Expanded(
-            child: product.imageUrl.isNotEmpty
+            child: _isValidImageUrl(product.imageUrl)
                 ? Image.network(
                     product.imageUrl,
                     fit: BoxFit.contain,
@@ -516,12 +622,19 @@ class _TopDealsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.topDeals.isEmpty) return const SizedBox.shrink();
+      final activeDeals = controller.topDeals
+          .where((d) => !d.isExpired)
+          .toList();
+
+      if (activeDeals.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
       return Padding(
         padding: EdgeInsets.only(
           left: Responsive.space(context, 16),
           right: Responsive.space(context, 16),
-          top: Responsive.space(context, 12),
+          top: Responsive.space(context, 16),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,24 +655,29 @@ class _TopDealsSection extends StatelessWidget {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: controller.topDeals.length,
+              itemCount: activeDeals.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                // childAspectRatio: 0.62,
-                mainAxisExtent:
-                    280, // Adjust this value to control the height of the cards
+                mainAxisSpacing: 12,
+                mainAxisExtent: 300,
               ),
-              itemBuilder: (context, index) => SharedProductCard(
-                product: CategoryProductItem(
-                  variantId: controller.topDeals[index].variantId,
-                  materialId: controller.topDeals[index].materialId,
-                  name: controller.topDeals[index].name,
-                  imageUrl: controller.topDeals[index].imageUrl,
-                  price: controller.topDeals[index].dealPrice,
-                ),
-              ),
+              itemBuilder: (context, index) {
+                final deal = activeDeals[index];
+                return SharedProductCard(
+                  product: CategoryProductItem(
+                    variantId: deal.variantId,
+                    materialId: deal.materialId,
+                    name: deal.name,
+                    imageUrl: deal.imageUrl,
+                    price: deal.dealPrice,
+                  ),
+                  dealBadgeText: deal.customTitle,
+                  dealEndDate: deal.endDate,
+                  originalPrice: deal.retailPrice,
+                  discountPercent: deal.discountPercent,
+                );
+              },
             ),
           ],
         ),
@@ -568,84 +686,46 @@ class _TopDealsSection extends StatelessWidget {
   }
 }
 
-// ── Category banner (dynamic) ────────────────────────────────────────────
+// ── Category banner (image only, tap → Category page) ───────────────────
 class _CategoryBanner extends StatelessWidget {
   final HomeController controller;
   const _CategoryBanner({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final banner = controller.currentBanner;
-      return Padding(
-        padding: EdgeInsets.only(
-          left: Responsive.space(context, 16),
-          right: Responsive.space(context, 16),
-          bottom: Responsive.space(context, 12),
-        ),
-        child: Container(
-          // height: Responsive.height(context, 150),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.brown.shade900,
-            borderRadius: BorderRadius.circular(16),
-            image: banner.imageUrl.isNotEmpty
-                ? DecorationImage(
-                    image: NetworkImage(banner.imageUrl),
-                    fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withOpacity(0.3),
-                      BlendMode.darken,
-                    ),
-                  )
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                banner.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                banner.subtitle,
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF5A623),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'SHOP NOW',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+    return Padding(
+      padding: EdgeInsets.only(
+        left: Responsive.space(context, 16),
+        right: Responsive.space(context, 16),
+        bottom: Responsive.space(context, 12),
+        top: 0,
+      ),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CategoryPage()),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Image.asset(
+              'assets/images/banner.png',
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
-      );
-    });
+      ),
+    );
   }
 }
 
-// ── Bestselling on [Category] (dynamic) ──────────────────────────────────
+// ── Bestselling on [Category] — tap-only, no cart (no variant data) ─────
 class _BestsellingSection extends StatelessWidget {
   final HomeController controller;
-
   const _BestsellingSection({required this.controller});
 
   @override
@@ -657,7 +737,6 @@ class _BestsellingSection extends StatelessWidget {
           child: Center(child: CircularProgressIndicator()),
         );
       }
-
       if (controller.bestselling.isEmpty) {
         return const SizedBox.shrink();
       }
@@ -683,9 +762,7 @@ class _BestsellingSection extends StatelessWidget {
                 Text('View All', style: AppTextStyles.authPromptLink(context)),
               ],
             ),
-
             SizedBox(height: Responsive.space(context, 12)),
-
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -694,32 +771,153 @@ class _BestsellingSection extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                // childAspectRatio: 0.62,
-                mainAxisExtent:
-                    280, // Adjust this value to control the height of the cards
+                mainAxisExtent: 220,
               ),
-              itemBuilder: (context, index) {
-                final item = controller.bestselling[index];
-                return _ProductCard(
-                  product: DealItem(
-                    dealId: item.id,
-                    variantId: item
-                        .id, // bestselling has no real variant id — placeholder, as before
-                    materialId: item
-                        .id, // ← ADDED: BestSellingItem.id is the material's own id
-                    name: item.name,
-                    imageUrl: item.imageUrl ?? '',
-                    retailPrice: item.retailPrice ?? 2999,
-                    dealPrice: item.dealPrice ?? 1199,
-                    discountPercent: item.discountPercent ?? 30,
-                  ),
-                );
-              },
+              itemBuilder: (context, index) =>
+                  _BestsellingCard(item: controller.bestselling[index]),
             ),
           ],
         ),
       );
     });
+  }
+}
+
+class _BestsellingCard extends StatelessWidget {
+  final BestSellingItem item;
+  const _BestsellingCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetailScreen(
+              product: CategoryProductItem(
+                variantId: 0,
+                materialId: item.id,
+                name: item.name,
+                imageUrl: item.imageUrl,
+                price: item.hasOffer ? item.dealPrice! : item.retailPrice,
+                brandName: item.brandName,
+              ),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (item.hasOffer)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDFF5E3),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${item.discountPercent}% Off',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.primaryGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: _isValidImageUrl(item.imageUrl)
+                  ? Image.network(
+                      item.imageUrl,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 50,
+                          color: Colors.black26,
+                        ),
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        size: 50,
+                        color: Colors.black26,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 6),
+            if (item.brandName != null && item.brandName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  item.brandName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textGray,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            Text(
+              item.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.fieldLabel(
+                context,
+              ).copyWith(color: AppColors.textDark),
+            ),
+            const SizedBox(height: 4),
+            if (item.hasOffer)
+              Row(
+                children: [
+                  Text(
+                    '₹${item.dealPrice!.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '₹${item.retailPrice.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      decoration: TextDecoration.lineThrough,
+                      color: AppColors.textGray,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              )
+            else
+              Text(
+                '₹${item.retailPrice.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -731,7 +929,10 @@ class _PromoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: Responsive.space(context, 16)),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.space(context, 16),
+        vertical: 0,
+      ),
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -740,8 +941,7 @@ class _PromoGrid extends StatelessWidget {
           crossAxisCount: 2,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio:
-              1.7, // banner-shaped tile — tune to match your Figma crop
+          childAspectRatio: 1.7,
         ),
         itemBuilder: (context, index) {
           final tile = controller.promoTiles[index];
@@ -772,6 +972,8 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
     text: controller.deliverToPincode.value,
   );
 
+  Timer? _debounceTimer;
+
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -779,6 +981,11 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (sheetContext) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.pincodeMessage.value = '';
+        controller.isPincodeServiceable.value = true;
+      });
+
       return Padding(
         padding: EdgeInsets.only(
           left: 20,
@@ -801,6 +1008,16 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
               controller: textController,
               keyboardType: TextInputType.number,
               maxLength: 6,
+              onChanged: (value) {
+                controller.pincodeMessage.value = '';
+                controller.isPincodeServiceable.value = true;
+                _debounceTimer?.cancel();
+                if (value.length == 6) {
+                  _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+                    controller.checkPincode(value.trim());
+                  });
+                }
+              },
               decoration: InputDecoration(
                 hintText: 'Enter pincode',
                 counterText: '',
@@ -824,14 +1041,30 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
                 return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  controller.pincodeMessage.value,
-                  style: TextStyle(
-                    color: controller.isPincodeServiceable.value
-                        ? AppColors.primaryGreen
-                        : AppColors.errorRed,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      controller.isPincodeServiceable.value
+                          ? Icons.check_circle
+                          : Icons.error,
+                      color: controller.isPincodeServiceable.value
+                          ? AppColors.primaryGreen
+                          : AppColors.errorRed,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        controller.pincodeMessage.value,
+                        style: TextStyle(
+                          color: controller.isPincodeServiceable.value
+                              ? AppColors.primaryGreen
+                              : AppColors.errorRed,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             }),
@@ -842,7 +1075,14 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
                 onPressed: () {
                   final pin = textController.text.trim();
                   if (pin.length == 6) {
+                    _debounceTimer?.cancel();
                     controller.checkPincode(pin);
+                  } else {
+                    Get.snackbar(
+                      'Invalid Pincode',
+                      'Please enter a valid 6-digit pincode',
+                      snackPosition: SnackPosition.BOTTOM,
+                    );
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -867,5 +1107,7 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
         ),
       );
     },
-  );
+  ).whenComplete(() {
+    _debounceTimer?.cancel();
+  });
 }

@@ -1,13 +1,17 @@
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/circularbackbutton.dart';
+import 'package:brikle/AppStyle/pincode.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/AppStyle/sharedproduct_card.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Category/Controller/categorydeatail_controller.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
+import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
+import 'package:brikle/Wishlist/View/wishlist_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -46,16 +50,19 @@ class CategoryProductsScreen extends StatelessWidget {
           if (cat == null) {
             return const Center(child: Text('Could not load category'));
           }
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              _TopBar(),
-              _Banner(categoryName: cat.name),
-              _ProductCountHeader(controller: controller),
-              _FilterRow(controller: controller),
-              _ProductGrid(controller: controller),
-              const SizedBox(height: 24),
-            ],
+          return RefreshIndicator(
+            onRefresh: controller.refresh,
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _TopBar(controller: controller),
+                _Banner(categoryName: cat.name),
+                _ProductCountHeader(controller: controller),
+                _FilterRow(controller: controller),
+                _ProductGrid(controller: controller),
+                const SizedBox(height: 24),
+              ],
+            ),
           );
         }),
       ),
@@ -75,6 +82,9 @@ class CategoryProductsScreen extends StatelessWidget {
 
 // ── Top bar: Deliver To + logo + icons + search (matches Home/Category tab) ─
 class _TopBar extends StatelessWidget {
+  final CategoryProductsController controller;
+  const _TopBar({required this.controller});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -89,24 +99,39 @@ class _TopBar extends StatelessWidget {
             children: [
               Icon(Icons.location_on, color: AppColors.primaryGreen, size: 18),
               SizedBox(width: Responsive.space(context, 4)),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Deliver To', style: AppTextStyles.termsText(context)),
-                  Row(
+              Obx(
+                () => GestureDetector(
+                  onTap: () => showPincodeSheet(
+                    context: context,
+                    deliverToPincode: controller.deliverToPincode,
+                    isCheckingPincode: controller.isCheckingPincode,
+                    isPincodeServiceable: controller.isPincodeServiceable,
+                    pincodeMessage: controller.pincodeMessage,
+                    onCheck: controller.checkPincode,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '678001',
-                        style: AppTextStyles.fieldLabel(context).copyWith(
-                          color: AppColors.textDark,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        'Deliver To',
+                        style: AppTextStyles.termsText(context),
                       ),
-                      const Icon(Icons.keyboard_arrow_down, size: 16),
+                      Row(
+                        children: [
+                          Text(
+                            controller.deliverToPincode.value,
+                            style: AppTextStyles.fieldLabel(context).copyWith(
+                              color: AppColors.textDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down, size: 16),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
               const Spacer(),
               RichText(
@@ -128,7 +153,49 @@ class _TopBar extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Icon(Icons.shopping_bag_outlined),
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => Get.to(() => const WishlistScreen()),
+                child: Obx(() {
+                  final count = Get.find<WishlistController>().items.length;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(
+                        Icons.favorite_border_rounded,
+                        size: 22,
+                        color: Colors.black87,
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          top: -4,
+                          right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            constraints: const BoxConstraints(
+                              minWidth: 10,
+                              minHeight: 10,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                }),
+              ),
               SizedBox(width: Responsive.space(context, 16)),
               const Icon(Icons.notifications_none_rounded),
             ],
@@ -173,58 +240,28 @@ class _Banner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.all(Responsive.space(context, 16)),
-      child: Container(
-        constraints: BoxConstraints(minHeight: Responsive.height(context, 150)),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.brown.shade900,
+      padding: EdgeInsets.only(
+        left: Responsive.space(context, 16),
+        right: Responsive.space(context, 16),
+        bottom: Responsive.space(context, 12),
+      ),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CategoryPage()),
+          );
+        },
+        child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Build Stronger,\nBuild Better',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
+          child: AspectRatio(
+            aspectRatio: 16 / 9, // matches the Figma banner card proportions
+            child: Image.asset(
+              'assets/images/banner.png',
+              width: double.infinity,
+              fit: BoxFit.cover,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Premium $categoryName for every Project',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Upto 50% off',
-              style: TextStyle(
-                color: Color(0xFFF5A623),
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF5A623),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'SHOP NOW',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -462,22 +499,45 @@ class _ProductGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final products = controller.filteredProducts;
+
       return Padding(
         padding: EdgeInsets.symmetric(
           horizontal: Responsive.space(context, 16),
         ),
-        child: GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: products.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.52,
-          ),
-          itemBuilder: (context, index) =>
-              SharedProductCard(product: products[index]),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+
+            // Responsive column count based on available width, not device type
+            final crossAxisCount = width >= 900
+                ? 4
+                : width >= 600
+                ? 3
+                : 2;
+
+            const spacing = 12.0;
+            final cardWidth =
+                (width - spacing * (crossAxisCount - 1)) / crossAxisCount;
+
+            // Card height derived from card width (keeps proportions
+            // consistent across screen sizes) + extra room for text scale.
+            final textScale = MediaQuery.of(context).textScaler.scale(1);
+            final cardHeight = cardWidth * 1.7 * textScale;
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: products.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: spacing,
+                crossAxisSpacing: spacing,
+                mainAxisExtent: cardHeight,
+              ),
+              itemBuilder: (context, index) =>
+                  SharedProductCard(product: products[index]),
+            );
+          },
         ),
       );
     });

@@ -13,6 +13,9 @@ class ProfileController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxBool isUpdating = false.obs;
   final RxBool isDeleting = false.obs;
+  // Coupons
+  final RxList<CouponModel> coupons = <CouponModel>[].obs;
+  final RxBool isCouponLoading = false.obs;
 
   // ── Convenience getters ────────────────────────────────────────────────────
   String get fullName => profile.value.fullName;
@@ -32,6 +35,7 @@ class ProfileController extends GetxController {
     super.onInit();
     debugPrint('[ProfileController] onInit');
     fetchProfile();
+    fetchCoupons(); // Fetch coupons on initialization
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -47,6 +51,7 @@ class ProfileController extends GetxController {
       final response = await ApiService.getProfile();
       debugPrint('[ProfileController] fetchProfile SUCCESS → $response');
       profile.value = ProfileModel.fromJson(response);
+      _syncPrimaryAddressFromProfile(); // ← NEW
     } on ApiException catch (e) {
       debugPrint(
         '[ProfileController] fetchProfile ApiException → ${e.message}',
@@ -57,6 +62,25 @@ class ProfileController extends GetxController {
       Get.snackbar('Error', 'Failed to load profile. Please try again.');
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  void _syncPrimaryAddressFromProfile() {
+    if (profile.value.address.trim().isEmpty) return;
+
+    final profileAddress = AddressModel(
+      id: 'profile', // stable synthetic id — identifies this synced entry
+      streetAddress1: profile.value.address,
+      streetAddress2: '',
+      pincode: profile.value.pincode,
+      isPrimary: addresses.isEmpty, // only default if nothing else exists yet
+    );
+
+    final existingIndex = addresses.indexWhere((a) => a.id == 'profile');
+    if (existingIndex != -1) {
+      addresses[existingIndex] = profileAddress;
+    } else {
+      addresses.insert(0, profileAddress);
     }
   }
 
@@ -315,9 +339,38 @@ class ProfileController extends GetxController {
     return result ?? false;
   }
 
+  Future<void> fetchCoupons() async {
+    // await fetchCoupons();
+    debugPrint('[ProfileController] fetchCoupons()');
+
+    isCouponLoading.value = true;
+
+    try {
+      final response = await ApiService.getMyCoupons();
+
+      coupons.assignAll(response.map((e) => CouponModel.fromJson(e)).toList());
+
+      debugPrint('[ProfileController] Coupons Loaded => ${coupons.length}');
+    } on ApiException catch (e) {
+      debugPrint(
+        '[ProfileController] fetchCoupons ApiException => ${e.message}',
+      );
+      Get.snackbar('Error', e.message);
+    } catch (e) {
+      debugPrint('[ProfileController] fetchCoupons unexpected => $e');
+      Get.snackbar('Error', 'Failed to load coupons.');
+    } finally {
+      isCouponLoading.value = false;
+    }
+  }
+
   @override
   void onClose() {
     debugPrint('[ProfileController] onClose');
     super.onClose();
+  }
+
+  Future<void> refreshAll() async {
+    await Future.wait([fetchProfile(), fetchCoupons()]);
   }
 }

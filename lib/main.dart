@@ -1,5 +1,6 @@
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
+import 'package:brikle/Calculation/View/calculatiorPage.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/LoginScreen/View/loginscreen.dart';
 import 'package:brikle/MyOrdersPage/View/myorderspage.dart';
@@ -20,7 +21,7 @@ Future<void> main() async {
 
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
-  // Get.put(WishlistController(), permanent: true);
+  Get.put(WishlistController(), permanent: true);
 
   runApp(const MyApp());
 }
@@ -42,7 +43,8 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/home', page: () => const MainScreen()),
         GetPage(name: '/orders', page: () => OrdersListView()),
         GetPage(name: '/order-detail', page: () => const OrderDetailView()),
-        // GetPage(name: '/wishlist', page: () => const WishlistScreen()),
+        GetPage(name: '/wishlist', page: () => const WishlistScreen()),
+        GetPage(name: '/calculator', page: () => const MaterialCalculatorScreen()),
       ],
     );
   }

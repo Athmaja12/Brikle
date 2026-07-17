@@ -1,132 +1,179 @@
-// import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
-// import 'package:brikle/ApiConfiguration/apiconfig.dart';
-// import 'package:brikle/ApiConfiguration/apiservice.dart';
-// import 'package:brikle/Wishlist/Model/wishlist_model.dart';
-// import 'package:flutter/material.dart';
-// import 'package:get/get.dart';
+import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/ApiConfiguration/apiconfig.dart';
+import 'package:brikle/ApiConfiguration/apiservice.dart';
+import 'package:brikle/Wishlist/Model/wishlist_model.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
-// /// CONTROLLER — manages wishlist state across the whole app.
-// ///
-// /// Register once in main.dart or your binding:
-// ///   Get.put(WishlistController(), permanent: true);
-// ///
-// /// Then use from anywhere:
-// ///   final wl = Get.find<WishlistController>();
-// ///   wl.toggle(variantId);
-// ///   wl.isWishlisted(variantId);
-// class WishlistController extends GetxController {
-//   // ── State ──────────────────────────────────────────────────────────────
-//   final RxList<WishlistItem> items = <WishlistItem>[].obs;
-//   final RxBool isLoading = true.obs;
+class WishlistController extends GetxController {
+  final RxList<WishlistItem> items = <WishlistItem>[].obs;
+  final RxBool isLoading = true.obs;
+  final RxSet<int> _wishlistedVariantIds = <int>{}.obs;
+  final Set<int> _pending = {};
 
-//   // Set of variantIds currently in the wishlist.
-//   // Used by WishlistHeart widgets to show filled/outline heart instantly
-//   // without reading the full items list every time.
-//   final RxSet<int> _wishlistedVariantIds = <int>{}.obs;
+  bool isWishlisted(int variantId) => _wishlistedVariantIds.contains(variantId);
 
-//   /// Returns true if the given variantId is in the wishlist.
-//   bool isWishlisted(int variantId) =>
-//       _wishlistedVariantIds.contains(variantId);
+  @override
+  void onInit() {
+    super.onInit();
+    debugPrint('[Wishlist] onInit — calling fetchWishlist()');
+    fetchWishlist();
+  }
 
-//   // Debounce set — prevents double-taps firing two API calls
-//   final Set<int> _pending = {};
+  // GET /api/wishlist/
+  Future<void> fetchWishlist() async {
+    debugPrint('[Wishlist] fetchWishlist() start');
+    isLoading.value = true;
+    try {
+      final response = await ApiService.getWishlist();
+      debugPrint(
+        '[Wishlist] fetchWishlist raw response type: ${response.runtimeType}',
+      );
 
-//   @override
-//   void onInit() {
-//     super.onInit();
-//     fetchWishlist();
-//   }
+      final List raw = response is List
+          ? response
+          : ((response as Map)['wishlist_items'] as List? ?? []);
+      debugPrint('[Wishlist] fetchWishlist raw item count: ${raw.length}');
 
-//   // ── Fetch ──────────────────────────────────────────────────────────────
-//   // GET /api/wishlist/
-//   // Response: { "wishlist_items": [ { "id":5, "variant":1, ... } ] }
-//   Future<void> fetchWishlist() async {
-//     isLoading.value = true;
-//     try {
-//       final response = await ApiService.getWishlist();
-//       final raw = response['wishlist_items'] as List? ?? [];
-//       final parsed = raw
-//           .whereType<Map<String, dynamic>>()
-//           .map(WishlistItem.fromJson)
-//           .toList();
-//       items.value = parsed;
-//       _wishlistedVariantIds.value = parsed.map((e) => e.variantId).toSet();
-//     } on ApiException catch (e) {
-//       debugPrint('[WishlistController] fetchWishlist failed: ${e.message}');
-//       Get.snackbar('Could not load wishlist', e.message,
-//           snackPosition: SnackPosition.BOTTOM);
-//     } catch (e) {
-//       debugPrint('[WishlistController] fetchWishlist unexpected: $e');
-//     } finally {
-//       isLoading.value = false;
-//     }
-//   }
+      final parsed = raw
+          .whereType<Map<String, dynamic>>()
+          .map(WishlistItem.fromJson)
+          .toList();
 
-//   // ── Toggle (add / remove) ──────────────────────────────────────────────
-//   // Add:    POST /api/wishlist/         body: { "variant": variantId }
-//   // Remove: DELETE /api/wishlist/{id}/
-//   Future<void> toggle(int variantId) async {
-//     if (_pending.contains(variantId)) return; // debounce
-//     _pending.add(variantId);
+      items.value = parsed;
+      _wishlistedVariantIds.value = parsed.map((e) => e.variantId).toSet();
 
-//     final wasWishlisted = _wishlistedVariantIds.contains(variantId);
+      debugPrint(
+        '[Wishlist] fetchWishlist success — '
+        'items: ${parsed.map((e) => "(id:${e.id}, variantId:${e.variantId})").toList()}',
+      );
+      debugPrint(
+        '[Wishlist] _wishlistedVariantIds now: $_wishlistedVariantIds',
+      );
+    } on ApiException catch (e) {
+      debugPrint('[Wishlist] fetchWishlist failed: ${e.message}');
+      Get.snackbar(
+        'Could not load wishlist',
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e, st) {
+      debugPrint('[Wishlist] fetchWishlist unexpected: $e');
+      debugPrint('[Wishlist] stack: $st');
+    } finally {
+      isLoading.value = false;
+      debugPrint('[Wishlist] fetchWishlist() end — isLoading=false');
+    }
+  }
 
-//     // Optimistic UI — heart flips immediately
-//     if (wasWishlisted) {
-//       _wishlistedVariantIds.remove(variantId);
-//     } else {
-//       _wishlistedVariantIds.add(variantId);
-//     }
+  // POST /api/wishlist/  |  DELETE /api/wishlist/{id}/
+  Future<void> toggle(int variantId) async {
+    debugPrint('[Wishlist] toggle() called for variantId=$variantId');
 
-//     try {
-//       if (wasWishlisted) {
-//         // Find the entry id for DELETE /api/wishlist/{id}/
-//         final entry =
-//             items.firstWhereOrNull((i) => i.variantId == variantId);
-//         if (entry != null) {
-//           await ApiService.removeFromWishlist(wishlistId: entry.id);
-//           items.removeWhere((i) => i.variantId == variantId);
-//         }
-//       } else {
-//         // POST returns only { "message": "Add to wishlist!" } — no item data.
-//         // So we re-fetch to get the new entry with its id.
-//         await ApiService.addToWishlist(variantId: variantId);
-//         await fetchWishlist(); // reconcile to get the new item's id
-//       }
-//     } on ApiException catch (e) {
-//       // Revert optimistic update on failure
-//       if (wasWishlisted) {
-//         _wishlistedVariantIds.add(variantId);
-//       } else {
-//         _wishlistedVariantIds.remove(variantId);
-//       }
-//       debugPrint('[WishlistController] toggle failed: ${e.message}');
-//       Get.snackbar('Wishlist error', e.message,
-//           snackPosition: SnackPosition.BOTTOM);
-//     } catch (e) {
-//       if (wasWishlisted) {
-//         _wishlistedVariantIds.add(variantId);
-//       } else {
-//         _wishlistedVariantIds.remove(variantId);
-//       }
-//       debugPrint('[WishlistController] toggle unexpected: $e');
-//     } finally {
-//       _pending.remove(variantId);
-//     }
-//   }
+    if (_pending.contains(variantId)) {
+      debugPrint(
+        '[Wishlist] toggle() ignored — variantId=$variantId already pending',
+      );
+      return;
+    }
+    _pending.add(variantId);
 
-//   // ── Move to cart ───────────────────────────────────────────────────────
-//   Future<void> moveToCart(WishlistItem item) async {
-//     try {
-//       final cartController = Get.find<CartController>();
-//       await cartController.addToCart(variantId: item.variantId, quantity: 1);
-//       await toggle(item.variantId); // removes from wishlist after adding to cart
-//     } on ApiException catch (e) {
-//       debugPrint('[WishlistController] moveToCart failed: ${e.message}');
-//       Get.snackbar('Could not move to cart', e.message,
-//           snackPosition: SnackPosition.BOTTOM);
-//     } catch (e) {
-//       debugPrint('[WishlistController] moveToCart unexpected: $e');
-//     }
-//   }
-// }
+    final wasWishlisted = _wishlistedVariantIds.contains(variantId);
+    debugPrint('[Wishlist] variantId=$variantId wasWishlisted=$wasWishlisted');
+
+    // Optimistic UI
+    if (wasWishlisted) {
+      _wishlistedVariantIds.remove(variantId);
+    } else {
+      _wishlistedVariantIds.add(variantId);
+    }
+    debugPrint(
+      '[Wishlist] optimistic update applied. Set now: $_wishlistedVariantIds',
+    );
+
+    try {
+      if (wasWishlisted) {
+        final entry = items.firstWhereOrNull((i) => i.variantId == variantId);
+        debugPrint(
+          '[Wishlist] removing — matched entry: '
+          '${entry == null ? "NONE FOUND" : "(id:${entry.id}, variantId:${entry.variantId})"}',
+        );
+
+        if (entry != null) {
+          debugPrint(
+            '[Wishlist] calling removeFromWishlist(variantId: $variantId)',
+          );
+          await ApiService.removeFromWishlist(
+            variantId: variantId,
+          ); // ← was: wishlistId: entry.id
+          items.removeWhere((i) => i.variantId == variantId);
+          debugPrint('[Wishlist] remove succeeded for variantId=$variantId');
+        } else {
+          debugPrint(
+            '[Wishlist] WARNING: wasWishlisted=true but no matching entry in items — '
+            'local state was already out of sync before this call',
+          );
+        }
+      } else {
+        debugPrint('[Wishlist] calling addToWishlist(variantId: $variantId)');
+        await ApiService.addToWishlist(variantId: variantId);
+        debugPrint('[Wishlist] add succeeded — refreshing list');
+        await fetchWishlist();
+      }
+    } on ApiException catch (e) {
+      debugPrint(
+        '[Wishlist] toggle FAILED for variantId=$variantId '
+        '(wasWishlisted=$wasWishlisted): ${e.message}',
+      );
+      debugPrint('[Wishlist] resyncing with server truth via fetchWishlist()');
+      await fetchWishlist();
+      Get.snackbar(
+        'Wishlist error',
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e, st) {
+      debugPrint(
+        '[Wishlist] toggle unexpected error for variantId=$variantId: $e',
+      );
+      debugPrint('[Wishlist] stack: $st');
+      await fetchWishlist();
+    } finally {
+      _pending.remove(variantId);
+      debugPrint('[Wishlist] toggle() finished for variantId=$variantId');
+    }
+  }
+
+  Future<void> removeItem(WishlistItem item) async {
+    debugPrint(
+      '[Wishlist] removeItem() called for (id:${item.id}, variantId:${item.variantId})',
+    );
+    await toggle(item.variantId);
+  }
+
+  // Move to Cart: add to cart then remove from wishlist
+  Future<void> moveToCart(WishlistItem item) async {
+    debugPrint(
+      '[Wishlist] moveToCart() called for (id:${item.id}, variantId:${item.variantId})',
+    );
+    try {
+      final cartController = Get.find<CartController>();
+      debugPrint(
+        '[Wishlist] adding variantId=${item.variantId} to cart, qty=1',
+      );
+      await cartController.addToCart(variantId: item.variantId, quantity: 1);
+      debugPrint('[Wishlist] cart add succeeded — now removing from wishlist');
+      await toggle(item.variantId);
+    } on ApiException catch (e) {
+      debugPrint('[Wishlist] moveToCart failed: ${e.message}');
+      Get.snackbar(
+        'Could not move to cart',
+        e.message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e, st) {
+      debugPrint('[Wishlist] moveToCart unexpected: $e');
+      debugPrint('[Wishlist] stack: $st');
+    }
+  }
+}
