@@ -8,6 +8,7 @@ import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Product/Controller/productdetails_controller.dart';
+import 'package:brikle/Product/Model/productdetails_model.dart';
 import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -328,41 +329,57 @@ class ProductDetailScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 14, color: AppColors.textGray),
                   ),
                 ),
-                SizedBox(height: Responsive.space(context, 20)),
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.space(context, 16),
-                  ),
-                  child: Text(
-                    'Suggested for you',
-                    style: AppTextStyles.welcomeBackTitle(
-                      context,
-                    ).copyWith(fontSize: 16),
-                  ),
-                ),
-                SizedBox(height: Responsive.space(context, 12)),
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.space(context, 16),
-                  ),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.suggestedProducts.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.62,
+
+                Obx(() {
+                  if (controller.suggestedProducts.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: Responsive.space(context, 20)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: Responsive.space(context, 16),
                         ),
-                    itemBuilder: (context, index) => SharedProductCard(
-                      product: controller.suggestedProducts[index],
-                    ),
-                  ),
-                ),
-                SizedBox(height: Responsive.space(context, 24)),
-              ],
+                        child: Text(
+                          'Suggested for you',
+                          style: AppTextStyles.welcomeBackTitle(
+                            context,
+                          ).copyWith(fontSize: 16),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.space(context, 12)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: Responsive.space(context, 16),
+                        ),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: controller.suggestedProducts.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                                childAspectRatio: 0.75,
+                              ),
+                          itemBuilder: (context, index) =>
+                              _SuggestedProductCard(
+                                suggestion: controller.suggestedProducts[index],
+                                onTap: () => controller.openSuggestion(
+                                  context,
+                                  controller.suggestedProducts[index],
+                                ),
+                              ),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.space(context, 24)),
+                    ],
+                  );
+                }),
+              ],  
             ),
           ),
         );
@@ -481,6 +498,67 @@ class _ImageGallery extends StatelessWidget {
         ],
       );
     });
+  }
+}
+
+// ── Suggestion card: image + name + brand only, no price/cart ──────────
+class _SuggestedProductCard extends StatelessWidget {
+  final SmartSuggestion suggestion;
+  final VoidCallback onTap;
+
+  const _SuggestedProductCard({required this.suggestion, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: suggestion.imageUrl.isNotEmpty
+                  ? Image.network(
+                      suggestion.imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 50,
+                        color: Colors.black26,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.inventory_2_outlined,
+                      size: 50,
+                      color: Colors.black26,
+                    ),
+            ),
+            const SizedBox(height: 8),
+            if (suggestion.brandName.isNotEmpty)
+              Text(
+                suggestion.brandName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.termsText(context),
+              ),
+            const SizedBox(height: 2),
+            Text(
+              suggestion.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

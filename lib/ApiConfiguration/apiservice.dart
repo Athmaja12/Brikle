@@ -1,13 +1,23 @@
-// lib/ApiConfiguration/apiservice.dart - Complete updated file with fix
+// lib/ApiConfiguration/apiservice.dart - Complete file with fixes
 
 import 'dart:convert';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
+import 'package:brikle/Calculation/Controller/blockCalculation_provider.dart';
 import 'package:brikle/Calculation/Model/calculation_model.dart';
+import 'package:brikle/Calculation/Model/cementCalculation_model.dart';
 import 'package:brikle/Calculation/Model/productCalculator_model.dart';
+import 'package:brikle/Calculation/Model/steelCalculation_model.dart';
+import 'package:brikle/Calculation/Model/waterproofCalculation_model.dart';
+import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/Product/Model/productdetails_model.dart';
+import 'package:brikle/ProfilePage/Model/address_model.dart';
+import 'package:brikle/ProfilePage/Model/order_model.dart';
+import 'package:brikle/ProfilePage/Model/review_model.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-
 
 class ApiService {
   ApiService._();
@@ -18,11 +28,83 @@ class ApiService {
 
   static Future<Map<String, String>> _authHeaders() async {
     final token = await SessionManager.getAccessToken();
-    print("ACCESS TOKEN => $token");
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TOKEN REFRESH
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<bool>? _refreshFuture;
+
+  static Future<bool> _refreshAccessToken() {
+    _refreshFuture ??= _performTokenRefresh().whenComplete(() {
+      _refreshFuture = null;
+    });
+    return _refreshFuture!;
+  }
+
+  static bool _isForcingLogout = false;
+
+  static void _forceLogoutAndRedirect() {
+    if (_isForcingLogout) return;
+    _isForcingLogout = true;
+    Get.offAllNamed('/login');
+    Future.delayed(const Duration(seconds: 2), () {
+      _isForcingLogout = false;
+    });
+  }
+
+  static Future<bool> _performTokenRefresh() async {
+    final refreshToken = await SessionManager.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse(ApiConfig.tokenRefreshUrl),
+            headers: _jsonHeaders,
+            body: jsonEncode({'refresh': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      return false;
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      await SessionManager.clearSession();
+      _forceLogoutAndRedirect();
+      return false;
+    }
+
+    Map<String, dynamic> decoded;
+    try {
+      decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      await SessionManager.clearSession();
+      _forceLogoutAndRedirect();
+      return false;
+    }
+
+    final newAccess = decoded['access']?.toString();
+    if (newAccess == null || newAccess.isEmpty) {
+      await SessionManager.clearSession();
+      _forceLogoutAndRedirect();
+      return false;
+    }
+
+    final newRefresh = decoded['refresh']?.toString();
+    await SessionManager.saveSession(
+      accessToken: newAccess,
+      refreshToken: (newRefresh != null && newRefresh.isNotEmpty)
+          ? newRefresh
+          : refreshToken,
+    );
+    return true;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -96,9 +178,6 @@ class ApiService {
     return _get(ApiConfig.profileUrl, headers: await _authHeaders());
   }
 
-  /// ✅ FIXED: PATCH /api/customer-profile/ (without /edit/)
-  /// body: { full_name, email, phone_number, address, pincode } (all optional)
-  /// response: { full_name, email, phone_number, customer_type, gst_number, is_verified, address, pincode }
   static Future<Map<String, dynamic>> updateProfile({
     String? fullName,
     String? email,
@@ -117,12 +196,7 @@ class ApiService {
     if (customerType != null) body['customer_type'] = customerType;
     if (gstNumber != null) body['gst_number'] = gstNumber;
 
-    // ✅ FIX: Use profileUrl (without /edit/)
-    return _patch(
-      ApiConfig.profileUrl, // Changed from ApiConfig.profileEditUrl
-      body,
-      headers: await _authHeaders(),
-    );
+    return _patch(ApiConfig.profileUrl, body, headers: await _authHeaders());
   }
 
   static Future<void> deleteAccount() async {
@@ -159,11 +233,13 @@ class ApiService {
   static Future<Map<String, dynamic>> checkout({
     required String pincode,
     required String requestedDeliveryDate,
+    required String requestedDeliveryTime,
     int? couponId,
   }) async {
     final body = <String, dynamic>{
       'pincode': pincode,
       'requested_delivery_date': requestedDeliveryDate,
+      'requested_delivery_time': requestedDeliveryTime,
     };
     if (couponId != null) body['coupon_id'] = couponId;
     return _post(ApiConfig.checkoutUrl, body, headers: await _authHeaders());
@@ -174,13 +250,18 @@ class ApiService {
     required String shippingAddress,
     required String pincode,
     required String requestedDeliveryDate,
+    String? requestedDeliveryTime, // NEW — optional, sent if backend accepts it
   }) async {
-    return _post(ApiConfig.placeOrderUrl, {
+    final body = <String, dynamic>{
       'payment_method': paymentMethod,
       'shipping_address': shippingAddress,
       'pincode': pincode,
       'requested_delivery_date': requestedDeliveryDate,
-    }, headers: await _authHeaders());
+    };
+    if (requestedDeliveryTime != null && requestedDeliveryTime.isNotEmpty) {
+      body['requested_delivery_time'] = requestedDeliveryTime;
+    }
+    return _post(ApiConfig.placeOrderUrl, body, headers: await _authHeaders());
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -220,11 +301,9 @@ class ApiService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CALCULATOR
+  // CALCULATOR - PAINT
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// GET api/calculator/
-  /// Returns the 5-card list for the "Material Calculator" screen.
   static Future<CalculatorListResponse> getCalculatorList() async {
     final response = await _get(
       ApiConfig.calculatorListUrl,
@@ -233,9 +312,6 @@ class ApiService {
     return CalculatorListResponse.fromJson(response);
   }
 
-  /// GET api/calculator/{id}/
-  /// Called when a card's "Open Calculator" button is tapped. The
-  /// `redirect_slug` in the result tells you which calculator screen to push.
   static Future<CalculatorDetailModel> getCalculatorDetail(int id) async {
     final response = await _get(
       ApiConfig.calculatorDetailUrl(id),
@@ -244,8 +320,6 @@ class ApiService {
     return CalculatorDetailModel.fromJson(response);
   }
 
-  /// GET api/paint/drop-down/
-  /// Populates the "Paint type" dropdown on the Paint Calculator screen.
   static Future<List<PaintDropdownItem>> getPaintDropdown() async {
     final response = await _get(
       ApiConfig.paintDropdownUrl,
@@ -255,8 +329,6 @@ class ApiService {
     return paints.map((e) => PaintDropdownItem.fromJson(e)).toList();
   }
 
-  /// POST api/calculator/paint/
-  /// Fired on "Calculate" and on debounced field changes.
   static Future<PaintEstimateModel> calculatePaint({
     required int materialId,
     required double wallLength,
@@ -264,18 +336,187 @@ class ApiService {
     required int numberOfWalls,
     required int numberOfCoats,
   }) async {
-    final response = await _post(
-      ApiConfig.paintCalculateUrl,
-      {
-        'material_id': materialId,
-        'wall_length': wallLength,
-        'wall_height': wallHeight,
-        'number_of_walls': numberOfWalls,
-        'number_of_coats': numberOfCoats,
-      },
+    final response = await _post(ApiConfig.paintCalculateUrl, {
+      'material_id': materialId,
+      'wall_length': wallLength,
+      'wall_height': wallHeight,
+      'number_of_walls': numberOfWalls,
+      'number_of_coats': numberOfCoats,
+    }, headers: await _authHeaders());
+    return PaintEstimateModel.fromJson(response);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CALCULATOR - CEMENT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<CementDropdownResponse> getCementDropdown() async {
+    final response = await _get(
+      ApiConfig.plasteringDropdownUrl,
       headers: await _authHeaders(),
     );
-    return PaintEstimateModel.fromJson(response);
+    return CementDropdownResponse.fromJson(response);
+  }
+
+  static Future<PlasteringCalculatorResponse> calculatePlastering({
+    required double wallArea,
+    required double thicknessMm,
+    required String mortarRatio,
+    required double cementBagPrice,
+  }) async {
+    final response = await _post(ApiConfig.plasteringCalculateUrl, {
+      'wall_area': wallArea,
+      'thickness_mm': thicknessMm,
+      'mortar_ratio': mortarRatio,
+      'cement_bag_price': cementBagPrice,
+    }, headers: await _authHeaders());
+    return PlasteringCalculatorResponse.fromJson(response);
+  }
+
+  static Future<ColumnConcreteCalculatorResponse> calculateColumnConcrete({
+    required int numberOfColumns,
+    required String concreteGrade,
+    required double columnWidthMm,
+    required double columnDepthMm,
+    required double columnHeightFt,
+    required double cementBagPrice,
+  }) async {
+    final response = await _post(ApiConfig.columnConcreteCalculateUrl, {
+      'number_of_columns': numberOfColumns,
+      'concrete_grade': concreteGrade,
+      'column_width_mm': columnWidthMm,
+      'column_depth_mm': columnDepthMm,
+      'column_height_ft': columnHeightFt,
+      'cement_bag_price': cementBagPrice,
+    }, headers: await _authHeaders());
+    return ColumnConcreteCalculatorResponse.fromJson(response);
+  }
+
+  static Future<RoofSlabCalculatorResponse> calculateRoofSlab({
+    required double slabLength,
+    required double slabWidth,
+    required double thicknessMm,
+    required String concreteGrade,
+    required double cementBagPrice,
+  }) async {
+    final response = await _post(ApiConfig.roofSlabCalculateUrl, {
+      'slab_length': slabLength,
+      'slab_width': slabWidth,
+      'thickness_mm': thicknessMm,
+      'concrete_grade': concreteGrade,
+      'cement_bag_price': cementBagPrice,
+    }, headers: await _authHeaders());
+    return RoofSlabCalculatorResponse.fromJson(response);
+  }
+
+  static Future<SteelCalculatorResponse> calculateSteel({
+    required double pricePerKg,
+    required List<SteelItem> items,
+  }) async {
+    final response = await _post(ApiConfig.steelCalculateUrl, {
+      'price_per_kg': pricePerKg,
+      'items': items.map((e) => e.toJson()).toList(),
+    }, headers: await _authHeaders());
+    return SteelCalculatorResponse.fromJson(response);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BLOCK CALCULATOR
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<BlockDropdownResponse> getBlockDropdown() async {
+    final response = await _get(
+      ApiConfig.blockDropdownUrl,
+      headers: await _authHeaders(),
+    );
+    return BlockDropdownResponse.fromJson(response);
+  }
+
+  static Future<BlockCalculatorResponse> calculateBlock({
+    required double wallLengthFt,
+    required double wallHeightFt,
+    required int wastagePercent,
+    required int blockLengthMm,
+    required int blockHeightMm,
+    required int blockThicknessMm,
+  }) async {
+    final response = await _post(ApiConfig.blockCalculateUrl, {
+      'wall_length_ft': wallLengthFt,
+      'wall_height_ft': wallHeightFt,
+      'wastage_percent': wastagePercent,
+      'block_length_mm': blockLengthMm,
+      'block_height_mm': blockHeightMm,
+      'block_thickness_mm': blockThicknessMm,
+    }, headers: await _authHeaders());
+    return BlockCalculatorResponse.fromJson(response);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WATERPROOFING CALCULATOR
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<WaterproofingCalculatorResponse> calculateTerraceWaterproofing({
+    required double terraceLengthFt,
+    required double terraceWidthFt,
+    required int coatsApplied,
+  }) async {
+    final response = await _post(ApiConfig.terraceWaterproofingUrl, {
+      'terrace_length_ft': terraceLengthFt,
+      'terrace_width_ft': terraceWidthFt,
+      'coats_applied': coatsApplied,
+    }, headers: await _authHeaders());
+    return WaterproofingCalculatorResponse.fromJson(response);
+  }
+
+  static Future<WaterproofingCalculatorResponse>
+  calculateBathroomWaterproofing({
+    required double floorLengthFt,
+    required double floorWidthFt,
+    required double wallHeightToCoatFt,
+  }) async {
+    final response = await _post(ApiConfig.bathroomWaterproofingUrl, {
+      'floor_length_ft': floorLengthFt,
+      'floor_width_ft': floorWidthFt,
+      'wall_height_to_coat_ft': wallHeightToCoatFt,
+    }, headers: await _authHeaders());
+    return WaterproofingCalculatorResponse.fromJson(response);
+  }
+
+  static Future<WaterproofingCalculatorResponse> calculateTankWaterproofing({
+    required double tankLengthFt,
+    required double tankWidthFt,
+    required double tankHeightFt,
+    required int numberOfWalls,
+  }) async {
+    final response = await _post(ApiConfig.tankWaterproofingUrl, {
+      'tank_length_ft': tankLengthFt,
+      'tank_width_ft': tankWidthFt,
+      'tank_height_ft': tankHeightFt,
+      'number_of_walls': numberOfWalls,
+    }, headers: await _authHeaders());
+    return WaterproofingCalculatorResponse.fromJson(response);
+  }
+
+  static Future<WaterproofingCalculatorResponse> calculateWallWaterproofing({
+    required double wallLengthFt,
+    required double wallHeightFt,
+    required int coatsApplied,
+  }) async {
+    final response = await _post(ApiConfig.wallWaterproofingUrl, {
+      'wall_length_ft': wallLengthFt,
+      'wall_height_ft': wallHeightFt,
+      'coats_applied': coatsApplied,
+    }, headers: await _authHeaders());
+    return WaterproofingCalculatorResponse.fromJson(response);
+  }
+
+  static Future<WaterproofingCalculatorResponse> calculateLiquidWaterproofing({
+    required int numberOfCementBags,
+  }) async {
+    final response = await _post(ApiConfig.liquidWaterproofingUrl, {
+      'number_of_cement_bags': numberOfCementBags,
+    }, headers: await _authHeaders());
+    return WaterproofingCalculatorResponse.fromJson(response);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -346,58 +587,133 @@ class ApiService {
     );
   }
 
-  static Future<Map<String, dynamic>> getMaterialDetails(int materialId) async {
-    return _get(
-      ApiConfig.materialDetailsUrl(materialId),
+  static Future<CategoryProductItem?> getSuggestedProductDetail(
+    int materialId, {
+    Map<int, CategoryDetail>? categoryCache,
+  }) async {
+    final materialJson = await _get(
+      ApiConfig.materialDetailUrl(materialId),
       headers: await _authHeaders(),
     );
-  }
+    final detail = MaterialDetail.fromJson(materialJson);
+    final categoryId = detail.categoryId;
+    debugPrint(
+      '[getSuggestedProductDetail] materialId=$materialId categoryId=$categoryId',
+    );
+    if (categoryId == null) return null;
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ADDRESSES
-  // ══════════════════════════════════════════════════════════════════════════
-
-  static Future<Map<String, dynamic>> addAddress({
-    required String streetAddress1,
-    required String streetAddress2,
-    required String pincode,
-    bool isPrimary = false,
-    String? customerType,
-    String? gstNumber,
-  }) async {
-    final body = <String, dynamic>{
-      'street_address1': streetAddress1,
-      'street_address2': streetAddress2,
-      'pincode': pincode,
-      'is_primary': isPrimary,
-    };
-    if (customerType != null) body['customer_type'] = customerType;
-    if (gstNumber != null && gstNumber.isNotEmpty) {
-      body['gst_number'] = gstNumber;
+    CategoryDetail? categoryDetail = categoryCache?[categoryId];
+    if (categoryDetail == null) {
+      final categoryJson = await _get(
+        ApiConfig.categoryDetailsUrl(categoryId),
+        headers: await _authHeaders(),
+      );
+      categoryDetail = CategoryDetail.fromJson(categoryJson);
+      categoryCache?[categoryId] = categoryDetail;
+      debugPrint(
+        '[getSuggestedProductDetail] categoryId=$categoryId product count=${categoryDetail.products.length}',
+      );
+      debugPrint(
+        '[getSuggestedProductDetail] product materialIds in category: ${categoryDetail.products.map((p) => p.materialId).toList()}',
+      );
     }
-    return _post(ApiConfig.addressListUrl, body, headers: await _authHeaders());
+
+    final match = categoryDetail.products.firstWhereOrNull(
+      (p) => p.materialId == materialId,
+    );
+    debugPrint(
+      '[getSuggestedProductDetail] match for materialId=$materialId: ${match != null}',
+    );
+    return match;
   }
 
-  static Future<Map<String, dynamic>> updateAddress({
-    required String addressId,
-    String? streetAddress1,
-    String? streetAddress2,
+  /// Get material details by ID
+  static Future<Map<String, dynamic>> getMaterialDetails(int materialId) async {
+    final response = await _get(
+      ApiConfig.materialDetailUrl(materialId),
+      headers: await _authHeaders(),
+    );
+    return response;
+  }
+
+  static Future<List<SmartSuggestion>> getMaterialSuggestions(
+    int materialId,
+  ) async {
+    final response = await _get(
+      ApiConfig.materialSuggestionsUrl(materialId),
+      headers: await _authHeaders(),
+    );
+    debugPrint(
+      '[getMaterialSuggestions] raw response for materialId=$materialId: $response',
+    );
+
+    final List list = response['results'] ?? response;
+    debugPrint('[getMaterialSuggestions] parsed list length: ${list.length}');
+
+    return list.map((e) => SmartSuggestion.fromJson(e)).toList();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADDRESSES (customer's saved delivery addresses)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Get all saved addresses for the current user
+  static Future<List<DeliveryAddressModel>> getAddresses() async {
+    final response = await _get(
+      ApiConfig.addressesUrl,
+      headers: await _authHeaders(),
+    );
+    final results = response['results'] as List? ?? [];
+    return results.map((e) => DeliveryAddressModel.fromJson(e)).toList();
+  }
+
+  /// Get a single address by ID
+  static Future<DeliveryAddressModel> getAddressById(int addressId) async {
+    final response = await _get(
+      ApiConfig.addressByIdUrl(addressId),
+      headers: await _authHeaders(),
+    );
+    return DeliveryAddressModel.fromJson(response);
+  }
+
+  /// Add a new delivery address
+  static Future<DeliveryAddressModel> addAddress({
+    required String pincode,
+    required String addressLine,
+    bool isPrimary = false,
+  }) async {
+    final response = await _post(ApiConfig.addressesUrl, {
+      'pincode': pincode,
+      'address_line': addressLine,
+      'is_primary': isPrimary,
+    }, headers: await _authHeaders());
+    return DeliveryAddressModel.fromJson(response);
+  }
+
+  /// Update an existing address (partial update — send only changed fields)
+  static Future<DeliveryAddressModel> updateAddress({
+    required int addressId,
     String? pincode,
+    String? addressLine,
     bool? isPrimary,
-    String? customerType,
-    String? gstNumber,
   }) async {
     final body = <String, dynamic>{};
-    if (streetAddress1 != null) body['street_address1'] = streetAddress1;
-    if (streetAddress2 != null) body['street_address2'] = streetAddress2;
     if (pincode != null) body['pincode'] = pincode;
+    if (addressLine != null) body['address_line'] = addressLine;
     if (isPrimary != null) body['is_primary'] = isPrimary;
-    if (customerType != null) body['customer_type'] = customerType;
-    if (gstNumber != null) body['gst_number'] = gstNumber;
 
-    return _patch(
-      ApiConfig.addressDetailUrl(addressId),
+    final response = await _patch(
+      ApiConfig.addressByIdUrl(addressId),
       body,
+      headers: await _authHeaders(),
+    );
+    return DeliveryAddressModel.fromJson(response);
+  }
+
+  /// Delete a saved address
+  static Future<void> deleteAddress(int addressId) async {
+    await _delete(
+      ApiConfig.addressByIdUrl(addressId),
       headers: await _authHeaders(),
     );
   }
@@ -431,23 +747,107 @@ class ApiService {
   // COUPONS
   // ══════════════════════════════════════════════════════════════════════════
 
-  static Future<List<dynamic>> getMyCoupons() async {
+  static Future<List<CouponModel>> getMyCoupons() async {
     final response = await _get(
       ApiConfig.myCouponsUrl,
       headers: await _authHeaders(),
     );
-    return response['results'] ?? [];
+    final results = response['results'] as List? ?? [];
+    return results.map((e) => CouponModel.fromJson(e)).toList();
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ORDERS
+  // ══════════════════════════════════════════════════════════════════════════
 
+  /// Get all orders for the current user (Flipkart-style order list)
+  static Future<List<OrderModel>> getMyOrders() async {
+    final response = await _get(
+      ApiConfig.myOrdersUrl,
+      headers: await _authHeaders(),
+    );
 
+    final results = response['results'] as List? ?? [];
+    return results.map((e) => OrderModel.fromJson(e)).toList();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // REVIEWS & RATINGS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Get all reviews for a material (like Flipkart product reviews)
+  static Future<List<ReviewModel>> getMaterialReviews(int materialId) async {
+    debugPrint('[ApiService] getMaterialReviews($materialId)');
+    final response = await _get(
+      ApiConfig.materialReviewsUrl(materialId),
+      headers: await _authHeaders(),
+    );
+
+    debugPrint('[ApiService] getMaterialReviews response: $response');
+
+    // // Handle different response formats
+    // if (response is List) {
+    //   return response.map((e) => ReviewModel.fromJson(e)).toList();
+    // }
+
+    final results = response['results'] as List? ?? [];
+    return results.map((e) => ReviewModel.fromJson(e)).toList();
+  }
+
+  /// Post a review for a material (like Flipkart rating)
+  static Future<ReviewResponseModel> postMaterialReview({
+    required int materialId,
+    required int rating,
+    required String comment,
+  }) async {
+    debugPrint('[ApiService] postMaterialReview($materialId, rating: $rating)');
+
+    try {
+      final response = await _post(ApiConfig.materialReviewsUrl(materialId), {
+        'rating': rating,
+        'comment': comment,
+      }, headers: await _authHeaders());
+
+      debugPrint('[ApiService] postMaterialReview response: $response');
+      return ReviewResponseModel.fromJson(response);
+    } on ApiException catch (e) {
+      debugPrint('[ApiService] postMaterialReview ApiException: ${e.message}');
+
+      // If it's a 400 error, it might be "already reviewed"
+      if (e.statusCode == 400) {
+        return ReviewResponseModel(
+          success: false,
+          message: 'You have already reviewed this product.',
+          review: null,
+        );
+      }
+
+      return ReviewResponseModel(
+        success: false,
+        message: e.message,
+        review: null,
+      );
+    } catch (e) {
+      debugPrint('[ApiService] postMaterialReview error: $e');
+      return ReviewResponseModel(
+        success: false,
+        message: 'Failed to submit review. Please try again.',
+        review: null,
+      );
+    }
+  }
   // ══════════════════════════════════════════════════════════════════════════
   // HTTP HELPERS
   // ══════════════════════════════════════════════════════════════════════════
 
+  static bool _wasAuthenticated(Map<String, String>? headers) {
+    return headers != null && headers.containsKey('Authorization');
+  }
+
   static Future<Map<String, dynamic>> _get(
     String url, {
     Map<String, String>? headers,
+    bool isRetry = false,
   }) async {
     http.Response response;
     try {
@@ -459,6 +859,19 @@ class ApiService {
         'Could not reach the server. Check your connection and try again.',
       );
     }
+
+    if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        return _get(url, headers: await _authHeaders(), isRetry: true);
+      }
+      throw ApiException(
+        'Your session has expired. Please log in again.',
+        statusCode: 401,
+        sessionExpired: true,
+      );
+    }
+
     return _handleResponse(response);
   }
 
@@ -466,6 +879,7 @@ class ApiService {
     String url,
     Map<String, dynamic> body, {
     Map<String, String>? headers,
+    bool isRetry = false,
   }) async {
     http.Response response;
     try {
@@ -481,6 +895,19 @@ class ApiService {
         'Could not reach the server. Check your connection and try again.',
       );
     }
+
+    if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        return _post(url, body, headers: await _authHeaders(), isRetry: true);
+      }
+      throw ApiException(
+        'Your session has expired. Please log in again.',
+        statusCode: 401,
+        sessionExpired: true,
+      );
+    }
+
     return _handleResponse(response);
   }
 
@@ -488,6 +915,7 @@ class ApiService {
     String url,
     Map<String, dynamic> body, {
     Map<String, String>? headers,
+    bool isRetry = false,
   }) async {
     http.Response response;
     try {
@@ -503,6 +931,19 @@ class ApiService {
         'Could not reach the server. Check your connection and try again.',
       );
     }
+
+    if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        return _patch(url, body, headers: await _authHeaders(), isRetry: true);
+      }
+      throw ApiException(
+        'Your session has expired. Please log in again.',
+        statusCode: 401,
+        sessionExpired: true,
+      );
+    }
+
     return _handleResponse(response);
   }
 
@@ -510,6 +951,7 @@ class ApiService {
     String url, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    bool isRetry = false,
   }) async {
     http.Response response;
     try {
@@ -525,6 +967,25 @@ class ApiService {
         'Could not reach the server. Check your connection and try again.',
       );
     }
+
+    if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        await _delete(
+          url,
+          body: body,
+          headers: await _authHeaders(),
+          isRetry: true,
+        );
+        return;
+      }
+      throw ApiException(
+        'Your session has expired. Please log in again.',
+        statusCode: 401,
+        sessionExpired: true,
+      );
+    }
+
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     final decoded = _decode(response);
     throw ApiException(
@@ -535,13 +996,9 @@ class ApiService {
   }
 
   static dynamic _decodeRaw(http.Response response) {
-    print("_decodeRaw => statusCode: ${response.statusCode}");
-    print("_decodeRaw => body: '${response.body}'");
-    print("_decodeRaw => bodyLength: ${response.body.length}");
     try {
       return response.body.isNotEmpty ? jsonDecode(response.body) : null;
     } catch (e) {
-      print("_decodeRaw => jsonDecode FAILED: $e");
       throw ApiException(
         'Unexpected server response. Please try again.',
         statusCode: response.statusCode,
@@ -572,7 +1029,6 @@ class ApiService {
 
   static Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      // Detect HTML error pages (Django debug page, nginx 502, etc.)
       final trimmed = response.body.trimLeft();
       if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
         throw ApiException(

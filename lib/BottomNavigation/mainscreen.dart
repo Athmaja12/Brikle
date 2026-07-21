@@ -3,7 +3,6 @@ import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/Calculation/View/calculatiorPage.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/View/homepage.dart';
-import 'package:brikle/MyOrdersPage/View/myorderspage.dart';
 import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/ProfilePage/View/profilescreen.dart';
 import 'package:flutter/material.dart';

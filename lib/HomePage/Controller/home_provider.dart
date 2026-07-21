@@ -205,12 +205,14 @@ class HomeController extends GetxController {
     }
   }
 
+
+
   Future<void> _loadBestselling(int categoryId) async {
     isBestsellingLoading.value = true;
     debugPrint(
       '[HomeController] _loadBestselling(categoryId: $categoryId) started',
     );
-    
+
     try {
       final results = await ApiService.getBestSelling(categoryId);
       debugPrint(

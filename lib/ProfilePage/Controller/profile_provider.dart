@@ -1,27 +1,46 @@
+// lib/ProfilePage/Controller/profile_controller.dart
+
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
+import 'package:brikle/ProfilePage/Model/address_model.dart';
+import 'package:brikle/ProfilePage/Model/order_model.dart';
 import 'package:brikle/ProfilePage/Model/profile_model.dart';
+// Import CouponModel from address_model.dart
+import 'package:brikle/AddtoCart/Model/address_model.dart'; // <-- ADD THIS
+import 'package:brikle/ProfilePage/Model/review_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class ProfileController extends GetxController {
   // ── State ──────────────────────────────────────────────────────────────────
   final Rx<ProfileModel> profile = ProfileModel().obs;
-  final RxList<AddressModel> addresses = <AddressModel>[].obs;
   final RxBool isLoading = false.obs;
   final RxBool isUpdating = false.obs;
   final RxBool isDeleting = false.obs;
-  // Coupons
+  // Coupons - Uses CouponModel from address_model.dart
   final RxList<CouponModel> coupons = <CouponModel>[].obs;
   final RxBool isCouponLoading = false.obs;
+  // Orders - NEW
+  final RxList<OrderModel> orders = <OrderModel>[].obs;
+  final RxBool isOrdersLoading = false.obs;
+  // Delivery Addresses (multi-address book)
+  final RxList<DeliveryAddressModel> addresses = <DeliveryAddressModel>[].obs;
+  final RxBool isAddressesLoading = false.obs;
+  final RxBool isAddressSaving = false.obs;
+
+  // Reviews - NEW
+  final RxList<ReviewModel> reviews = <ReviewModel>[].obs;
+  final RxBool isReviewsLoading = false.obs;
+  final RxBool isReviewSubmitting = false.obs;
 
   // ── Convenience getters ────────────────────────────────────────────────────
   String get fullName => profile.value.fullName;
   String get phoneNumber => profile.value.phoneNumber;
   String get email => profile.value.email ?? '';
   String get address => profile.value.address;
+  String get pincode => profile.value.pincode;
   bool get isVerified => profile.value.isVerified;
 
   static final RegExp _gstRegex = RegExp(
@@ -29,21 +48,59 @@ class ProfileController extends GetxController {
   );
 
   bool isGstValid(String gst) => _gstRegex.hasMatch(gst.trim().toUpperCase());
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void onInit() {
     super.onInit();
     debugPrint('[ProfileController] onInit');
     fetchProfile();
-    fetchCoupons(); // Fetch coupons on initialization
+    fetchCoupons();
+    fetchOrders();
+    fetchAddresses();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SHARED SNACKBAR HELPER
+  // ══════════════════════════════════════════════════════════════════════════
+
+  void _showStatusSnackbar(String message, {bool isError = false}) {
+    final context = Get.context;
+    if (context == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? AppColors.errorRed : AppColors.primaryGreen,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+        elevation: 6,
+      ),
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // PROFILE
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// GET /api/customer-profile/
-  /// response: { full_name, email, phone_number, address, is_verified }
   Future<void> fetchProfile() async {
     debugPrint('[ProfileController] fetchProfile()');
     isLoading.value = true;
@@ -51,7 +108,6 @@ class ProfileController extends GetxController {
       final response = await ApiService.getProfile();
       debugPrint('[ProfileController] fetchProfile SUCCESS → $response');
       profile.value = ProfileModel.fromJson(response);
-      _syncPrimaryAddressFromProfile(); // ← NEW
     } on ApiException catch (e) {
       debugPrint(
         '[ProfileController] fetchProfile ApiException → ${e.message}',
@@ -65,31 +121,13 @@ class ProfileController extends GetxController {
     }
   }
 
-  void _syncPrimaryAddressFromProfile() {
-    if (profile.value.address.trim().isEmpty) return;
-
-    final profileAddress = AddressModel(
-      id: 'profile', // stable synthetic id — identifies this synced entry
-      streetAddress1: profile.value.address,
-      streetAddress2: '',
-      pincode: profile.value.pincode,
-      isPrimary: addresses.isEmpty, // only default if nothing else exists yet
-    );
-
-    final existingIndex = addresses.indexWhere((a) => a.id == 'profile');
-    if (existingIndex != -1) {
-      addresses[existingIndex] = profileAddress;
-    } else {
-      addresses.insert(0, profileAddress);
-    }
-  }
-
-  /// PATCH /api/customer-profile/edit/
-  /// body: { full_name, email, address }
-  Future<void> updateProfile({
+  Future<bool> updateProfile({
     String? fullName,
     String? email,
     String? address,
+    String? pincode,
+    String? customerType,
+    String? gstNumber,
   }) async {
     debugPrint('[ProfileController] updateProfile()');
     isUpdating.value = true;
@@ -98,54 +136,29 @@ class ProfileController extends GetxController {
         fullName: fullName,
         email: email,
         address: address,
+        pincode: pincode,
+        customerType: customerType,
+        gstNumber: gstNumber,
       );
 
-      print('UPDATE PROFILE RESPONSE => $response');
+      debugPrint('[ProfileController] updateProfile RESPONSE → $response');
 
-      // Merge returned fields back into local model
-      // profile.value = profile.value.copyWith(
-      //   fullName: response['full_name']?.toString(),
-      //   email: response['email']?.toString(),
-      //   address: response['address']?.toString(),
-      // );
       await fetchProfile();
-      ScaffoldMessenger.of(Get.context!).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "Profile updated successfully",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppColors.primaryGreen,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          duration: const Duration(seconds: 3),
-          elevation: 6,
-        ),
-      );
+      _showStatusSnackbar('Profile updated successfully');
+      return true;
     } on ApiException catch (e) {
       debugPrint(
         '[ProfileController] updateProfile ApiException → ${e.message}',
       );
-      Get.snackbar('Error', e.message);
+      _showStatusSnackbar(e.message, isError: true);
+      return false;
     } catch (e) {
       debugPrint('[ProfileController] updateProfile unexpected → $e');
-      Get.snackbar('Error', 'Failed to update profile. Please try again.');
-    } finally {
-      isUpdating.value = false;
+      _showStatusSnackbar(
+        'Failed to update profile. Please try again.',
+        isError: true,
+      );
+      return false;
     }
   }
 
@@ -153,8 +166,6 @@ class ProfileController extends GetxController {
   // LOGOUT
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/customer-logout/
-  /// body: { refresh: "your_refresh_token" }
   Future<void> logout() async {
     debugPrint('[ProfileController] logout()');
     final confirmed = await _confirm(
@@ -175,7 +186,6 @@ class ProfileController extends GetxController {
       Get.offAllNamed('/login');
     } on ApiException catch (e) {
       debugPrint('[ProfileController] logout ApiException → ${e.message}');
-      // Even if API fails, clear local session and redirect
       await SessionManager.clearSession();
       Get.offAllNamed('/login');
     } catch (e) {
@@ -189,8 +199,6 @@ class ProfileController extends GetxController {
   // DELETE ACCOUNT
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// DELETE /api/customer-delete-account/
-  /// response: none (204)
   Future<void> deleteAccount() async {
     debugPrint('[ProfileController] deleteAccount()');
     final confirmed = await _confirm(
@@ -220,93 +228,116 @@ class ProfileController extends GetxController {
       isDeleting.value = false;
     }
   }
-
   // ══════════════════════════════════════════════════════════════════════════
-  // ADDRESSES
+  // ORDERS - NEW (Flipkart-style)
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// POST /api/customer/addresses/
-  Future<void> addAddress({
-    required String streetAddress1,
-    required String streetAddress2,
-    required String pincode,
-    bool isPrimary = false,
-    String? customerType,
-    String? gstNumber,
-  }) async {
-    debugPrint(
-      '[ProfileController] addAddress(street1: $streetAddress1, pincode: $pincode, isPrimary: $isPrimary)',
-    );
+  Future<void> fetchOrders() async {
+    debugPrint('[ProfileController] fetchOrders()');
+    isOrdersLoading.value = true;
+
     try {
-      final response = await ApiService.addAddress(
-        streetAddress1: streetAddress1,
-        streetAddress2: streetAddress2,
-        pincode: pincode,
-        isPrimary: isPrimary,
-        customerType: customerType,
-        gstNumber: gstNumber,
-      );
-      debugPrint('[ProfileController] addAddress SUCCESS → $response');
-      final newAddress = AddressModel.fromJson(response);
-      if (newAddress.isPrimary) {
-        final updated = addresses
-            .map((a) => a.copyWith(isPrimary: false))
-            .toList();
-        addresses.assignAll(updated);
-      }
-      addresses.add(newAddress);
-      Get.snackbar('Success', 'Address added successfully.');
+      final response = await ApiService.getMyOrders();
+      // Print the raw response to see the data structure
+      debugPrint('[ProfileController] fetchOrders RAW RESPONSE: $response');
+
+      orders.clear();
+      orders.addAll(response);
+      debugPrint('[ProfileController] Orders Loaded => ${orders.length}');
     } on ApiException catch (e) {
-      debugPrint('[ProfileController] addAddress ApiException → ${e.message}');
+      debugPrint(
+        '[ProfileController] fetchOrders ApiException => ${e.message}',
+      );
       Get.snackbar('Error', e.message);
     } catch (e) {
-      debugPrint('[ProfileController] addAddress unexpected → $e');
-      Get.snackbar('Error', 'Failed to add address. Please try again.');
+      debugPrint('[ProfileController] fetchOrders unexpected => $e');
+      Get.snackbar('Error', 'Failed to load orders.');
+    } finally {
+      isOrdersLoading.value = false;
     }
   }
 
-  /// PATCH /api/customer/addresses/{id}/
-  Future<void> updateAddress({
-    required String addressId,
-    String? streetAddress1,
-    String? streetAddress2,
-    String? pincode,
-    bool? isPrimary,
-    String? customerType,
-    String? gstNumber,
-  }) async {
-    debugPrint('[ProfileController] updateAddress(id: $addressId)');
+  OrderModel? getOrderById(int orderId) {
     try {
-      final response = await ApiService.updateAddress(
-        addressId: addressId,
-        streetAddress1: streetAddress1,
-        streetAddress2: streetAddress2,
-        pincode: pincode,
-        isPrimary: isPrimary,
-        customerType: customerType,
-        gstNumber: gstNumber,
+      return orders.firstWhere((o) => o.id == orderId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // REVIEWS - NEW (Flipkart-style)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<void> fetchReviews(int materialId) async {
+    debugPrint('[ProfileController] fetchReviews($materialId)');
+
+    isReviewsLoading.value = true;
+
+    try {
+      final List<ReviewModel> reviewList = await ApiService.getMaterialReviews(
+        materialId,
       );
-      debugPrint('[ProfileController] updateAddress SUCCESS → $response');
-      final updated = AddressModel.fromJson(response);
-      final index = addresses.indexWhere((a) => a.id == addressId);
-      if (index != -1) {
-        if (updated.isPrimary) {
-          final demoted = addresses
-              .map((a) => a.copyWith(isPrimary: false))
-              .toList();
-          addresses.assignAll(demoted);
-        }
-        addresses[index] = updated;
-      }
-      Get.snackbar('Success', 'Address updated successfully.');
+      reviews.clear();
+      reviews.addAll(reviewList);
+      debugPrint('[ProfileController] Reviews Loaded => ${reviews.length}');
     } on ApiException catch (e) {
       debugPrint(
-        '[ProfileController] updateAddress ApiException → ${e.message}',
+        '[ProfileController] fetchReviews ApiException => ${e.message}',
       );
       Get.snackbar('Error', e.message);
     } catch (e) {
-      debugPrint('[ProfileController] updateAddress unexpected → $e');
-      Get.snackbar('Error', 'Failed to update address. Please try again.');
+      debugPrint('[ProfileController] fetchReviews unexpected => $e');
+      Get.snackbar('Error', 'Failed to load reviews.');
+    } finally {
+      isReviewsLoading.value = false;
+    }
+  }
+
+  Future<bool> submitReview({
+    required int materialId,
+    required int rating,
+    required String comment,
+  }) async {
+    debugPrint(
+      '[ProfileController] submitReview(materialId: $materialId, rating: $rating)',
+    );
+
+    isReviewSubmitting.value = true;
+
+    try {
+      final ReviewResponseModel response = await ApiService.postMaterialReview(
+        materialId: materialId,
+        rating: rating,
+        comment: comment,
+      );
+
+      if (response.success) {
+        // Re-fetch from GET /api/materials/{id}/reviews/ so what the user
+        // sees always matches the server, rather than trusting the local
+        // POST response shape.
+        await fetchReviews(materialId);
+        _showStatusSnackbar(response.message);
+        return true;
+      } else {
+        _showStatusSnackbar(response.message, isError: true);
+        return false;
+      }
+    } on ApiException catch (e) {
+      debugPrint(
+        '[ProfileController] submitReview ApiException => ${e.message}',
+      );
+      _showStatusSnackbar(e.message, isError: true);
+      return false;
+    } catch (e) {
+      debugPrint('[ProfileController] submitReview unexpected => $e');
+      _showStatusSnackbar(
+        'Failed to submit review. Please try again.',
+        isError: true,
+      );
+      return false;
+    } finally {
+      isReviewSubmitting.value = false;
     }
   }
 
@@ -339,16 +370,19 @@ class ProfileController extends GetxController {
     return result ?? false;
   }
 
+  // ── FIXED: fetchCoupons method ────────────────────────────────────────────
   Future<void> fetchCoupons() async {
-    // await fetchCoupons();
     debugPrint('[ProfileController] fetchCoupons()');
 
     isCouponLoading.value = true;
 
     try {
-      final response = await ApiService.getMyCoupons();
+      // ApiService.getMyCoupons() returns List<CouponModel> from address_model.dart
+      final List<CouponModel> couponList = await ApiService.getMyCoupons();
 
-      coupons.assignAll(response.map((e) => CouponModel.fromJson(e)).toList());
+      // Clear and add all coupons
+      coupons.clear();
+      coupons.addAll(couponList);
 
       debugPrint('[ProfileController] Coupons Loaded => ${coupons.length}');
     } on ApiException catch (e) {
@@ -361,6 +395,154 @@ class ProfileController extends GetxController {
       Get.snackbar('Error', 'Failed to load coupons.');
     } finally {
       isCouponLoading.value = false;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADDRESSES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<void> fetchAddresses() async {
+    debugPrint('[ProfileController] fetchAddresses()');
+    isAddressesLoading.value = true;
+    try {
+      final list = await ApiService.getAddresses();
+      addresses.clear();
+      addresses.addAll(list);
+      debugPrint('[ProfileController] Addresses Loaded => ${addresses.length}');
+    } on ApiException catch (e) {
+      Get.snackbar('Error', e.message);
+    } catch (e) {
+      debugPrint('[ProfileController] fetchAddresses unexpected => $e');
+      Get.snackbar('Error', 'Failed to load addresses.');
+    } finally {
+      isAddressesLoading.value = false;
+    }
+  }
+
+  Future<bool> addAddress({
+    required String pincode,
+    required String addressLine,
+    bool isPrimary = false,
+  }) async {
+    isAddressSaving.value = true;
+    try {
+      final created = await ApiService.addAddress(
+        pincode: pincode,
+        addressLine: addressLine,
+        isPrimary: isPrimary,
+      );
+      // If this was set as primary, reflect that locally on the rest too
+      if (isPrimary) {
+        for (var i = 0; i < addresses.length; i++) {
+          if (addresses[i].isPrimary) {
+            addresses[i] = addresses[i].copyWith(isPrimary: false);
+          }
+        }
+      }
+      addresses.add(created);
+      _showStatusSnackbar('Address added successfully');
+      return true;
+    } on ApiException catch (e) {
+      _showStatusSnackbar(e.message, isError: true);
+      return false;
+    } catch (e) {
+      debugPrint('[ProfileController] addAddress unexpected => $e');
+      _showStatusSnackbar(
+        'Failed to add address. Please try again.',
+        isError: true,
+      );
+      return false;
+    } finally {
+      isAddressSaving.value = false;
+    }
+  }
+
+  Future<bool> updateAddress({
+    required int addressId,
+    String? pincode,
+    String? addressLine,
+    bool? isPrimary,
+  }) async {
+    isAddressSaving.value = true;
+    try {
+      final updated = await ApiService.updateAddress(
+        addressId: addressId,
+        pincode: pincode,
+        addressLine: addressLine,
+        isPrimary: isPrimary,
+      );
+
+      if (isPrimary == true) {
+        for (var i = 0; i < addresses.length; i++) {
+          if (addresses[i].id != addressId && addresses[i].isPrimary) {
+            addresses[i] = addresses[i].copyWith(isPrimary: false);
+          }
+        }
+      }
+
+      final index = addresses.indexWhere((a) => a.id == addressId);
+      if (index != -1) {
+        addresses[index] = updated;
+      }
+
+      _showStatusSnackbar('Address updated successfully');
+      return true;
+    } on ApiException catch (e) {
+      _showStatusSnackbar(e.message, isError: true);
+      return false;
+    } catch (e) {
+      debugPrint('[ProfileController] updateAddress unexpected => $e');
+      _showStatusSnackbar(
+        'Failed to update address. Please try again.',
+        isError: true,
+      );
+      return false;
+    } finally {
+      isAddressSaving.value = false;
+    }
+  }
+
+  /// Convenience: mark one address primary (others auto-demoted server-side
+  /// or locally, depending on backend behavior).
+  Future<bool> setPrimaryAddress(int addressId) {
+    return updateAddress(addressId: addressId, isPrimary: true);
+  }
+
+  Future<bool> deleteAddress(int addressId) async {
+    final confirmed = await _confirm(
+      title: 'Delete Address',
+      message: 'Are you sure you want to remove this address?',
+      confirmLabel: 'Delete',
+      isDestructive: true,
+    );
+    if (!confirmed) return false;
+
+    try {
+      await ApiService.deleteAddress(addressId);
+      addresses.removeWhere((a) => a.id == addressId);
+      _showStatusSnackbar('Address removed');
+      return true;
+    } on ApiException catch (e) {
+      _showStatusSnackbar(e.message, isError: true);
+      return false;
+    } catch (e) {
+      debugPrint('[ProfileController] deleteAddress unexpected => $e');
+      _showStatusSnackbar(
+        'Failed to remove address. Please try again.',
+        isError: true,
+      );
+      return false;
+    }
+  }
+
+ 
+
+  DeliveryAddressModel? get primaryAddress {
+    try {
+      return addresses.firstWhere((a) => a.isPrimary);
+    } catch (_) {
+      return addresses.isNotEmpty ? addresses.first : null;
     }
   }
 

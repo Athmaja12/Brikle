@@ -14,16 +14,39 @@ class MaterialFaq {
   MaterialFaq({required this.id, required this.question, required this.answer});
 
   factory MaterialFaq.fromJson(Map<String, dynamic> json) => MaterialFaq(
-        id: json['id'] as int,
-        question: json['question']?.toString() ?? '',
-        answer: json['answer']?.toString() ?? '',
-      );
+    id: json['id'] as int,
+    question: json['question']?.toString() ?? '',
+    answer: json['answer']?.toString() ?? '',
+  );
+}
+
+class SmartSuggestion {
+  final int id;
+  final String name;
+  final String imageUrl;
+  final String brandName;
+  final bool isBestSelling;
+
+  SmartSuggestion({
+    required this.id,
+    required this.name,
+    required this.imageUrl,
+    required this.brandName,
+    required this.isBestSelling,
+  });
+
+  factory SmartSuggestion.fromJson(Map<String, dynamic> json) {
+    return SmartSuggestion(
+      id: json['id'],
+      name: json['name'] ?? '',
+      imageUrl: _fullImageUrl(json['master_image_url']),
+      brandName: json['brand_name'] ?? '',
+      isBestSelling: json['is_best_selling'] ?? false,
+    );
+  }
 }
 
 /// Full material details — /api/superadmin/materials/{id}/
-/// NOTE: this endpoint has no price/variant data by design. Pricing for
-/// the detail screen comes from the CategoryProductItem the user tapped
-/// (already fetched on the Category Products screen), not from here.
 class MaterialDetail {
   final int id;
   final String name;
@@ -33,6 +56,8 @@ class MaterialDetail {
   final List<String> galleryImages;
   final List<MaterialFaq> faqs;
   final String? brandName;
+  final int?
+  categoryId; // NEW — needed to fetch pricing via category-details API
   final String? categoryName;
   final String? subcategoryName;
 
@@ -45,6 +70,7 @@ class MaterialDetail {
     required this.galleryImages,
     required this.faqs,
     this.brandName,
+    this.categoryId, // NEW
     this.categoryName,
     this.subcategoryName,
   });
@@ -63,11 +89,17 @@ class MaterialDetail {
       productHighlights: json['product_highlights']?.toString() ?? '',
       masterImage: _fullImageUrl(json['master_image']?.toString()),
       galleryImages: images
-          .map((e) => _fullImageUrl((e as Map<String, dynamic>)['image']?.toString()))
+          .map(
+            (e) =>
+                _fullImageUrl((e as Map<String, dynamic>)['image']?.toString()),
+          )
           .where((url) => url.isNotEmpty)
           .toList(),
-      faqs: faqs.map((e) => MaterialFaq.fromJson(e as Map<String, dynamic>)).toList(),
+      faqs: faqs
+          .map((e) => MaterialFaq.fromJson(e as Map<String, dynamic>))
+          .toList(),
       brandName: brand?['name']?.toString(),
+      categoryId: category?['id'] as int?, // NEW
       categoryName: category?['name']?.toString(),
       subcategoryName: subcategory?['name']?.toString(),
     );

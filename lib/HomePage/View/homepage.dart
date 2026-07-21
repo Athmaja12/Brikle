@@ -246,16 +246,28 @@ class _CarouselSection extends StatefulWidget {
 }
 
 class _CarouselSectionState extends State<_CarouselSection> {
-  final PageController _pageController = PageController();
-  int _page = 0;
+  late final PageController _pageController;
+  int _page =
+      0; // raw (unbounded) page index — actual item is _page % items.length
   Timer? _autoPlayTimer;
 
   static const _autoPlayInterval = Duration(seconds: 4);
   static const _autoPlayAnimationDuration = Duration(milliseconds: 450);
 
+  // Large multiplier so the user can swipe back and forth for the entire
+  // session without ever hitting page 0 or the max page — that's what
+  // makes it feel infinite in both directions, not just forward auto-play.
+  static const int _virtualMultiplier = 5000;
+
   @override
   void initState() {
     super.initState();
+    final items = widget.controller.carousels;
+    final itemCount = items.isEmpty ? 1 : items.length;
+    // Start deep in the virtual range, aligned so (_page % itemCount) == 0,
+    // i.e. we visually start on the real first slide.
+    _page = _virtualMultiplier * itemCount ~/ 2;
+    _pageController = PageController(initialPage: _page);
     _startAutoPlay();
   }
 
@@ -265,9 +277,9 @@ class _CarouselSectionState extends State<_CarouselSection> {
       final items = widget.controller.carousels;
       if (items.length <= 1 || !_pageController.hasClients) return;
 
-      final nextPage = (_page + 1) % items.length;
-      _pageController.animateToPage(
-        nextPage,
+      // Always move forward by exactly 1 — never wraps, so animateToPage
+      // never has to animate backward through the whole list.
+      _pageController.nextPage(
         duration: _autoPlayAnimationDuration,
         curve: Curves.easeInOut,
       );
@@ -300,30 +312,30 @@ class _CarouselSectionState extends State<_CarouselSection> {
                 onNotification: (notification) {
                   if (notification is ScrollStartNotification &&
                       notification.dragDetails != null) {
-                    _startAutoPlay();
+                    _startAutoPlay(); // restart timer on manual swipe, same as before
                   }
                   return false;
                 },
                 child: PageView.builder(
                   controller: _pageController,
-                  itemCount: items.length,
+                  // Effectively unlimited — user/auto-play can move forward
+                  // (or backward, via manual swipe) for the whole session
+                  // without ever reaching this bound.
+                  itemCount: _virtualMultiplier * items.length,
                   onPageChanged: (i) => setState(() => _page = i),
-                  itemBuilder: (context, i) => ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    // FIX: was Image.network(items[i].imageUrl, ...)
-                    // unconditionally with only an errorBuilder — an
-                    // empty/malformed string crashes before errorBuilder
-                    // can catch it. Now gated behind _isValidImageUrl.
-                    child: _isValidImageUrl(items[i].imageUrl)
-                        ? Image.network(
-                            items[i].imageUrl,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            errorBuilder: (_, __, ___) =>
-                                Container(color: AppColors.dotInactive),
-                          )
-                        : Container(color: AppColors.dotInactive),
-                  ),
+                  itemBuilder: (context, i) {
+                    final actualIndex = i % items.length;
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        items[actualIndex].imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorBuilder: (_, __, ___) =>
+                            Container(color: AppColors.dotInactive),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -331,7 +343,7 @@ class _CarouselSectionState extends State<_CarouselSection> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(items.length, (i) {
-                final active = i == _page;
+                final active = (_page % items.length) == i;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -672,7 +684,7 @@ class _TopDealsSection extends StatelessWidget {
                     imageUrl: deal.imageUrl,
                     price: deal.dealPrice,
                   ),
-                  dealBadgeText: deal.customTitle,
+                  // dealBadgeText: deal.customTitle,
                   dealEndDate: deal.endDate,
                   originalPrice: deal.retailPrice,
                   discountPercent: deal.discountPercent,

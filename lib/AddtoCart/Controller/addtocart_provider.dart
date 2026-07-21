@@ -1,6 +1,4 @@
-// lib/AddtoCart/Controller/addtocart_provider.dart - Corrected version
-// DEBUG: verbose debugPrint logging added throughout to trace the
-// address -> payment -> checkout -> place-order flow.
+// lib/AddtoCart/Controller/addtocart_provider.dart
 
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
@@ -10,8 +8,6 @@ import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-/// Real cart CRUD via API. Coupon/GSTIN/bill-breakdown/cancellation-policy
-/// are intentionally static placeholders — no backend for those yet.
 class CartController extends GetxController {
   static const String _tag = '[CartController]';
 
@@ -20,7 +16,7 @@ class CartController extends GetxController {
   final RxBool isLoading = true.obs;
   final RxBool cancellationPolicyExpanded = false.obs;
 
-  // ── STATIC placeholders — no API for these yet ──────────────────────
+  // ── STATIC placeholders ──────────────────────────────────────
   final RxString couponCode = ''.obs;
   final RxBool gstinAdded = false.obs;
   static const double staticDiscount = 0;
@@ -28,13 +24,21 @@ class CartController extends GetxController {
   static const double staticHandlingCharge = 0;
 
   // ── Payment Method State ──────────────────────────────
-  final RxString selectedPaymentMethod = 'COD'.obs; // 'COD' or 'Online'
-  // Tracks whether the user has *actively* tapped a payment option this
-  // session — the cart page keeps showing "Add Your Address" (and, once an
-  // address exists, the payment picker) until this becomes true; only then
-  // does the button flip to "Proceed to Checkout".
+  final RxString selectedPaymentMethod = 'COD'.obs;
   final RxBool hasSelectedPaymentMethod = false.obs;
   final RxBool showPaymentMethodSelector = false.obs;
+
+  // ── Coupon State ──────────────────────────────────────
+  final RxList<CouponModel> myCoupons = <CouponModel>[].obs;
+  final RxBool isLoadingCoupons = false.obs;
+  final Rx<CouponModel?> selectedCoupon = Rx<CouponModel?>(null);
+
+  // ── Order Success State ──────────────────────────────
+  final Rx<OrderPlacedResponse?> lastOrderResponse = Rx<OrderPlacedResponse?>(
+    null,
+  );
+  final RxList<CouponModel> earnedCoupons = <CouponModel>[].obs;
+  final RxInt earnedCouponsCount = 0.obs;
 
   // ── END STATIC ───────────────────────────────────────────────────────
 
@@ -47,6 +51,7 @@ class CartController extends GetxController {
     super.onInit();
     debugPrint('$_tag onInit — controller created, fetching cart');
     fetchCart();
+    fetchMyCoupons();
   }
 
   @override
@@ -54,6 +59,42 @@ class CartController extends GetxController {
     debugPrint('$_tag onClose — controller disposed');
     super.onClose();
   }
+
+  // ── Coupon Methods ──────────────────────────────────
+
+  Future<void> fetchMyCoupons() async {
+    debugPrint('$_tag fetchMyCoupons() called');
+    isLoadingCoupons.value = true;
+    try {
+      final response = await ApiService.getMyCoupons();
+      myCoupons.value = response;
+      debugPrint('$_tag fetchMyCoupons success — ${myCoupons.length} coupons');
+    } catch (e) {
+      debugPrint('$_tag fetchMyCoupons failed: $e');
+    } finally {
+      isLoadingCoupons.value = false;
+    }
+  }
+
+  void selectCoupon(CouponModel coupon) {
+    debugPrint('$_tag selectCoupon: ${coupon.couponCode}');
+    selectedCoupon.value = coupon;
+    couponCode.value = coupon.couponCode;
+    Get.snackbar(
+      'Coupon Applied',
+      '${coupon.couponCode} - ${coupon.discountPercentage}% off',
+      backgroundColor: AppColors.primaryGreen,
+      colorText: Colors.white,
+    );
+  }
+
+  void removeSelectedCoupon() {
+    debugPrint('$_tag removeSelectedCoupon');
+    selectedCoupon.value = null;
+    couponCode.value = '';
+  }
+
+  // ── END Coupon Methods ──────────────────────────────
 
   Future<void> fetchCart({bool showLoader = true}) async {
     debugPrint('$_tag fetchCart(showLoader: $showLoader) called');
@@ -112,7 +153,6 @@ class CartController extends GetxController {
       return;
     }
 
-    // Optimistic local update for instant UI feedback
     final index = cartItems.indexWhere((i) => i.variantId == item.variantId);
     if (index != -1) {
       final unitPrice = item.unitPriceWithGst;
@@ -120,7 +160,7 @@ class CartController extends GetxController {
         quantity: newQuantity,
         totalPriceWithGst: unitPrice * newQuantity,
       );
-      cartItems.refresh(); // Notify observers of the change
+      cartItems.refresh();
       _recalculateGrandTotal();
       debugPrint(
         '$_tag updateQuantity optimistic update applied at index $index, '
@@ -141,17 +181,15 @@ class CartController extends GetxController {
       debugPrint(
         '$_tag updateQuantity API call succeeded, reconciling with server',
       );
-      await fetchCart(
-        showLoader: false,
-      ); // reconcile with server truth (tiered pricing may change unit price)
+      await fetchCart(showLoader: false);
     } on ApiException catch (e) {
       debugPrint('$_tag updateQuantity failed: ${e.message}');
       Get.snackbar('Could not update quantity', e.message);
-      await fetchCart(showLoader: false); // revert optimistic update on failure
+      await fetchCart(showLoader: false);
     } catch (e, st) {
       debugPrint('$_tag updateQuantity unexpected error: $e');
       debugPrint('$_tag updateQuantity stack: $st');
-      await fetchCart(showLoader: false); // revert optimistic update on failure
+      await fetchCart(showLoader: false);
     }
   }
 
@@ -180,16 +218,14 @@ class CartController extends GetxController {
     } on ApiException catch (e) {
       debugPrint('$_tag removeItem failed: ${e.message}');
       Get.snackbar('Could not remove item', e.message);
-      await fetchCart(); // revert
+      await fetchCart();
     } catch (e, st) {
       debugPrint('$_tag removeItem unexpected error: $e');
       debugPrint('$_tag removeItem stack: $st');
-      await fetchCart(showLoader: false); // revert
+      await fetchCart(showLoader: false);
     }
   }
 
-  /// "Clear" — no bulk-clear endpoint given, so this removes each item
-  /// individually via the same DELETE endpoint.
   Future<void> clearCart() async {
     debugPrint('$_tag clearCart called — removing ${cartItems.length} items');
     final items = List<CartItem>.from(cartItems);
@@ -217,7 +253,6 @@ class CartController extends GetxController {
     debugPrint('$_tag _recalculateGrandTotal -> ${grandTotal.value}');
   }
 
-  // ── STATIC feature stubs ─────────────────────────────────────────────
   void applyCoupon(String code) {
     debugPrint(
       '$_tag applyCoupon(code: "$code") — static stub, no backend yet',
@@ -235,12 +270,11 @@ class CartController extends GetxController {
   // ── Address & Delivery State ──────────────────────────────
   final Rx<AddressModel?> selectedAddress = Rx<AddressModel?>(null);
   final Rx<String?> selectedDeliveryDate = Rx<String?>(null);
+  final Rx<String?> selectedDeliveryTime = Rx<String?>(null);
   final Rx<VehicleModel?> selectedVehicle = Rx<VehicleModel?>(null);
   final Rx<CheckoutResponse?> checkoutResponse = Rx<CheckoutResponse?>(null);
   final RxBool isCheckingOut = false.obs;
   final Rx<String?> orderConfirmationMessage = Rx<String?>(null);
-
-  // ── Address & Delivery Methods ──────────────────────────────
 
   // ── Address & Delivery Methods ──────────────────────────────
 
@@ -293,7 +327,6 @@ class CartController extends GetxController {
       debugPrint(
         '$_tag checkPincode — serviceable, showing distance alert dialog',
       );
-      // Show distance alert
       Get.dialog(
         AlertDialog(
           title: const Text('📍 Delivery Distance Alert'),
@@ -394,11 +427,6 @@ class CartController extends GetxController {
     }
   }
 
-  /// Called when the user taps either "Cash on Delivery" or
-  /// "Online Payment" on the cart page. This is the only place that flips
-  /// `hasSelectedPaymentMethod` to true, so the checkout button only shows
-  /// up after a deliberate choice — not just because 'COD' happens to be
-  /// the default value.
   void selectPaymentMethod(String method) {
     debugPrint(
       '$_tag selectPaymentMethod("$method") — was: '
@@ -417,17 +445,19 @@ class CartController extends GetxController {
   Future<CheckoutResponse?> processCheckout({
     required String pincode,
     required String deliveryDate,
+    required String deliveryTime, // NEW
     int? couponId,
   }) async {
     debugPrint(
       '$_tag processCheckout(pincode: "$pincode", deliveryDate: '
-      '"$deliveryDate", couponId: $couponId)',
+      '"$deliveryDate", deliveryTime: "$deliveryTime", couponId: $couponId)',
     );
     try {
       isCheckingOut.value = true;
       final response = await ApiService.checkout(
         pincode: pincode,
         requestedDeliveryDate: deliveryDate,
+        requestedDeliveryTime: deliveryTime,
         couponId: couponId,
       );
       debugPrint('$_tag processCheckout response: $response');
@@ -460,39 +490,49 @@ class CartController extends GetxController {
     }
   }
 
-  // ── SINGLE placeOrder method that uses selected payment method ──
+  // ── placeOrder method ──────────────────────────────
   Future<OrderPlacedResponse?> placeOrder({
     required String shippingAddress,
     required String pincode,
     required String deliveryDate,
+    String? deliveryTime, // NEW
   }) async {
     debugPrint(
       '$_tag placeOrder(shippingAddress: "$shippingAddress", pincode: '
-      '"$pincode", deliveryDate: "$deliveryDate", paymentMethod: '
-      '"${selectedPaymentMethod.value}")',
+      '"$pincode", deliveryDate: "$deliveryDate", deliveryTime: '
+      '"$deliveryTime", paymentMethod: "${selectedPaymentMethod.value}")',
     );
     try {
       isCheckingOut.value = true;
       final response = await ApiService.placeOrder(
-        paymentMethod:
-            selectedPaymentMethod.value, // Uses selected payment method
+        paymentMethod: selectedPaymentMethod.value,
         shippingAddress: shippingAddress,
         pincode: pincode,
         requestedDeliveryDate: deliveryDate,
+        requestedDeliveryTime: deliveryTime,
       );
       debugPrint('$_tag placeOrder response: $response');
 
       final result = OrderPlacedResponse.fromJson(response);
       orderConfirmationMessage.value = result.message;
+
+      if (result.earnedCoupons != null) {
+        earnedCoupons.value = result.earnedCoupons!;
+        earnedCouponsCount.value = result.earnedCouponsCount;
+        debugPrint('$_tag placeOrder — earned ${earnedCoupons.length} coupons');
+      }
+
+      lastOrderResponse.value = result;
+
       debugPrint(
         '$_tag placeOrder parsed — orderId: ${result.orderDetails.id}, '
         'status: ${result.orderDetails.orderStatus}, grandTotal: '
         '${result.orderDetails.grandTotal}',
       );
 
-      // Clear cart after successful order
       debugPrint('$_tag placeOrder — clearing cart after successful order');
       await clearCart();
+      await fetchMyCoupons();
 
       return result;
     } on ApiException catch (e) {

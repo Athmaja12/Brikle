@@ -381,7 +381,7 @@ class _PromoGridSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 child: Image.asset(
                   tile.assetPath,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   width: double.infinity,
                   height: double.infinity,
                 ),

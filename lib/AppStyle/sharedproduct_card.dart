@@ -1,18 +1,20 @@
 import 'dart:async';
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
 import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SharedProductCard extends StatefulWidget {
   final CategoryProductItem product;
-  final String? dealBadgeText; // custom_title, e.g. "monsoon week"
+  // final String? dealBadgeText; // custom_title, e.g. "monsoon week"
   final DateTime? dealEndDate; // end_date
   final double? originalPrice; // retail_price_with_gst
   final int? discountPercent; // discount_percentage
@@ -20,7 +22,7 @@ class SharedProductCard extends StatefulWidget {
   const SharedProductCard({
     super.key,
     required this.product,
-    this.dealBadgeText,
+    // this.dealBadgeText,
     this.dealEndDate,
     this.originalPrice,
     this.discountPercent,
@@ -40,6 +42,14 @@ class _SharedProductCardState extends State<SharedProductCard> {
   final GlobalKey _buttonKey = GlobalKey();
   OverlayEntry? _unlockOverlay;
   Timer? _countdownTimer;
+
+  // ── Manual quantity entry ────────────────────────────────────────────
+  // Lets the user tap the count between the +/- buttons and type a
+  // quantity directly, instead of only tapping +/- one at a time.
+  final TextEditingController _qtyController = TextEditingController();
+  final FocusNode _qtyFocusNode = FocusNode();
+  CartItem? _currentCartItem;
+  CartController? _cartController;
 
   CategoryProductItem get product => widget.product;
 
@@ -67,12 +77,21 @@ class _SharedProductCardState extends State<SharedProductCard> {
         if (mounted) setState(() {});
       });
     }
+    // Commit whatever the user typed as soon as the field loses focus
+    // (covers tapping elsewhere, not just pressing "done").
+    _qtyFocusNode.addListener(() {
+      if (!_qtyFocusNode.hasFocus) {
+        _commitTypedQuantity();
+      }
+    });
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
     _unlockOverlay?.remove();
+    _qtyController.dispose();
+    _qtyFocusNode.dispose();
     super.dispose();
   }
 
@@ -132,6 +151,30 @@ class _SharedProductCardState extends State<SharedProductCard> {
     });
   }
 
+  // Reads whatever is currently typed in the quantity field, applies it
+  // (removes the item on 0/empty/invalid, otherwise sets the new qty),
+  // and fires the bulk-tier unlock popup if it lands on a tier threshold.
+  void _commitTypedQuantity() {
+    final cartItem = _currentCartItem;
+    final cartController = _cartController;
+    if (cartItem == null || cartController == null) return;
+
+    final parsed = int.tryParse(_qtyController.text.trim());
+
+    if (parsed == null || parsed <= 0) {
+      cartController.removeItem(cartItem);
+      return;
+    }
+
+    if (parsed != cartItem.quantity) {
+      cartController.updateQuantity(cartItem, parsed);
+      _maybeShowUnlockPopup(parsed);
+    } else {
+      // Nothing changed — just make sure the field shows the clean value.
+      _qtyController.text = '$parsed';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cartController = Get.find<CartController>();
@@ -153,6 +196,17 @@ class _SharedProductCardState extends State<SharedProductCard> {
           quantity == 0 ? 1 : quantity,
         );
         final totalPrice = unitPrice * (quantity == 0 ? 1 : quantity);
+
+        // Keep the manual-entry field + controller refs current so
+        // _commitTypedQuantity() always acts on the latest cart item.
+        _currentCartItem = cartItem;
+        _cartController = cartController;
+        if (!_qtyFocusNode.hasFocus) {
+          final text = '$quantity';
+          if (_qtyController.text != text) {
+            _qtyController.text = text;
+          }
+        }
 
         return ClipRect(
           child: Column(
@@ -225,31 +279,31 @@ class _SharedProductCardState extends State<SharedProductCard> {
                                   color: Colors.black26,
                                 ),
                         ),
-                        if (widget.dealBadgeText != null &&
-                            widget.dealBadgeText!.isNotEmpty)
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF7A00),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                widget.dealBadgeText!.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
+                        // if (widget.dealBadgeText != null &&
+                        // widget.dealBadgeText!.isNotEmpty)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
                             ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF7A00),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            // child: Text(
+                            //   // widget.dealBadgeText!.toUpperCase(),
+                            //   style: const TextStyle(
+                            //     fontSize: 8,
+                            //     fontWeight: FontWeight.w700,
+                            //     color: Colors.white,
+                            //     letterSpacing: 0.3,
+                            //   ),
+                            // ),
                           ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -257,45 +311,11 @@ class _SharedProductCardState extends State<SharedProductCard> {
                     // ── Trust badges: Assured + 100% Trusted (shown on every card)
                     Row(
                       children: [
-                        // Flexible(
-                        //   child: Container(
-                        //     padding: const EdgeInsets.symmetric(
-                        //       horizontal: 5,
-                        //       vertical: 2,
-                        //     ),
-                        //     decoration: BoxDecoration(
-                        //       color: const Color(0xFFFFF3E0),
-                        //       borderRadius: BorderRadius.circular(5),
-                        //     ),
-                        //     // child: Row(
-                        //     //   mainAxisSize: MainAxisSize.min,
-                        //     //   children: [
-                        //     //     const Icon(
-                        //     //       Icons.bolt,
-                        //     //       size: 9,
-                        //     //       color: Color(0xFFEF6C00),
-                        //     //     ),
-                        //     //     const SizedBox(width: 2),
-                        //     //     Flexible(
-                        //     //       child: Text(
-                        //     //         'ASSURED',
-                        //     //         overflow: TextOverflow.ellipsis,
-                        //     //         style: GoogleFonts.manrope(
-                        //     //           fontSize: 8,
-                        //     //           fontWeight: FontWeight.w700,
-                        //     //           color: const Color(0xFFEF6C00),
-                        //     //         ),
-                        //     //       ),
-                        //     //     ),
-                        //     //   ],
-                        //     // ),
-                        //   ),
-                        // ),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 5, 
+                              horizontal: 5,
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
@@ -483,12 +503,46 @@ class _SharedProductCardState extends State<SharedProductCard> {
                             label: '-',
                             onTap: () => cartController.decrement(cartItem!),
                           ),
-                          Text(
-                            '$quantity',
-                            style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                          // ── Manually-editable quantity field ──
+                          // Tap it to type a quantity directly; still stays
+                          // in sync when +/- are tapped instead.
+                          SizedBox(
+                            width: 30,
+                            height: 22,
+                            child: TextField(
+                              controller: _qtyController,
+                              focusNode: _qtyFocusNode,
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                              cursorColor: Colors.white,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                              ),
+                              onTap: () {
+                                // Select-all so typing replaces the value
+                                // instead of appending to it.
+                                _qtyController.selection = TextSelection(
+                                  baseOffset: 0,
+                                  extentOffset: _qtyController.text.length,
+                                );
+                              },
+                              onSubmitted: (_) {
+                                _commitTypedQuantity();
+                                _qtyFocusNode.unfocus();
+                              },
                             ),
                           ),
                           _StepperSymbol(

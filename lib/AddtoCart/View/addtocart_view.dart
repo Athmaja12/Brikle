@@ -617,64 +617,358 @@ class _StepperButton extends StatelessWidget {
   }
 }
 
-class _CouponCard extends StatelessWidget {
+// lib/AddtoCart/View/addtocart_view.dart
+// Replace only the _CouponCard class with this code
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _CouponCard - Dropdown-style coupon selector (collapsed by default)
+// ═══════════════════════════════════════════════════════════════════════════
+class _CouponCard extends StatefulWidget {
   final CartController controller;
   const _CouponCard({required this.controller});
 
   @override
+  State<_CouponCard> createState() => _CouponCardState();
+}
+
+class _CouponCardState extends State<_CouponCard> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    final textController = TextEditingController();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Get Discount',
-            style: AppTextStyles.welcomeBackTitle(
-              context,
-            ).copyWith(fontSize: 16),
-          ),
-          SizedBox(height: Responsive.space(context, 10)),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: textController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter Coupon Code',
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+    final controller = widget.controller;
+
+    return Obx(() {
+      final coupons = controller.myCoupons;
+      final validCoupons = coupons.where((c) => c.isValid).toList();
+      final selectedCoupon = controller.selectedCoupon.value;
+      final isLoading = controller.isLoadingCoupons.value;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header row (always visible) ─────────────────────────────
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_offer_outlined,
+                  color: AppColors.primaryGreen,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Coupons',
+                  style: AppTextStyles.welcomeBackTitle(
+                    context,
+                  ).copyWith(fontSize: 16),
+                ),
+                const Spacer(),
+                if (selectedCoupon != null)
+                  GestureDetector(
+                    onTap: controller.removeSelectedCoupon,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.close,
+                            size: 14,
+                            color: Colors.red.shade500,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Remove',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.red.shade500,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: AppColors.inputBorder),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // ── Selected coupon chip (shown collapsed or expanded) ──────
+            if (selectedCoupon != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.primaryGreen.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            selectedCoupon.couponCode,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            '${selectedCoupon.discountPercentage.toStringAsFixed(0)}% off on ${selectedCoupon.rewardMaterialName}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Applied',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            // ── Loading state ────────────────────────────────────────────
+            else if (isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            // ── No coupons available ─────────────────────────────────────
+            else if (validCoupons.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.local_offer_outlined,
+                      size: 18,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'No coupons available',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            // ── Dropdown trigger + expandable list ───────────────────────
+            else ...[
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => setState(() => _isExpanded = !_isExpanded),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FFF8),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.primaryGreen.withOpacity(0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.confirmation_number_outlined,
+                        size: 18,
+                        color: AppColors.primaryGreen,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${validCoupons.length} coupon${validCoupons.length > 1 ? 's' : ''} available',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: _isExpanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              SizedBox(width: Responsive.space(context, 10)),
-              ElevatedButton(
-                onPressed: () => controller.applyCoupon(textController.text),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  'Apply',
-                  style: TextStyle(color: Colors.white),
-                ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: _isExpanded
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Column(
+                          children: validCoupons
+                              .map(
+                                (coupon) => _CouponDropdownItem(
+                                  coupon: coupon,
+                                  onTap: () {
+                                    controller.selectCoupon(coupon);
+                                    setState(() => _isExpanded = false);
+                                  },
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
-          ),
-        ],
+          ],
+        ),
+      );
+    });
+  }
+}
+
+// ── Coupon Item Widget ──────────────────────────────────────
+class _CouponDropdownItem extends StatelessWidget {
+  final CouponModel coupon;
+  final VoidCallback onTap;
+
+  const _CouponDropdownItem({required this.coupon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FFF8),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primaryGreen.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.local_offer,
+                color: AppColors.primaryGreen,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    coupon.couponCode,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    '${coupon.discountPercentage.toStringAsFixed(0)}% off on ${coupon.rewardMaterialName}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textGray,
+                    ),
+                  ),
+                  Text(
+                    coupon.formattedExpiryDate,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color:
+                          coupon.expiryDate.difference(DateTime.now()).inDays <
+                              3
+                          ? Colors.orange
+                          : Colors.grey.shade400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Apply',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1258,18 +1552,18 @@ class _ProceedToCheckoutButton extends StatelessWidget {
   Future<void> _proceedToCheckout(BuildContext context) async {
     final address = controller.selectedAddress.value;
     final deliveryDate = controller.selectedDeliveryDate.value;
+    final deliveryTime = controller.selectedDeliveryTime.value; // NEW
 
-    if (address == null || deliveryDate == null) {
+    if (address == null || deliveryDate == null || deliveryTime == null) {
       Get.snackbar(
         'Missing Information',
-        'Please add your address and select a delivery date',
+        'Please add your address, delivery date, and delivery time',
         backgroundColor: Colors.orange,
         colorText: Colors.white,
       );
       return;
     }
 
-    // Step 1: Show the order summary / confirmation bottom sheet
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -1277,21 +1571,20 @@ class _ProceedToCheckoutButton extends StatelessWidget {
       builder: (_) => _CheckoutConfirmationModal(controller: controller),
     );
 
-    // User dismissed without confirming
     if (confirmed != true) return;
 
-    // Step 2: Place order (async — context may be stale after this)
     controller.isCheckingOut.value = true;
 
     final orderResult = await controller.placeOrder(
       shippingAddress: address.address,
       pincode: address.pincode,
       deliveryDate: deliveryDate,
+      deliveryTime: deliveryTime, // NEW
     );
 
     if (orderResult != null) {
       Get.offAll(() => const OrderSuccessScreen());
-      return; // Don't set isCheckingOut to false
+      return;
     }
 
     controller.isCheckingOut.value = false;
@@ -1604,12 +1897,13 @@ class _CheckoutConfirmationModal extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Delivery Date',
+            'Delivery Date & Time',
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 4),
           Text(
-            controller.selectedDeliveryDate.value ?? '',
+            '${controller.selectedDeliveryDate.value ?? ''} '
+            '${controller.selectedDeliveryTime.value != null ? "at ${controller.selectedDeliveryTime.value}" : ""}',
             style: const TextStyle(fontSize: 14, color: Colors.grey),
           ),
           const SizedBox(height: 12),

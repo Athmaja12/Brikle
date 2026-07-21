@@ -1,8 +1,8 @@
-// lib/AddtoCart/View/addresschange_modal.dart - Simplified version
+// lib/AddtoCart/View/addresschange_modal.dart
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
-import 'package:brikle/AddtoCart/View/addtocart_view.dart';
+import 'package:brikle/AddtoCart/View/ordersuccess_screen.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
@@ -33,6 +33,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
   VehicleModel? _selectedVehicle;
   String? _pincodeStatusMessage;
   DateTime? _selectedDeliveryDate;
+  TimeOfDay? _selectedDeliveryTime;
 
   @override
   void initState() {
@@ -40,6 +41,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     _loadCurrentAddress();
     _loadVehicles();
     _selectedDeliveryDate = DateTime.now().add(const Duration(days: 1));
+    _selectedDeliveryTime = const TimeOfDay(hour: 10, minute: 0);
   }
 
   void _loadCurrentAddress() async {
@@ -185,6 +187,34 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     }
   }
 
+  Future<void> _selectDeliveryTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime:
+          _selectedDeliveryTime ?? const TimeOfDay(hour: 10, minute: 0),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDeliveryTime = picked;
+      });
+    }
+  }
+
+  /// Formats TimeOfDay as "HH:MM:SS" (24-hour) for the API.
+  String _formatTimeForApi(TimeOfDay time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute:00';
+  }
+
+  /// Formats TimeOfDay for display, e.g. "10:00 AM"
+  String _formatTimeForDisplay(TimeOfDay time) {
+    final hour12 = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour12:$minute $period';
+  }
+
   Future<void> _placeOrder() async {
     if (!_isPincodeValid) {
       Get.snackbar(
@@ -206,6 +236,16 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
       return;
     }
 
+    if (_selectedDeliveryTime == null) {
+      Get.snackbar(
+        'Delivery Time',
+        'Please select a delivery time',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -217,35 +257,34 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
         pincode: _pincodeController.text,
       );
 
-      // Update address in controller
       await widget.controller.updateAddress(address);
 
-      // Save vehicle selection
       if (_selectedVehicle != null) {
         widget.controller.selectedVehicle.value = _selectedVehicle;
       }
 
-      // Save delivery date
       final dateString = _selectedDeliveryDate!
           .toIso8601String()
           .split('T')
           .first;
-      widget.controller.selectedDeliveryDate.value = dateString;
+      final timeString = _formatTimeForApi(_selectedDeliveryTime!);
 
-      // ✅ CHECK DELIVERY AVAILABILITY - ONLY HERE
+      widget.controller.selectedDeliveryDate.value = dateString;
+      widget.controller.selectedDeliveryTime.value = timeString;
+
       final checkoutResult = await widget.controller.processCheckout(
         pincode: _pincodeController.text,
         deliveryDate: dateString,
+        deliveryTime: timeString,
       );
 
       if (checkoutResult == null) {
         if (!mounted) return;
-        Get.back(result: false);
+        setState(() => _isLoading = false);
         return;
       }
 
       if (!checkoutResult.deliveryAvailable) {
-        // ❌ Delivery not available - show message
         if (!mounted) return;
         Get.dialog(
           AlertDialog(
@@ -292,7 +331,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Get.back(); // Close dialog
+                  Get.back();
                 },
                 style: TextButton.styleFrom(
                   backgroundColor: AppColors.primaryGreen,
@@ -313,15 +352,15 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
           ),
         );
         setState(() => _isLoading = false);
-        return; // Stay in modal
+        return;
       }
 
-      // ✅ Delivery available - show delivery charge breakdown
       _showDeliveryChargeBreakdown(checkoutResult);
 
       if (!mounted) return;
-      // ✅ Back to cart page
       Get.back(result: true);
+
+      await _placeActualOrder(address, dateString, timeString);
     } catch (e) {
       Get.snackbar('Error', 'Failed to update address: $e');
       setState(() => _isLoading = false);
@@ -330,11 +369,65 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     }
   }
 
+  Future<void> _placeActualOrder(
+    AddressModel address,
+    String dateString,
+    String timeString, // NEW
+  ) async {
+    Get.dialog(
+      barrierDismissible: false,
+      const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Placing your order...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final orderResult = await widget.controller.placeOrder(
+        shippingAddress: address.address,
+        pincode: address.pincode,
+        deliveryDate: dateString,
+        deliveryTime: timeString, // NEW
+      );
+
+      Get.back();
+
+      if (orderResult != null) {
+        Get.offAll(() => const OrderSuccessScreen());
+      } else {
+        Get.snackbar(
+          'Order Failed',
+          'Unable to place order. Please try again.',
+          backgroundColor: AppColors.errorRed,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.back();
+      Get.snackbar(
+        'Error',
+        'Failed to place order: $e',
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+      );
+    }
+  }
+
   void _showDeliveryChargeBreakdown(CheckoutResponse response) {
     final config = response.deliveryConfig;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
+    Get.dialog(
+      AlertDialog(
         title: const Text('✅ Delivery Available'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -370,6 +463,11 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
             ),
             const SizedBox(height: 8),
             _buildInfoRow(
+              '📅 Scheduled',
+              '${response.scheduledDeliveryDate} at ${response.scheduledDeliveryTime}',
+            ),
+            const SizedBox(height: 8),
+            _buildInfoRow(
               '📍 Distance',
               '${config.totalDistanceKm.toStringAsFixed(1)} km',
             ),
@@ -392,11 +490,8 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
         ),
         actions: [
           TextButton(
-            // onPressed: () => CartScreen(),
             onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => CartScreen()),
-              );
+              Get.back();
             },
             style: TextButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
@@ -406,7 +501,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             child: const Text(
-              'Proceed to Cart',
+              'Proceed to Pay',
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -703,50 +798,98 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                 ),
               ),
 
-            // ── Delivery Date Picker ──
             SizedBox(height: Responsive.space(context, 16)),
             _sectionLabel(
               context,
               Icons.calendar_today_outlined,
-              'DELIVERY DATE',
+              'DELIVERY DATE & TIME',
             ),
-            InkWell(
-              onTap: _selectDeliveryDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFA),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.inputBorder),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      color: AppColors.primaryGreen,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedDeliveryDate != null
-                            ? '${_selectedDeliveryDate!.toLocal().toString().split(' ')[0]}'
-                            : 'Select Delivery Date',
-                        style: TextStyle(
-                          color: _selectedDeliveryDate != null
-                              ? AppColors.textDark
-                              : AppColors.textGray,
-                          fontSize: 14,
-                        ),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _selectDeliveryDate,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            color: AppColors.primaryGreen,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _selectedDeliveryDate != null
+                                  ? '${_selectedDeliveryDate!.toLocal().toString().split(' ')[0]}'
+                                  : 'Select Date',
+                              style: TextStyle(
+                                color: _selectedDeliveryDate != null
+                                    ? AppColors.textDark
+                                    : AppColors.textGray,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Icon(Icons.arrow_drop_down, color: AppColors.textGray),
-                  ],
+                  ),
                 ),
-              ),
+                SizedBox(width: Responsive.space(context, 10)),
+                Expanded(
+                  child: InkWell(
+                    onTap: _selectDeliveryTime,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            color: AppColors.primaryGreen,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _selectedDeliveryTime != null
+                                  ? _formatTimeForDisplay(
+                                      _selectedDeliveryTime!,
+                                    )
+                                  : 'Select Time',
+                              style: TextStyle(
+                                color: _selectedDeliveryTime != null
+                                    ? AppColors.textDark
+                                    : AppColors.textGray,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
 
             if (_vehicles.isNotEmpty) ...[

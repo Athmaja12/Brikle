@@ -1,8 +1,10 @@
+import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
-import 'package:brikle/ProfilePage/Model/profile_model.dart';
+import 'package:brikle/ProfilePage/Model/address_model.dart';
 import 'package:brikle/ProfilePage/View/couponscreen.dart';
+import 'package:brikle/ProfilePage/View/orderListScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -49,7 +51,7 @@ class _ProfileViewState extends State<ProfileView> {
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildQuickActions(context),
                         SizedBox(height: Responsive.space(context, 20)),
-                        _buildSavedAddresses(context),
+                        _buildDeliveryAddress(context),
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildAppSettings(context),
                         SizedBox(height: Responsive.space(context, 16)),
@@ -72,95 +74,103 @@ class _ProfileViewState extends State<ProfileView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: Responsive.space(context, 52),
-          height: Responsive.space(context, 52),
-          decoration: const BoxDecoration(
-            color: AppColors.primaryGreen,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _initials(_ctrl.fullName),
-            style: GoogleFonts.manrope(
-              fontSize: Responsive.font(context, 18),
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+        // ── Tappable avatar → opens "My Details" dialog ─────────────────────
+        GestureDetector(
+          onTap: () => _showProfileDetailsDialog(context),
+          child: Container(
+            width: Responsive.space(context, 52),
+            height: Responsive.space(context, 52),
+            decoration: const BoxDecoration(
+              color: AppColors.primaryGreen,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _initials(_ctrl.fullName),
+              style: GoogleFonts.manrope(
+                fontSize: Responsive.font(context, 18),
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
         SizedBox(width: Responsive.space(context, 12)),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      _ctrl.fullName.isNotEmpty ? _ctrl.fullName : '—',
-                      style: GoogleFonts.manrope(
-                        fontSize: Responsive.font(context, 20),
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.inputText,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (_ctrl.isVerified) ...[
-                    SizedBox(width: Responsive.space(context, 6)),
-                    Icon(
-                      Icons.verified_rounded,
-                      color: AppColors.primaryGreen,
-                      size: Responsive.space(context, 16),
-                    ),
-                  ],
-                ],
-              ),
-              SizedBox(height: Responsive.space(context, 4)),
-              Row(
-                children: [
-                  Icon(
-                    Icons.phone_outlined,
-                    size: Responsive.space(context, 14),
-                    color: AppColors.textGray,
-                  ),
-                  SizedBox(width: Responsive.space(context, 6)),
-                  Text(
-                    _ctrl.phoneNumber.isNotEmpty ? _ctrl.phoneNumber : '—',
-                    style: GoogleFonts.manrope(
-                      fontSize: Responsive.font(context, 13),
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.textGray,
-                    ),
-                  ),
-                ],
-              ),
-              if (_ctrl.email.isNotEmpty) ...[
-                SizedBox(height: Responsive.space(context, 2)),
+          child: GestureDetector(
+            onTap: () => _showProfileDetailsDialog(context),
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.mail_outline_rounded,
-                      size: Responsive.space(context, 14),
-                      color: AppColors.textGray,
-                    ),
-                    SizedBox(width: Responsive.space(context, 6)),
                     Flexible(
                       child: Text(
-                        _ctrl.email,
+                        _ctrl.fullName.isNotEmpty ? _ctrl.fullName : '—',
                         style: GoogleFonts.manrope(
-                          fontSize: Responsive.font(context, 13),
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.textGray,
+                          fontSize: Responsive.font(context, 20),
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inputText,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (_ctrl.isVerified) ...[
+                      SizedBox(width: Responsive.space(context, 6)),
+                      Icon(
+                        Icons.verified_rounded,
+                        color: AppColors.primaryGreen,
+                        size: Responsive.space(context, 16),
+                      ),
+                    ],
                   ],
                 ),
+                SizedBox(height: Responsive.space(context, 4)),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.phone_outlined,
+                      size: Responsive.space(context, 14),
+                      color: AppColors.textGray,
+                    ),
+                    SizedBox(width: Responsive.space(context, 6)),
+                    Text(
+                      _ctrl.phoneNumber.isNotEmpty ? _ctrl.phoneNumber : '—',
+                      style: GoogleFonts.manrope(
+                        fontSize: Responsive.font(context, 13),
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textGray,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_ctrl.email.isNotEmpty) ...[
+                  SizedBox(height: Responsive.space(context, 2)),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.mail_outline_rounded,
+                        size: Responsive.space(context, 14),
+                        color: AppColors.textGray,
+                      ),
+                      SizedBox(width: Responsive.space(context, 6)),
+                      Flexible(
+                        child: Text(
+                          _ctrl.email,
+                          style: GoogleFonts.manrope(
+                            fontSize: Responsive.font(context, 13),
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textGray,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         GestureDetector(
@@ -187,6 +197,201 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  // ── "My Details" dialog ──────────────────────────────────────────────────
+  void _showProfileDetailsDialog(BuildContext context) {
+    final p = _ctrl.profile.value;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Avatar + name + verified badge
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: AppColors.primaryGreen,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _initials(p.fullName),
+                        style: GoogleFonts.manrope(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  p.fullName.isNotEmpty ? p.fullName : '—',
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.inputText,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (p.isVerified) ...[
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.verified_rounded,
+                                  color: AppColors.primaryGreen,
+                                  size: 16,
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            p.isVerified ? 'Verified account' : 'Not verified',
+                            style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: p.isVerified
+                                  ? AppColors.primaryGreen
+                                  : AppColors.textGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(dialogCtx).pop(),
+                      icon: const Icon(Icons.close, size: 20),
+                      color: AppColors.textGray,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                const SizedBox(height: 8),
+
+                _detailRow(
+                  icon: Icons.phone_outlined,
+                  label: 'Phone',
+                  value: p.phoneNumber.isNotEmpty ? p.phoneNumber : '—',
+                ),
+                _detailRow(
+                  icon: Icons.mail_outline_rounded,
+                  label: 'Email',
+                  value: p.email?.isNotEmpty == true ? p.email! : '—',
+                ),
+                _detailRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Account Type',
+                  value: p.customerTypeLabel,
+                ),
+                if (p.customerType == 'contractor' &&
+                    (p.gstNumber?.isNotEmpty ?? false))
+                  _detailRow(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'GST Number',
+                    value: p.gstNumber!,
+                  ),
+                _detailRow(
+                  icon: Icons.location_on_outlined,
+                  label: 'Address',
+                  value: p.address.isNotEmpty ? p.address : '—',
+                ),
+                _detailRow(
+                  icon: Icons.pin_drop_outlined,
+                  label: 'Pincode',
+                  value: p.pincode.isNotEmpty ? p.pincode : '—',
+                ),
+
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(dialogCtx).pop();
+                      _showEditProfileSheet();
+                    },
+                    child: Text(
+                      'Edit Profile',
+                      style: GoogleFonts.manrope(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.textGray),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: GoogleFonts.manrope(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textGray,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.manrope(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.inputText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Quick Actions ───────────────────────────────────────────────────────────
   Widget _buildQuickActions(BuildContext context) {
     return Row(
@@ -195,7 +400,7 @@ class _ProfileViewState extends State<ProfileView> {
           context,
           icon: Icons.inventory_2_outlined,
           label: 'My Orders',
-          onTap: () => Get.toNamed('/orders'),
+          onTap: () => Get.to(() => const OrderListScreen()),
         ),
         SizedBox(width: Responsive.space(context, 10)),
         _actionCard(
@@ -262,164 +467,568 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  // ── Saved Addresses ─────────────────────────────────────────────────────────
-  Widget _buildSavedAddresses(BuildContext context) {
+  // ── Delivery Address ─────────────────────────────────────────────────────
+  // Address BOOK (multiple saved addresses) via /api/addresses/.
+  // Fully separate from the single profile address/pincode fields edited
+  // in the "Edit Profile" sheet (PATCH /api/customer-profile/).
+  Widget _buildDeliveryAddress(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Saved Addresses',
-          style: GoogleFonts.manrope(
-            fontSize: Responsive.font(context, 15),
-            fontWeight: FontWeight.w600,
-            color: AppColors.inputText,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Delivery Address',
+                style: GoogleFonts.manrope(
+                  fontSize: Responsive.font(context, 15),
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.inputText,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => _showManageAddressesDialog(context),
+              child: Text(
+                'Manage',
+                style: GoogleFonts.manrope(
+                  fontSize: Responsive.font(context, 13),
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryGreen,
+                ),
+              ),
+            ),
+          ],
         ),
         SizedBox(height: Responsive.space(context, 10)),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(Responsive.space(context, 12)),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Obx(() {
-            final addrs = _ctrl.addresses;
-            return Column(
+        Obx(() {
+          if (_ctrl.isAddressesLoading.value && _ctrl.addresses.isEmpty) {
+            return Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(Responsive.space(context, 16)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(
+                  Responsive.space(context, 12),
+                ),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final primary = _ctrl.primaryAddress;
+
+          return Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(Responsive.space(context, 16)),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(
+                Responsive.space(context, 12),
+              ),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (addrs.isEmpty)
-                  Padding(
-                    padding: EdgeInsets.all(Responsive.space(context, 16)),
-                    child: Text(
-                      'No saved addresses yet.',
-                      style: GoogleFonts.manrope(
-                        fontSize: Responsive.font(context, 13),
-                        color: AppColors.textGray,
-                      ),
-                    ),
-                  )
-                else
-                  ...List.generate(addrs.length * 2 - 1, (i) {
-                    if (i.isOdd) {
-                      return const Divider(height: 1, color: Color(0xFFE5E7EB));
-                    }
-                    return _addressItem(context, address: addrs[i ~/ 2]);
-                  }),
-                const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                Padding(
-                  padding: EdgeInsets.all(Responsive.space(context, 14)),
-                  child: GestureDetector(
-                    onTap: _showAddAddressSheet,
-                    child: Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.symmetric(
-                        vertical: Responsive.space(context, 10),
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.primaryGreen),
-                        borderRadius: BorderRadius.circular(
-                          Responsive.space(context, 24),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Add New Location ',
-                            style: GoogleFonts.manrope(
-                              fontSize: Responsive.font(context, 13),
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.primaryGreen,
+                Icon(
+                  Icons.location_on_outlined,
+                  color: AppColors.primaryGreen,
+                  size: Responsive.space(context, 20),
+                ),
+                SizedBox(width: Responsive.space(context, 10)),
+                Expanded(
+                  child: primary != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              primary.fullAddress,
+                              style: GoogleFonts.manrope(
+                                fontSize: Responsive.font(context, 13),
+                                fontWeight: FontWeight.w400,
+                                color: AppColors.inputText,
+                                height: 1.5,
+                              ),
                             ),
+                            if (_ctrl.addresses.length > 1) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '+ ${_ctrl.addresses.length - 1} more saved address${_ctrl.addresses.length > 2 ? 'es' : ''}',
+                                style: GoogleFonts.manrope(
+                                  fontSize: Responsive.font(context, 12),
+                                  color: AppColors.textGray,
+                                ),
+                              ),
+                            ],
+                          ],
+                        )
+                      : Text(
+                          'No delivery address saved yet.',
+                          style: GoogleFonts.manrope(
+                            fontSize: Responsive.font(context, 13),
+                            color: AppColors.textGray,
                           ),
-                          Icon(
-                            Icons.add,
-                            color: AppColors.primaryGreen,
-                            size: Responsive.space(context, 16),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                ),
+                GestureDetector(
+                  onTap: () => _showManageAddressesDialog(context),
+                  child: Icon(
+                    Icons.edit_outlined,
+                    size: Responsive.space(context, 18),
+                    color: AppColors.textGray,
                   ),
                 ),
               ],
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ],
     );
   }
 
-  Widget _addressItem(BuildContext context, {required AddressModel address}) {
-    return Padding(
-      padding: EdgeInsets.all(Responsive.space(context, 14)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
+  // ── Manage Addresses Dialog (list + add/edit/delete/set primary) ──────────
+  void _showManageAddressesDialog(BuildContext context) {
+    _ctrl.fetchAddresses();
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(
-                      address.isPrimary ? 'Home' : 'Address',
-                      style: GoogleFonts.manrope(
-                        fontSize: Responsive.font(context, 14),
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.inputText,
+                    Expanded(
+                      child: Text(
+                        'Delivery Addresses',
+                        style: GoogleFonts.manrope(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inputText,
+                        ),
                       ),
                     ),
-                    if (address.isPrimary) ...[
-                      SizedBox(width: Responsive.space(context, 8)),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: Responsive.space(context, 10),
-                          vertical: Responsive.space(context, 3),
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5EE),
-                          borderRadius: BorderRadius.circular(
-                            Responsive.space(context, 20),
-                          ),
-                          border: Border.all(
-                            color: AppColors.primaryGreen.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Text(
-                          'Default',
-                          style: GoogleFonts.manrope(
-                            fontSize: Responsive.font(context, 11),
-                            fontWeight: FontWeight.w500,
+                    IconButton(
+                      onPressed: () => Get.back(),
+                      icon: const Icon(Icons.close, size: 20),
+                      color: AppColors.textGray,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: Obx(() {
+                    if (_ctrl.isAddressesLoading.value) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: CircularProgressIndicator(
                             color: AppColors.primaryGreen,
                           ),
                         ),
-                      ),
-                    ],
-                  ],
+                      );
+                    }
+
+                    if (_ctrl.addresses.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'No saved addresses yet.',
+                            style: GoogleFonts.manrope(
+                              fontSize: 13,
+                              color: AppColors.textGray,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _ctrl.addresses.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final addr = _ctrl.addresses[index];
+                        return _addressTile(addr);
+                      },
+                    );
+                  }),
                 ),
-                SizedBox(height: Responsive.space(context, 4)),
-                Text(
-                  address.fullAddress,
-                  style: GoogleFonts.manrope(
-                    fontSize: Responsive.font(context, 12),
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.textGray,
-                    height: 1.5,
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primaryGreen),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    onPressed: () => _showAddEditAddressDialog(context),
+                    icon: const Icon(Icons.add, color: AppColors.primaryGreen),
+                    label: Text(
+                      'Add New Address',
+                      style: GoogleFonts.manrope(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          GestureDetector(
-            onTap: () => _showEditAddressSheet(address),
-            child: Icon(
-              Icons.edit_outlined,
-              size: Responsive.space(context, 18),
-              color: AppColors.textGray,
+        ),
+      ),
+    );
+  }
+
+  Widget _addressTile(DeliveryAddressModel addr) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: addr.isPrimary
+            ? AppColors.primaryGreen.withOpacity(0.06)
+            : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: addr.isPrimary
+              ? AppColors.primaryGreen.withOpacity(0.4)
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.location_on_outlined,
+            size: 18,
+            color: addr.isPrimary ? AppColors.primaryGreen : AppColors.textGray,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (addr.isPrimary)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'PRIMARY',
+                        style: GoogleFonts.manrope(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                Text(
+                  addr.addressLine,
+                  style: GoogleFonts.manrope(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.inputText,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Pincode: ${addr.pincode}',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
             ),
+          ),
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade500),
+            onSelected: (value) {
+              if (value == 'edit') {
+                _showAddEditAddressDialog(Get.context!, existing: addr);
+              } else if (value == 'primary') {
+                _ctrl.setPrimaryAddress(addr.id);
+              } else if (value == 'delete') {
+                _ctrl.deleteAddress(addr.id);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'edit', child: Text('Edit')),
+              if (!addr.isPrimary)
+                const PopupMenuItem(
+                  value: 'primary',
+                  child: Text('Set as Primary'),
+                ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete', style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  // ── Add / Edit Address Dialog ──────────────────────────────────────────────
+  void _showAddEditAddressDialog(
+    BuildContext context, {
+    DeliveryAddressModel? existing,
+  }) {
+    final isEdit = existing != null;
+    final addressCtrl = TextEditingController(
+      text: existing?.addressLine ?? '',
+    );
+    final pincodeCtrl = TextEditingController(text: existing?.pincode ?? '');
+    bool isPrimary = existing?.isPrimary ?? _ctrl.addresses.isEmpty;
+    bool isSaving = false;
+
+    Get.dialog(
+      StatefulBuilder(
+        builder: (dialogCtx, setDialog) => Scaffold(
+          backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset: true,
+          body: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(dialogCtx).viewInsets.bottom + 24,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            isEdit ? 'Edit Address' : 'Add New Address',
+                            style: GoogleFonts.manrope(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inputText,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Get.back(),
+                          icon: const Icon(Icons.close, size: 20),
+                          color: AppColors.textGray,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _dialogLabeledField(
+                      'Address',
+                      addressCtrl,
+                      maxLines: 2,
+                      hint: 'House/Flat No, Street, Area',
+                    ),
+                    const SizedBox(height: 14),
+                    _dialogLabeledField(
+                      'Pincode',
+                      pincodeCtrl,
+                      keyboard: TextInputType.number,
+                      hint: 'Enter 6-digit pincode',
+                    ),
+                    const SizedBox(height: 14),
+                    GestureDetector(
+                      onTap: () => setDialog(() => isPrimary = !isPrimary),
+                      behavior: HitTestBehavior.opaque,
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: isPrimary,
+                            activeColor: AppColors.primaryGreen,
+                            onChanged: (v) =>
+                                setDialog(() => isPrimary = v ?? false),
+                          ),
+                          Text(
+                            'Set as primary delivery address',
+                            style: GoogleFonts.manrope(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.inputText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                final line = addressCtrl.text.trim();
+                                final pincode = pincodeCtrl.text.trim();
+
+                                if (line.isEmpty) {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please enter the address',
+                                  );
+                                  return;
+                                }
+                                if (pincode.length != 6) {
+                                  Get.snackbar(
+                                    'Error',
+                                    'Please enter a valid 6-digit pincode',
+                                  );
+                                  return;
+                                }
+
+                                setDialog(() => isSaving = true);
+
+                                final success = isEdit
+                                    ? await _ctrl.updateAddress(
+                                        addressId: existing.id,
+                                        addressLine: line,
+                                        pincode: pincode,
+                                        isPrimary: isPrimary,
+                                      )
+                                    : await _ctrl.addAddress(
+                                        addressLine: line,
+                                        pincode: pincode,
+                                        isPrimary: isPrimary,
+                                      );
+
+                                setDialog(() => isSaving = false);
+                                if (success) Get.back();
+                              },
+                        child: isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                isEdit ? 'Save Changes' : 'Add Address',
+                                style: GoogleFonts.manrope(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      barrierColor: Colors.black54,
+    );
+  }
+
+  Widget _dialogLabeledField(
+    String label,
+    TextEditingController controller, {
+    TextInputType keyboard = TextInputType.text,
+    int maxLines = 1,
+    String? hint,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.manrope(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textGray,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboard,
+          maxLines: maxLines,
+          style: GoogleFonts.manrope(fontSize: 14, color: AppColors.inputText),
+          decoration: InputDecoration(
+            hintText: hint ?? '',
+            hintStyle: GoogleFonts.manrope(
+              fontSize: 14,
+              color: AppColors.textGray,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primaryGreen),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 
@@ -595,105 +1204,17 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  // ── Bottom Sheets ───────────────────────────────────────────────────────────
-
-  // EDIT PROFILE SHEET
+  // ── Edit Profile Sheet ──────────────────────────────────────────────────────
+  // Covers every field the backend's PATCH /api/customer-profile/ accepts:
+  // full_name, email, address, pincode, customer_type, gst_number.
   void _showEditProfileSheet() {
-    final nameCtrl = TextEditingController(text: _ctrl.fullName);
-    final emailCtrl = TextEditingController(text: _ctrl.email);
-    final addrCtrl = TextEditingController(text: _ctrl.address);
-
-    Get.bottomSheet(
-      isScrollControlled: true,
-      Container(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 24,
-          bottom: MediaQuery.of(Get.context!).viewInsets.bottom + 24,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Edit Profile',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.inputText,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _sheetField('Full Name', nameCtrl),
-            const SizedBox(height: 14),
-            _sheetField(
-              'Email',
-              emailCtrl,
-              keyboard: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 14),
-            _sheetField('Address', addrCtrl, maxLines: 2),
-            const SizedBox(height: 24),
-            Obx(
-              () => SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGreen,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                  onPressed: _ctrl.isUpdating.value
-                      ? null
-                      : () async {
-                          await _ctrl.updateProfile(
-                            fullName: nameCtrl.text.trim(),
-                            email: emailCtrl.text.trim(),
-                            address: addrCtrl.text.trim(),
-                          );
-                          Get.back();
-                        },
-                  child: _ctrl.isUpdating.value
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          'Save Changes',
-                          style: GoogleFonts.manrope(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ADD ADDRESS SHEET
-  void _showAddAddressSheet() {
-    final street1Ctrl = TextEditingController();
-    final street2Ctrl = TextEditingController();
-    final pincodeCtrl = TextEditingController();
-    final gstCtrl = TextEditingController();
-    bool isPrimary = false;
-    String customerType = 'home_owner';
+    final p = _ctrl.profile.value;
+    final nameCtrl = TextEditingController(text: p.fullName);
+    final emailCtrl = TextEditingController(text: p.email ?? '');
+    final addrCtrl = TextEditingController(text: p.address);
+    final pincodeCtrl = TextEditingController(text: p.pincode);
+    final gstCtrl = TextEditingController(text: p.gstNumber ?? '');
+    String customerType = p.customerType ?? 'home_owner';
     bool isLoading = false;
 
     Get.bottomSheet(
@@ -719,7 +1240,7 @@ class _ProfileViewState extends State<ProfileView> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Add New Address',
+                        'Edit Profile',
                         style: GoogleFonts.manrope(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -735,6 +1256,24 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
                 const SizedBox(height: 12),
 
+                _sheetLabeledField('Full Name', nameCtrl),
+                const SizedBox(height: 14),
+                _sheetLabeledField(
+                  'Email',
+                  emailCtrl,
+                  keyboard: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 14),
+                _sheetLabeledField('Address', addrCtrl, maxLines: 2),
+                const SizedBox(height: 14),
+                _sheetLabeledField(
+                  'Pincode',
+                  pincodeCtrl,
+                  keyboard: TextInputType.number,
+                  hint: 'Enter 6-digit pincode',
+                ),
+
+                const SizedBox(height: 16),
                 Text(
                   'Account Type',
                   style: GoogleFonts.manrope(
@@ -765,398 +1304,84 @@ class _ProfileViewState extends State<ProfileView> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                _addressSheetField(
-                  label: 'Street Address 1 *',
-                  controller: street1Ctrl,
-                  hint: 'House/Building/Street',
-                ),
-                const SizedBox(height: 14),
-                _addressSheetField(
-                  label: 'Street Address 2',
-                  controller: street2Ctrl,
-                  hint: 'Area/Landmark (Optional)',
-                ),
-                const SizedBox(height: 14),
-                _addressSheetField(
-                  label: 'Pincode *',
-                  controller: pincodeCtrl,
-                  keyboard: TextInputType.number,
-                  hint: 'Enter 6-digit pincode',
-                ),
 
                 if (customerType == 'contractor') ...[
                   const SizedBox(height: 14),
-                  _addressSheetField(
-                    label: 'GST Number',
-                    controller: gstCtrl,
+                  _sheetLabeledField(
+                    'GST Number',
+                    gstCtrl,
                     hint: 'Enter GST number (Optional)',
                   ),
                 ],
 
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isPrimary,
-                      activeColor: AppColors.primaryGreen,
-                      onChanged: (v) => setSheet(() => isPrimary = v ?? false),
-                    ),
-                    Text(
-                      'Set as default address',
-                      style: GoogleFonts.manrope(
-                        fontSize: 13,
-                        color: AppColors.inputText,
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            if (pincodeCtrl.text.trim().isNotEmpty &&
+                                pincodeCtrl.text.trim().length != 6) {
+                              Get.snackbar(
+                                'Error',
+                                'Please enter a valid 6-digit pincode',
+                              );
+                              return;
+                            }
+                            if (customerType == 'contractor' &&
+                                gstCtrl.text.trim().isNotEmpty &&
+                                !_ctrl.isGstValid(gstCtrl.text.trim())) {
+                              Get.snackbar(
+                                'Invalid GST',
+                                'Enter a valid GST number.',
+                              );
+                              return;
+                            }
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Get.back(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textGray,
-                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+                            setSheet(() => isLoading = true);
+
+                            final success = await _ctrl.updateProfile(
+                              fullName: nameCtrl.text.trim(),
+                              email: emailCtrl.text.trim(),
+                              address: addrCtrl.text.trim(),
+                              pincode: pincodeCtrl.text.trim(),
+                              customerType: customerType,
+                              gstNumber:
+                                  customerType == 'contractor' &&
+                                      gstCtrl.text.trim().isNotEmpty
+                                  ? gstCtrl.text.trim().toUpperCase()
+                                  : null,
+                            );
+
+                            setSheet(() => isLoading = false);
+                            if (success) Get.back();
+                          },
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Save Changes',
+                            style: GoogleFonts.manrope(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.manrope(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textGray,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryGreen,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: isLoading
-                            ? null
-                            : () async {
-                                if (street1Ctrl.text.trim().isEmpty) {
-                                  Get.snackbar(
-                                    'Error',
-                                    'Please enter street address',
-                                  );
-                                  return;
-                                }
-                                if (pincodeCtrl.text.trim().isEmpty) {
-                                  Get.snackbar('Error', 'Please enter pincode');
-                                  return;
-                                }
-                                if (pincodeCtrl.text.trim().length != 6) {
-                                  Get.snackbar(
-                                    'Error',
-                                    'Please enter a valid 6-digit pincode',
-                                  );
-                                  return;
-                                }
-                                if (customerType == 'contractor' &&
-                                    gstCtrl.text.trim().isNotEmpty &&
-                                    !_ctrl.isGstValid(gstCtrl.text.trim())) {
-                                  Get.snackbar(
-                                    'Invalid GST',
-                                    'Enter a valid GST number.',
-                                  );
-                                  return;
-                                }
-
-                                setSheet(() => isLoading = true);
-
-                                await _ctrl.addAddress(
-                                  streetAddress1: street1Ctrl.text.trim(),
-                                  streetAddress2: street2Ctrl.text.trim(),
-                                  pincode: pincodeCtrl.text.trim(),
-                                  isPrimary: isPrimary,
-                                  customerType: customerType,
-                                  gstNumber:
-                                      customerType == 'contractor' &&
-                                          gstCtrl.text.trim().isNotEmpty
-                                      ? gstCtrl.text.trim().toUpperCase()
-                                      : null,
-                                );
-
-                                setSheet(() => isLoading = false);
-                                Get.back();
-                              },
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                'Add Address',
-                                style: GoogleFonts.manrope(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // EDIT ADDRESS SHEET
-  void _showEditAddressSheet(AddressModel address) {
-    final street1Ctrl = TextEditingController(text: address.streetAddress1);
-    final street2Ctrl = TextEditingController(text: address.streetAddress2);
-    final pincodeCtrl = TextEditingController(text: address.pincode);
-    final gstCtrl = TextEditingController(text: address.gstNumber ?? '');
-    bool isPrimary = address.isPrimary;
-    String customerType = address.customerType ?? 'home_owner';
-    bool isLoading = false;
-
-    Get.bottomSheet(
-      isScrollControlled: true,
-      StatefulBuilder(
-        builder: (ctx, setSheet) => Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 24,
-            bottom: MediaQuery.of(Get.context!).viewInsets.bottom + 24,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Edit Address',
-                        style: GoogleFonts.manrope(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.inputText,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Get.back(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                Text(
-                  'Account Type',
-                  style: GoogleFonts.manrope(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textGray,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _AccountTypeChip(
-                        label: 'Home Owner',
-                        selected: customerType == 'home_owner',
-                        onTap: () =>
-                            setSheet(() => customerType = 'home_owner'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _AccountTypeChip(
-                        label: 'Contractor',
-                        selected: customerType == 'contractor',
-                        onTap: () =>
-                            setSheet(() => customerType = 'contractor'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                _addressSheetField(
-                  label: 'Street Address 1 *',
-                  controller: street1Ctrl,
-                  hint: 'House/Building/Street',
-                ),
-                const SizedBox(height: 14),
-                _addressSheetField(
-                  label: 'Street Address 2',
-                  controller: street2Ctrl,
-                  hint: 'Area/Landmark (Optional)',
-                ),
-                const SizedBox(height: 14),
-                _addressSheetField(
-                  label: 'Pincode *',
-                  controller: pincodeCtrl,
-                  keyboard: TextInputType.number,
-                  hint: 'Enter 6-digit pincode',
-                ),
-
-                if (customerType == 'contractor') ...[
-                  const SizedBox(height: 14),
-                  _addressSheetField(
-                    label: 'GST Number',
-                    controller: gstCtrl,
-                    hint: 'Enter GST number (Optional)',
-                  ),
-                ],
-
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isPrimary,
-                      activeColor: AppColors.primaryGreen,
-                      onChanged: (v) => setSheet(() => isPrimary = v ?? false),
-                    ),
-                    Text(
-                      'Set as default address',
-                      style: GoogleFonts.manrope(
-                        fontSize: 13,
-                        color: AppColors.inputText,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Get.back(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textGray,
-                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.manrope(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textGray,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryGreen,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: isLoading
-                            ? null
-                            : () async {
-                                if (street1Ctrl.text.trim().isEmpty) {
-                                  Get.snackbar(
-                                    'Error',
-                                    'Please enter street address',
-                                  );
-                                  return;
-                                }
-                                if (pincodeCtrl.text.trim().isEmpty) {
-                                  Get.snackbar('Error', 'Please enter pincode');
-                                  return;
-                                }
-                                if (pincodeCtrl.text.trim().length != 6) {
-                                  Get.snackbar(
-                                    'Error',
-                                    'Please enter a valid 6-digit pincode',
-                                  );
-                                  return;
-                                }
-                                if (customerType == 'contractor' &&
-                                    gstCtrl.text.trim().isNotEmpty &&
-                                    !_ctrl.isGstValid(gstCtrl.text.trim())) {
-                                  Get.snackbar(
-                                    'Invalid GST',
-                                    'Enter a valid GST number.',
-                                  );
-                                  return;
-                                }
-
-                                setSheet(() => isLoading = true);
-
-                                await _ctrl.updateAddress(
-                                  addressId: address.id,
-                                  streetAddress1: street1Ctrl.text.trim(),
-                                  streetAddress2: street2Ctrl.text.trim(),
-                                  pincode: pincodeCtrl.text.trim(),
-                                  isPrimary: isPrimary,
-                                  customerType: customerType,
-                                  gstNumber:
-                                      customerType == 'contractor' &&
-                                          gstCtrl.text.trim().isNotEmpty
-                                      ? gstCtrl.text.trim().toUpperCase()
-                                      : null,
-                                );
-
-                                setSheet(() => isLoading = false);
-                                Get.back();
-                              },
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                'Save Address',
-                                style: GoogleFonts.manrope(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 8),
               ],
@@ -1169,10 +1394,9 @@ class _ProfileViewState extends State<ProfileView> {
 
   // ── Shared Helpers ──────────────────────────────────────────────────────────
 
-  // Helper for address sheet fields (with label)
-  Widget _addressSheetField({
-    required String label,
-    required TextEditingController controller,
+  Widget _sheetLabeledField(
+    String label,
+    TextEditingController controller, {
     TextInputType keyboard = TextInputType.text,
     int maxLines = 1,
     String? hint,
@@ -1221,41 +1445,6 @@ class _ProfileViewState extends State<ProfileView> {
           ),
         ),
       ],
-    );
-  }
-
-  // Helper for simple fields (without label)
-  Widget _sheetField(
-    String hint,
-    TextEditingController ctrl, {
-    TextInputType keyboard = TextInputType.text,
-    int maxLines = 1,
-  }) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: keyboard,
-      maxLines: maxLines,
-      style: GoogleFonts.manrope(fontSize: 14, color: AppColors.inputText),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.manrope(fontSize: 14, color: AppColors.textGray),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primaryGreen),
-        ),
-      ),
     );
   }
 

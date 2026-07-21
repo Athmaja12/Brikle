@@ -47,6 +47,7 @@ dependencies:
 
   # --- Added for the Material Calculator screens (Consumer / context.read) ---
   provider: ^6.1.2
+  intl: ^0.20.3
 
 dev_dependencies:
   flutter_test:
