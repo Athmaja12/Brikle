@@ -342,7 +342,7 @@ class OrderItem {
   factory OrderItem.fromJson(Map<String, dynamic> json) => OrderItem(
     id: json['id'] as int? ?? 0,
     variant: json['variant'] as int? ?? 0,
-    quantity: json['quantity'] as int? ?? 0,
+    quantity: double.tryParse(json['quantity'].toString())?.toInt() ?? 0,
     priceAtPurchase: json['price_at_purchase']?.toString() ?? '0',
   );
 }

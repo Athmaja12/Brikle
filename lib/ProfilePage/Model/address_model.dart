@@ -57,3 +57,16 @@ class DeliveryAddressModel {
     return 0;
   }
 }
+
+class ShareCouponResponse {
+  final bool success;
+  final String message;
+
+  ShareCouponResponse({required this.success, required this.message});
+
+  factory ShareCouponResponse.fromJson(Map<String, dynamic> json) =>
+      ShareCouponResponse(
+        success: json['success'] ?? false,
+        message: json['message']?.toString() ?? '',
+      );
+}

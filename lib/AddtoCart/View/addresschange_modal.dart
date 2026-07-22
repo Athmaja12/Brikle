@@ -355,12 +355,25 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
         return;
       }
 
-      _showDeliveryChargeBreakdown(checkoutResult);
+      final proceed = await _showDeliveryChargeBreakdown(checkoutResult);
+      if (!proceed) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
       if (!mounted) return;
+      setState(() => _isLoading = false);
       Get.back(result: true);
 
-      await _placeActualOrder(address, dateString, timeString);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Get.snackbar(
+          'Address Added',
+          'Now select a payment method to complete your order',
+          backgroundColor: AppColors.primaryGreen,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      });
     } catch (e) {
       Get.snackbar('Error', 'Failed to update address: $e');
       setState(() => _isLoading = false);
@@ -424,90 +437,143 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     }
   }
 
-  void _showDeliveryChargeBreakdown(CheckoutResponse response) {
+  // FIX: was `void`, fired via Get.dialog() without awaiting — so
+  // _placeOrder() below moved straight on to placing the order without
+  // ever waiting for the user to tap "Proceed to Pay". Now returns a
+  // Future<bool> that only resolves once the user picks an action.
+  Future<bool> _showDeliveryChargeBreakdown(CheckoutResponse response) async {
     final config = response.deliveryConfig;
-    Get.dialog(
-      AlertDialog(
-        title: const Text('✅ Delivery Available'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
+    final result = await Get.dialog<bool>(
+      barrierDismissible: false,
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header — green success banner, matches app's card style
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primaryGreen.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        response.message,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryGreen,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
+              const SizedBox(height: 18),
+              const Text(
+                'Delivery Charge Breakdown',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              _buildInfoRow(
+                '📅 Scheduled',
+                '${response.scheduledDeliveryDate} at ${response.scheduledDeliveryTime}',
+              ),
+              _buildInfoRow(
+                '📍 Distance',
+                '${config.totalDistanceKm.toStringAsFixed(1)} km',
+              ),
+              _buildInfoRow('Free Limit', '${config.freeDistanceLimitKm} km'),
+              _buildInfoRow(
+                'Extra Distance',
+                '${config.extraDistance.toStringAsFixed(1)} km',
+              ),
+              _buildInfoRow(
+                'Charge per Extra KM',
+                '₹${config.chargePerExtraKm.toStringAsFixed(0)}',
+              ),
+              const Divider(height: 24),
+              _buildInfoRow(
+                'Delivery Charge',
+                '₹${response.paymentSummary.deliveryCharge.toStringAsFixed(0)}',
+                isTotal: true,
+              ),
+              const SizedBox(height: 20),
+              Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade700),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      response.message,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green.shade700,
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(result: false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.inputBorder),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () => Get.back(result: true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Proceed to Pay',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Delivery Charge Breakdown:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _buildInfoRow(
-              '📅 Scheduled',
-              '${response.scheduledDeliveryDate} at ${response.scheduledDeliveryTime}',
-            ),
-            const SizedBox(height: 8),
-            _buildInfoRow(
-              '📍 Distance',
-              '${config.totalDistanceKm.toStringAsFixed(1)} km',
-            ),
-            _buildInfoRow('Free Limit', '${config.freeDistanceLimitKm} km'),
-            _buildInfoRow(
-              'Extra Distance',
-              '${config.extraDistance.toStringAsFixed(1)} km',
-            ),
-            _buildInfoRow(
-              'Charge per Extra KM',
-              '₹${config.chargePerExtraKm.toStringAsFixed(0)}',
-            ),
-            const Divider(),
-            _buildInfoRow(
-              'Delivery Charge',
-              '₹${response.paymentSummary.deliveryCharge.toStringAsFixed(0)}',
-              isTotal: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Get.back();
-            },
-            style: TextButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text(
-              'Proceed to Pay',
-              style: TextStyle(color: Colors.white),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+    return result ?? false;
   }
 
   Widget _buildInfoRow(String label, String value, {bool isTotal = false}) {

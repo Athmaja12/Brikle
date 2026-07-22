@@ -103,6 +103,7 @@ class ApiConfig {
   // ==========================================================================
 
   static String get myCouponsUrl => '$baseUrl/api/user/my-coupons/';
+  static String get shareCouponUrl => '$baseUrl/api/my-coupons/share/';
 
   // ==========================================================================
   // ORDERS

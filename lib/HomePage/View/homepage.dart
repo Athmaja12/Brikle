@@ -9,7 +9,6 @@ import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/Category/View/categorydetail_screen.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/Model/home_model.dart';
-import 'package:brikle/HomePage/View/notificationpage.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/View/wishlist_screen.dart';
@@ -71,7 +70,7 @@ class HomeScreen extends GetView<HomeController> {
                   child: _BestsellingSection(controller: controller),
                 ),
                 SliverToBoxAdapter(child: _PromoGrid(controller: controller)),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
               ],
             ),
           );
@@ -96,110 +95,119 @@ class _Header extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(
+          // Logo centering: a plain Row with Spacer()/Spacer() only
+          // centers the logo within whatever space is *left over* after
+          // the "Deliver To" block and the icon cluster — since those
+          // two are different widths, the logo drifted off-center.
+          // Stacking a full-width Row (left content + icons, pinned to
+          // the edges) underneath a separately centered logo guarantees
+          // the logo sits at the true midpoint of the header.
+          Stack(
+            alignment: Alignment.center,
             children: [
-              Icon(Icons.location_on, color: AppColors.primaryGreen, size: 18),
-              SizedBox(width: Responsive.space(context, 4)),
-              Obx(
-                () => GestureDetector(
-                  onTap: () => _showPincodeSheet(context, controller),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Deliver To',
-                        style: AppTextStyles.termsText(context),
-                      ),
-                      Row(
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: AppColors.primaryGreen,
+                    size: 18,
+                  ),
+                  SizedBox(width: Responsive.space(context, 4)),
+                  Obx(
+                    () => GestureDetector(
+                      onTap: () => _showPincodeSheet(context, controller),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            controller.deliverToPincode.value,
-                            style: AppTextStyles.fieldLabel(context).copyWith(
-                              color: AppColors.textDark,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            'Deliver To',
+                            style: AppTextStyles.termsText(context),
                           ),
-                          const Icon(Icons.keyboard_arrow_down, size: 16),
+                          Row(
+                            children: [
+                              Text(
+                                controller.deliverToPincode.value,
+                                style: AppTextStyles.fieldLabel(context)
+                                    .copyWith(
+                                      color: AppColors.textDark,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const Icon(Icons.keyboard_arrow_down, size: 16),
+                            ],
+                          ),
                         ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => Get.to(() => const WishlistScreen()),
+                    child: Obx(() {
+                      final count = Get.find<WishlistController>().items.length;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(
+                            Icons.favorite_border_rounded,
+                            size: 22,
+                            color: Colors.black87,
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              top: -4,
+                              right: -6,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                constraints: const BoxConstraints(
+                                  minWidth: 10,
+                                  minHeight: 10,
+                                ),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  count > 99 ? '99+' : '$count',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }),
+                  ),
+                  // Notification icon removed per request.
+                ],
+              ),
+              // Sits on top, centered on the Stack itself — not affected
+              // by how wide the Row's children are.
+              IgnorePointer(
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Br',
+                        style: AppTextStyles.brikleLogoAccent(
+                          context,
+                        ).copyWith(fontSize: 20),
+                      ),
+                      TextSpan(
+                        text: 'ikle',
+                        style: AppTextStyles.brikleLogoDark(
+                          context,
+                        ).copyWith(fontSize: 20),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const Spacer(),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Br',
-                      style: AppTextStyles.brikleLogoAccent(
-                        context,
-                      ).copyWith(fontSize: 20),
-                    ),
-                    TextSpan(
-                      text: 'ikle',
-                      style: AppTextStyles.brikleLogoDark(
-                        context,
-                      ).copyWith(fontSize: 20),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () => Get.to(() => const WishlistScreen()),
-                child: Obx(() {
-                  final count = Get.find<WishlistController>().items.length;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(
-                        Icons.favorite_border_rounded,
-                        size: 22,
-                        color: Colors.black87,
-                      ),
-                      if (count > 0)
-                        Positioned(
-                          top: -4,
-                          right: -6,
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            constraints: const BoxConstraints(
-                              minWidth: 10,
-                              minHeight: 10,
-                            ),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              count > 99 ? '99+' : '$count',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                }),
-              ),
-              SizedBox(width: Responsive.space(context, 16)),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  Get.to(() => const NotificationScreen());
-                },
-                child: const Icon(
-                  Icons.notifications_none_rounded,
-                  size: 24,
-                  color: Colors.black87,
                 ),
               ),
             ],
@@ -300,9 +308,14 @@ class _CarouselSectionState extends State<_CarouselSection> {
       if (items.isEmpty) return const SizedBox.shrink();
 
       return Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: Responsive.space(context, 16),
-          vertical: Responsive.space(context, 12),
+        // Top spacing removed — the Header already ends with its own
+        // bottom padding, so this section used to add a second gap
+        // right underneath it.
+        padding: EdgeInsets.only(
+          left: Responsive.space(context, 16),
+          right: Responsive.space(context, 16),
+          top: Responsive.space(context, 8),
+          bottom: Responsive.space(context, 8),
         ),
         child: Column(
           children: [
@@ -383,7 +396,7 @@ class _CategoriesSection extends StatelessWidget {
               context,
             ).copyWith(fontSize: 18),
           ),
-          SizedBox(height: Responsive.space(context, 12)),
+          SizedBox(height: Responsive.space(context, 8)),
           SizedBox(
             height: (116.0 * MediaQuery.of(context).size.width / 390),
             child: Obx(
@@ -646,7 +659,7 @@ class _TopDealsSection extends StatelessWidget {
         padding: EdgeInsets.only(
           left: Responsive.space(context, 16),
           right: Responsive.space(context, 16),
-          top: Responsive.space(context, 16),
+          top: Responsive.space(context, 8),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -663,38 +676,61 @@ class _TopDealsSection extends StatelessWidget {
                 Text('View All', style: AppTextStyles.authPromptLink(context)),
               ],
             ),
-            SizedBox(height: Responsive.space(context, 12)),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: activeDeals.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                mainAxisExtent: 300,
-              ),
-              itemBuilder: (context, index) {
-                final deal = activeDeals[index];
-                return SharedProductCard(
-                  product: CategoryProductItem(
-                    variantId: deal.variantId,
-                    materialId: deal.materialId,
-                    name: deal.name,
-                    imageUrl: deal.imageUrl,
-                    price: deal.dealPrice,
-                  ),
-                  // dealBadgeText: deal.customTitle,
-                  dealEndDate: deal.endDate,
-                  originalPrice: deal.retailPrice,
-                  discountPercent: deal.discountPercent,
-                );
-              },
-            ),
+            SizedBox(height: Responsive.space(context, 8)),
+            _buildDealsRows(activeDeals),
           ],
         ),
       );
     });
+  }
+
+  // Builds 2-per-row pairs of deal cards. Each row is wrapped in
+  // IntrinsicHeight so both cards in the pair match height and size to
+  // their own content — no hardcoded mainAxisExtent to keep in sync with
+  // SharedProductCard's internals (that's what caused the earlier
+  // overflow/dead-space back-and-forth with GridView's fixed row height).
+  Widget _buildDealsRows(List<DealItem> deals) {
+    final rows = <Widget>[];
+    for (int i = 0; i < deals.length; i += 2) {
+      final first = deals[i];
+      final second = i + 1 < deals.length ? deals[i + 1] : null;
+
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: 12));
+
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _dealCard(first)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: second != null
+                    ? _dealCard(second)
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(children: rows);
+  }
+
+  Widget _dealCard(DealItem deal) {
+    return SharedProductCard(
+      product: CategoryProductItem(
+        variantId: deal.variantId,
+        materialId: deal.materialId,
+        name: deal.name,
+        imageUrl: deal.imageUrl,
+        price: deal.dealPrice,
+      ),
+      // dealBadgeText: deal.customTitle,
+      dealEndDate: deal.endDate,
+      originalPrice: deal.retailPrice,
+      discountPercent: deal.discountPercent,
+    );
   }
 }
 
@@ -709,8 +745,8 @@ class _CategoryBanner extends StatelessWidget {
       padding: EdgeInsets.only(
         left: Responsive.space(context, 16),
         right: Responsive.space(context, 16),
-        bottom: Responsive.space(context, 12),
-        top: 0,
+        bottom: Responsive.space(context, 16),
+        top: Responsive.space(context, 16),
       ),
       child: GestureDetector(
         onTap: () {
@@ -757,7 +793,8 @@ class _BestsellingSection extends StatelessWidget {
         padding: EdgeInsets.only(
           left: Responsive.space(context, 16),
           right: Responsive.space(context, 16),
-          top: Responsive.space(context, 12),
+          top: Responsive.space(context, 10),
+          bottom: Responsive.space(context, 16),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -771,167 +808,198 @@ class _BestsellingSection extends StatelessWidget {
                     context,
                   ).copyWith(fontSize: 18),
                 ),
-                Text('View All', style: AppTextStyles.authPromptLink(context)),
+                // Text('View All', style: AppTextStyles.authPromptLink(context)),
               ],
             ),
-            SizedBox(height: Responsive.space(context, 12)),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: controller.bestselling.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                mainAxisExtent: 220,
-              ),
-              itemBuilder: (context, index) =>
-                  _BestsellingCard(item: controller.bestselling[index]),
-            ),
+            SizedBox(height: Responsive.space(context, 8)),
+            _buildBestsellingRows(controller.bestselling),
           ],
         ),
       );
     });
   }
-}
 
-class _BestsellingCard extends StatelessWidget {
-  final BestSellingItem item;
-  const _BestsellingCard({required this.item});
+  Widget _buildBestsellingRows(List<BestSellingItem> items) {
+    final rows = <Widget>[];
+    for (int i = 0; i < items.length; i += 2) {
+      final first = items[i];
+      final second = i + 1 < items.length ? items[i + 1] : null;
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ProductDetailScreen(
-              product: CategoryProductItem(
-                variantId: 0,
-                materialId: item.id,
-                name: item.name,
-                imageUrl: item.imageUrl,
-                price: item.hasOffer ? item.dealPrice! : item.retailPrice,
-                brandName: item.brandName,
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: 10));
+
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: _bestsellingCard(first)),
+              const SizedBox(width: 15),
+              Expanded(
+                child: second != null
+                    ? _bestsellingCard(second)
+                    : const SizedBox.shrink(),
               ),
-            ),
+            ],
           ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.inputBorder),
         ),
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item.hasOffer)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDFF5E3),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${item.discountPercent}% Off',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.primaryGreen,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            Expanded(
-              child: _isValidImageUrl(item.imageUrl)
-                  ? Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          size: 50,
-                          color: Colors.black26,
-                        ),
-                      ),
-                    )
-                  : const Center(
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        size: 50,
-                        color: Colors.black26,
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 6),
-            if (item.brandName != null && item.brandName!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  item.brandName!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textGray,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            Text(
-              item.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.fieldLabel(
-                context,
-              ).copyWith(color: AppColors.textDark),
-            ),
-            const SizedBox(height: 4),
-            if (item.hasOffer)
-              Row(
-                children: [
-                  Text(
-                    '₹${item.dealPrice!.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '₹${item.retailPrice.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      decoration: TextDecoration.lineThrough,
-                      color: AppColors.textGray,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              )
-            else
-              Text(
-                '₹${item.retailPrice.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-          ],
-        ),
+      );
+    }
+    return Column(children: rows);
+  }
+
+  Widget _bestsellingCard(BestSellingItem item) {
+    return SharedProductCard(
+      product: CategoryProductItem(
+        variantId: item.id,
+        materialId: item.id,
+        name: item.name,
+        imageUrl: item.imageUrl,
+        price: item.hasOffer ? item.dealPrice! : item.retailPrice,
+        brandName: item.brandName,
       ),
+      originalPrice: item.hasOffer ? item.retailPrice : null,
+      discountPercent: item.hasOffer ? item.discountPercent : null,
     );
   }
 }
+
+// class _BestsellingCard extends StatelessWidget {
+//   final BestSellingItem item;
+//   const _BestsellingCard({required this.item});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return GestureDetector(
+//       onTap: () {
+//         Navigator.push(
+//           context,
+//           MaterialPageRoute(
+//             builder: (_) => ProductDetailScreen(
+//               product: CategoryProductItem(
+//                 variantId: 0,
+//                 materialId: item.id,
+//                 name: item.name,
+//                 imageUrl: item.imageUrl,
+//                 price: item.hasOffer ? item.dealPrice! : item.retailPrice,
+//                 brandName: item.brandName,
+//               ),
+//             ),
+//           ),
+//         );
+//       },
+//       child: Container(
+//         decoration: BoxDecoration(
+//           color: Colors.white,
+//           borderRadius: BorderRadius.circular(12),
+//           border: Border.all(color: AppColors.inputBorder),
+//         ),
+//         padding: const EdgeInsets.all(20),
+//         child: Column(
+//           crossAxisAlignment: CrossAxisAlignment.start,
+//           children: [
+//             if (item.hasOffer)
+//               Padding(
+//                 padding: const EdgeInsets.only(bottom: 4),
+//                 child: Container(
+//                   padding: const EdgeInsets.symmetric(
+//                     horizontal: 6,
+//                     vertical: 2,
+//                   ),
+//                   decoration: BoxDecoration(
+//                     color: const Color(0xFFDFF5E3),
+//                     borderRadius: BorderRadius.circular(6),
+//                   ),
+//                   child: Text(
+//                     '${item.discountPercent}% Off',
+//                     style: const TextStyle(
+//                       fontSize: 11,
+//                       color: AppColors.primaryGreen,
+//                       fontWeight: FontWeight.w600,
+//                     ),
+//                   ),
+//                 ),
+//               ),
+//             Expanded(
+//               child: _isValidImageUrl(item.imageUrl)
+//                   ? Image.network(
+//                       item.imageUrl,
+//                       fit: BoxFit.contain,
+//                       width: double.infinity,
+//                       errorBuilder: (_, __, ___) => const Center(
+//                         child: Icon(
+//                           Icons.inventory_2_outlined,
+//                           size: 50,
+//                           color: Colors.black26,
+//                         ),
+//                       ),
+//                     )
+//                   : const Center(
+//                       child: Icon(
+//                         Icons.inventory_2_outlined,
+//                         size: 50,
+//                         color: Colors.black26,
+//                       ),
+//                     ),
+//             ),
+//             const SizedBox(height: 6),
+//             if (item.brandName != null && item.brandName!.isNotEmpty)
+//               Padding(
+//                 padding: const EdgeInsets.only(bottom: 2),
+//                 child: Text(
+//                   item.brandName!,
+//                   maxLines: 1,
+//                   overflow: TextOverflow.ellipsis,
+//                   style: const TextStyle(
+//                     fontSize: 10,
+//                     color: AppColors.textGray,
+//                     fontWeight: FontWeight.w500,
+//                   ),
+//                 ),
+//               ),
+//             Text(
+//               item.name,
+//               maxLines: 2,
+//               overflow: TextOverflow.ellipsis,
+//               style: AppTextStyles.fieldLabel(
+//                 context,
+//               ).copyWith(color: AppColors.textDark),
+//             ),
+//             const SizedBox(height: 4),
+//             if (item.hasOffer)
+//               Row(
+//                 children: [
+//                   Text(
+//                     '₹${item.dealPrice!.toStringAsFixed(0)}',
+//                     style: const TextStyle(
+//                       fontWeight: FontWeight.w700,
+//                       fontSize: 14,
+//                     ),
+//                   ),
+//                   const SizedBox(width: 6),
+//                   Text(
+//                     '₹${item.retailPrice.toStringAsFixed(0)}',
+//                     style: const TextStyle(
+//                       decoration: TextDecoration.lineThrough,
+//                       color: AppColors.textGray,
+//                       fontSize: 12,
+//                     ),
+//                   ),
+//                 ],
+//               )
+//             else
+//               Text(
+//                 '₹${item.retailPrice.toStringAsFixed(0)}',
+//                 style: const TextStyle(
+//                   fontWeight: FontWeight.w700,
+//                   fontSize: 14,
+//                 ),
+//               ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // ── Bottom 4-tile promo grid ──────────────────────────────────────────────
 class _PromoGrid extends StatelessWidget {
@@ -943,7 +1011,7 @@ class _PromoGrid extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.space(context, 16),
-        vertical: 0,
+        vertical: 10,
       ),
       child: GridView.builder(
         shrinkWrap: true,
@@ -979,6 +1047,7 @@ class _PromoGrid extends StatelessWidget {
   }
 }
 
+// ── SIMPLIFIED PINCODE CHECKING UI ──────────────────────────────────────────
 void _showPincodeSheet(BuildContext context, HomeController controller) {
   final textController = TextEditingController(
     text: controller.deliverToPincode.value,
@@ -992,6 +1061,7 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
+    backgroundColor: Colors.white,
     builder: (sheetContext) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         controller.pincodeMessage.value = '';
@@ -1002,24 +1072,48 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
-          top: 20,
+          top: 16,
           bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Check delivery availability',
-              style: AppTextStyles.welcomeBackTitle(
-                context,
-              ).copyWith(fontSize: 18),
+            // Drag handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
             const SizedBox(height: 16),
+
+            // Title
+            Text(
+              'Enter Pincode',
+              style: AppTextStyles.welcomeBackTitle(
+                context,
+              ).copyWith(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Check delivery availability in your area',
+              style: AppTextStyles.termsText(
+                context,
+              ).copyWith(fontSize: 13, color: AppColors.textGray),
+            ),
+            const SizedBox(height: 20),
+
+            // Pincode input
             TextField(
               controller: textController,
               keyboardType: TextInputType.number,
               maxLength: 6,
+              autofocus: true,
               onChanged: (value) {
                 controller.pincodeMessage.value = '';
                 controller.isPincodeServiceable.value = true;
@@ -1031,48 +1125,71 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
                 }
               },
               decoration: InputDecoration(
-                hintText: 'Enter pincode',
+                hintText: 'Enter 6-digit pincode',
                 counterText: '',
+                prefixIcon: Icon(
+                  Icons.location_on_outlined,
+                  color: AppColors.primaryGreen,
+                  size: 20,
+                ),
                 filled: true,
                 fillColor: AppColors.fieldFill,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.inputBorder),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AppColors.primaryGreen,
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
+
+            // Status message
             Obx(() {
-              if (controller.isCheckingPincode.value) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
               if (controller.pincodeMessage.value.isEmpty)
                 return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+
+              final isServiceable = controller.isPincodeServiceable.value;
+              final color = isServiceable
+                  ? AppColors.primaryGreen
+                  : AppColors.errorRed;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Row(
                   children: [
                     Icon(
-                      controller.isPincodeServiceable.value
-                          ? Icons.check_circle
-                          : Icons.error,
-                      color: controller.isPincodeServiceable.value
-                          ? AppColors.primaryGreen
-                          : AppColors.errorRed,
-                      size: 20,
+                      isServiceable
+                          ? Icons.check_circle_outline
+                          : Icons.error_outline,
+                      color: color,
+                      size: 18,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         controller.pincodeMessage.value,
                         style: TextStyle(
-                          color: controller.isPincodeServiceable.value
-                              ? AppColors.primaryGreen
-                              : AppColors.errorRed,
-                          fontWeight: FontWeight.w600,
+                          color: color,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
                         ),
                       ),
                     ),
@@ -1080,40 +1197,92 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
                 ),
               );
             }),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  final pin = textController.text.trim();
-                  if (pin.length == 6) {
-                    _debounceTimer?.cancel();
-                    controller.checkPincode(pin);
-                  } else {
-                    Get.snackbar(
-                      'Invalid Pincode',
-                      'Please enter a valid 6-digit pincode',
-                      snackPosition: SnackPosition.BOTTOM,
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Check',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+
+            const SizedBox(height: 16),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: AppColors.textGray,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: Obx(() {
+                    final isValid = textController.text.trim().length == 6;
+                    final isChecking = controller.isCheckingPincode.value;
+                    final hasMessage =
+                        controller.pincodeMessage.value.isNotEmpty;
+                    final isServiceable = controller.isPincodeServiceable.value;
+
+                    return ElevatedButton(
+                      onPressed: isValid && !isChecking
+                          ? () {
+                              final pin = textController.text.trim();
+                              controller.checkPincode(pin);
+                              if (isServiceable) {
+                                Future.delayed(
+                                  const Duration(milliseconds: 600),
+                                  () {
+                                    if (controller.isPincodeServiceable.value) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                  },
+                                );
+                              }
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isValid
+                            ? AppColors.primaryGreen
+                            : Colors.grey.shade300,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                        minimumSize: const Size(0, 48),
+                      ),
+                      child: isChecking
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              hasMessage && isServiceable ? 'Apply' : 'Check',
+                              style: TextStyle(
+                                color: isValid
+                                    ? Colors.white
+                                    : Colors.grey.shade600,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                    );
+                  }),
+                ),
+              ],
             ),
           ],
         ),

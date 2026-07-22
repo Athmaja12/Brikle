@@ -756,6 +756,16 @@ class ApiService {
     return results.map((e) => CouponModel.fromJson(e)).toList();
   }
 
+  static Future<ShareCouponResponse> shareCoupon({
+    required String couponCode,
+    required String recipientPhone,
+  }) async {
+    final response = await _post(ApiConfig.shareCouponUrl, {
+      'coupon_code': couponCode,
+      'recipient_phone': recipientPhone,
+    }, headers: await _authHeaders());
+    return ShareCouponResponse.fromJson(response);
+  }
   // ══════════════════════════════════════════════════════════════════════════
   // ORDERS
   // ══════════════════════════════════════════════════════════════════════════

@@ -281,29 +281,29 @@ class _SharedProductCardState extends State<SharedProductCard> {
                         ),
                         // if (widget.dealBadgeText != null &&
                         // widget.dealBadgeText!.isNotEmpty)
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF7A00),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            // child: Text(
-                            //   // widget.dealBadgeText!.toUpperCase(),
-                            //   style: const TextStyle(
-                            //     fontSize: 8,
-                            //     fontWeight: FontWeight.w700,
-                            //     color: Colors.white,
-                            //     letterSpacing: 0.3,
-                            //   ),
-                            // ),
-                          ),
-                        ),
+                        // Positioned(
+                        //   top: 0,
+                        //   left: 0,
+                        //   child: Container(
+                        //     padding: const EdgeInsets.symmetric(
+                        //       horizontal: 6,
+                        //       vertical: 2,
+                        //     ),
+                        //     decoration: BoxDecoration(
+                        //       color: const Color(0xFFFF7A00),
+                        //       borderRadius: BorderRadius.circular(6),
+                        //     ),
+                        //     // child: Text(
+                        //     //   // widget.dealBadgeText!.toUpperCase(),
+                        //     //   style: const TextStyle(
+                        //     //     fontSize: 8,
+                        //     //     fontWeight: FontWeight.w700,
+                        //     //     color: Colors.white,
+                        //     //     letterSpacing: 0.3,
+                        //     //   ),
+                        //     // ),
+                        //   ),
+                        // ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -360,12 +360,12 @@ class _SharedProductCardState extends State<SharedProductCard> {
                         style: GoogleFonts.manrope(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
-                          height: 15 / 12,
+                          height: 15 / 15,
                           color: const Color(0xFF212121),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
 
                     // ── Price row: deal price + strikethrough + inline % off
                     Row(

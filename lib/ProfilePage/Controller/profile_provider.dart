@@ -398,6 +398,36 @@ class ProfileController extends GetxController {
     }
   }
 
+  Future<ShareCouponResponse> shareCoupon({
+    required String couponCode,
+    required String recipientPhone,
+  }) async {
+    debugPrint(
+      '[ProfileController] shareCoupon($couponCode -> $recipientPhone)',
+    );
+    try {
+      final result = await ApiService.shareCoupon(
+        couponCode: couponCode,
+        recipientPhone: recipientPhone,
+      );
+      if (result.success) {
+        // Coupon has moved to another account — refresh so it updates
+        // in this user's list too.
+        await fetchCoupons();
+      }
+      return result;
+    } on ApiException catch (e) {
+      debugPrint('[ProfileController] shareCoupon failed: ${e.message}');
+      return ShareCouponResponse(success: false, message: e.message);
+    } catch (e) {
+      debugPrint('[ProfileController] shareCoupon unexpected error: $e');
+      return ShareCouponResponse(
+        success: false,
+        message: 'Something went wrong. Please try again.',
+      );
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // ADDRESSES
   // ══════════════════════════════════════════════════════════════════════════
@@ -535,8 +565,6 @@ class ProfileController extends GetxController {
       return false;
     }
   }
-
- 
 
   DeliveryAddressModel? get primaryAddress {
     try {

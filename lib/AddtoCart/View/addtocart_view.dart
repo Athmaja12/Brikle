@@ -161,6 +161,8 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+// lib/AddtoCart/View/addtocart_view.dart
+
 class _EmptyCart extends StatelessWidget {
   const _EmptyCart();
 
@@ -170,18 +172,94 @@ class _EmptyCart extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.shopping_cart_outlined,
-            size: 64,
-            color: Colors.black26,
+          // Animated empty cart illustration
+          Container(
+            width: 140,
+            height: 250,
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.shopping_cart_outlined,
+                  size: 70,
+                  color: AppColors.primaryGreen.withOpacity(0.3),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 5),
           Text(
-            'Your cart is empty',
-            style: AppTextStyles.welcomeBackTitle(
-              context,
-            ).copyWith(fontSize: 16),
+            'Your Cart is Empty',
+            style: AppTextStyles.welcomeBackTitle(context).copyWith(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+            ),
           ),
+          const SizedBox(height: 5),
+          Text(
+            'Looks like you haven\'t added anything yet',
+            style: AppTextStyles.termsText(
+              context,
+            ).copyWith(fontSize: 14, color: AppColors.textGray),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Start exploring and find what you need!',
+            style: AppTextStyles.termsText(
+              context,
+            ).copyWith(fontSize: 13, color: AppColors.textGray),
+          ),
+          const SizedBox(height: 32),
+          // Browse Products Button
+          SizedBox(
+            width: 220,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MainScreen(initialIndex: 1),
+                  ),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Browse Products',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Featured categories chips
         ],
       ),
     );

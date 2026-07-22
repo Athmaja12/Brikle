@@ -173,26 +173,26 @@ class _ProfileViewState extends State<ProfileView> {
             ),
           ),
         ),
-        GestureDetector(
-          onTap: () => setState(() => _notificationsOn = !_notificationsOn),
-          child: Container(
-            width: Responsive.space(context, 44),
-            height: Responsive.space(context, 44),
-            decoration: BoxDecoration(
-              color: _notificationsOn
-                  ? AppColors.primaryGreen
-                  : const Color(0xFFE5E7EB),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              _notificationsOn
-                  ? Icons.notifications_rounded
-                  : Icons.notifications_off_outlined,
-              color: _notificationsOn ? Colors.white : AppColors.textGray,
-              size: Responsive.space(context, 22),
-            ),
-          ),
-        ),
+        // GestureDetector(
+        //   onTap: () => setState(() => _notificationsOn = !_notificationsOn),
+        //   child: Container(
+        //     width: Responsive.space(context, 44),
+        //     height: Responsive.space(context, 44),
+        //     decoration: BoxDecoration(
+        //       color: _notificationsOn
+        //           ? AppColors.primaryGreen
+        //           : const Color(0xFFE5E7EB),
+        //       shape: BoxShape.circle,
+        //     ),
+        //     child: Icon(
+        //       _notificationsOn
+        //           ? Icons.notifications_rounded
+        //           : Icons.notifications_off_outlined,
+        //       color: _notificationsOn ? Colors.white : AppColors.textGray,
+        //       size: Responsive.space(context, 22),
+        //     ),
+        //   ),
+        // ),
       ],
     );
   }
