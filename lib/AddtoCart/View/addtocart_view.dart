@@ -1467,15 +1467,17 @@ class _PaymentMethodSelector extends StatelessWidget {
           }),
           const SizedBox(height: 8),
           Obx(() {
+            // CHANGED: was comparing/selecting 'Online' — the backend
+            // only understands 'COD' or 'RAZORPAY'.
             final isSelected =
                 controller.hasSelectedPaymentMethod.value &&
-                controller.selectedPaymentMethod.value == 'Online';
+                controller.selectedPaymentMethod.value == 'RAZORPAY';
             return _PaymentMethodTile(
               isSelected: isSelected,
               icon: Icons.credit_card_rounded,
-              title: 'Online Payment',
-              subtitle: 'Pay via UPI, Card, or Net Banking',
-              onTap: () => controller.selectPaymentMethod('Online'),
+              title: 'Pay Online',
+              subtitle: 'UPI, Card, Net Banking, or Wallet via Razorpay',
+              onTap: () => controller.selectPaymentMethod('RAZORPAY'),
               isOnline: true,
             );
           }),

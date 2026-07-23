@@ -284,6 +284,20 @@ class ApiService {
     return _post(ApiConfig.placeOrderUrl, body, headers: await _authHeaders());
   }
 
+  static Future<Map<String, dynamic>> verifyPayment({
+    required int orderId,
+    required String razorpayOrderId,
+    required String razorpayPaymentId,
+    required String razorpaySignature,
+  }) async {
+    return _post(ApiConfig.verifyPaymentUrl, {
+      'order_id': orderId,
+      'razorpay_order_id': razorpayOrderId,
+      'razorpay_payment_id': razorpayPaymentId,
+      'razorpay_signature': razorpaySignature,
+    }, headers: await _authHeaders());
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // CART
   // ══════════════════════════════════════════════════════════════════════════

@@ -83,6 +83,7 @@ class ApiConfig {
   static String get checkoutUrl => '$baseUrl/api/checkout/';
 
   static String get placeOrderUrl => '$baseUrl/api/order/place/';
+  static String get verifyPaymentUrl => '$baseUrl/api/verify-payment/';
 
   // ==========================================================================
   // PINCODE

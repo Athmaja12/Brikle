@@ -94,6 +94,34 @@ class CouponModel {
   }
 }
 
+// ── NEW: lightweight reward-coupon shape returned inline on the order
+// response / verify-payment response. This is a *different* JSON shape
+// than CouponModel (no id, no reward_material_id, "reward_material" is
+// the display name directly) — so it gets its own model instead of
+// forcing CouponModel.fromJson to guess at missing fields.
+class EarnedRewardCoupon {
+  final String couponCode;
+  final double discountPercentage;
+  final String rewardMaterial;
+  final String expiryDate;
+
+  EarnedRewardCoupon({
+    required this.couponCode,
+    required this.discountPercentage,
+    required this.rewardMaterial,
+    required this.expiryDate,
+  });
+
+  factory EarnedRewardCoupon.fromJson(Map<String, dynamic> json) =>
+      EarnedRewardCoupon(
+        couponCode: json['coupon_code']?.toString() ?? '',
+        discountPercentage:
+            (json['discount_percentage'] as num?)?.toDouble() ?? 0,
+        rewardMaterial: json['reward_material']?.toString() ?? '',
+        expiryDate: json['expiry_date']?.toString() ?? '',
+      );
+}
+
 class PincodeCheckResponse {
   final String pincode;
   final bool isServiceable;
@@ -244,18 +272,49 @@ class CheckoutResponse {
       );
 }
 
+// ── NEW: Razorpay order data returned by POST /api/order/place/
+// when payment_method == "RAZORPAY".
+class RazorpayData {
+  final String razorpayOrderId;
+  final String razorpayKeyId;
+  final double amount;
+  final String currency;
+
+  RazorpayData({
+    required this.razorpayOrderId,
+    required this.razorpayKeyId,
+    required this.amount,
+    required this.currency,
+  });
+
+  factory RazorpayData.fromJson(Map<String, dynamic> json) => RazorpayData(
+    razorpayOrderId: json['razorpay_order_id']?.toString() ?? '',
+    razorpayKeyId: json['razorpay_key_id']?.toString() ?? '',
+    amount: (json['amount'] as num?)?.toDouble() ?? 0,
+    currency: json['currency']?.toString() ?? 'INR',
+  );
+}
+
 // ── Updated OrderPlacedResponse with earned coupons ────────
 class OrderPlacedResponse {
   final String message;
   final OrderDetails orderDetails;
   final int earnedCouponsCount;
   final List<CouponModel>? earnedCoupons;
+  // NEW — populated on COD orders that immediately earn a coupon.
+  final EarnedRewardCoupon? rewardCoupon;
+  // NEW — populated only when payment_method == "RAZORPAY".
+  final RazorpayData? razorpayData;
+  final String? checkoutWebUrl;
 
   OrderPlacedResponse({
     required this.message,
     required this.orderDetails,
     this.earnedCouponsCount = 0,
     this.earnedCoupons,
+    this.rewardCoupon,
+    this.razorpayData,
+    this.checkoutWebUrl,
   });
 
   factory OrderPlacedResponse.fromJson(Map<String, dynamic> json) {
@@ -272,6 +331,13 @@ class OrderPlacedResponse {
       orderDetails: OrderDetails.fromJson(json['order_details'] ?? {}),
       earnedCouponsCount: json['earned_coupons_count'] as int? ?? 0,
       earnedCoupons: coupons,
+      rewardCoupon: json['reward_coupon'] != null
+          ? EarnedRewardCoupon.fromJson(json['reward_coupon'])
+          : null,
+      razorpayData: json['razorpay_data'] != null
+          ? RazorpayData.fromJson(json['razorpay_data'])
+          : null,
+      checkoutWebUrl: json['checkout_web_url']?.toString(),
     );
   }
 }
@@ -290,6 +356,8 @@ class OrderDetails {
   final String requestedDeliveryDate;
   final List<OrderItem> items;
   final String createdAt;
+  // NEW — null for COD orders, present for RAZORPAY orders.
+  final String? razorpayOrderId;
 
   OrderDetails({
     required this.id,
@@ -305,6 +373,7 @@ class OrderDetails {
     required this.requestedDeliveryDate,
     required this.items,
     required this.createdAt,
+    this.razorpayOrderId,
   });
 
   factory OrderDetails.fromJson(Map<String, dynamic> json) => OrderDetails(
@@ -323,6 +392,7 @@ class OrderDetails {
         .map((e) => OrderItem.fromJson(e))
         .toList(),
     createdAt: json['created_at']?.toString() ?? '',
+    razorpayOrderId: json['razorpay_order_id']?.toString(),
   );
 }
 
@@ -345,4 +415,29 @@ class OrderItem {
     quantity: double.tryParse(json['quantity'].toString())?.toInt() ?? 0,
     priceAtPurchase: json['price_at_purchase']?.toString() ?? '0',
   );
+}
+
+// ── NEW: response shape of POST /api/verify-payment/
+class PaymentVerificationResponse {
+  final String message;
+  final int orderId;
+  final String paymentStatus;
+  final EarnedRewardCoupon? rewardCoupon;
+
+  PaymentVerificationResponse({
+    required this.message,
+    required this.orderId,
+    required this.paymentStatus,
+    this.rewardCoupon,
+  });
+
+  factory PaymentVerificationResponse.fromJson(Map<String, dynamic> json) =>
+      PaymentVerificationResponse(
+        message: json['message']?.toString() ?? '',
+        orderId: json['order_id'] as int? ?? 0,
+        paymentStatus: json['payment_status']?.toString() ?? '',
+        rewardCoupon: json['reward_coupon'] != null
+            ? EarnedRewardCoupon.fromJson(json['reward_coupon'])
+            : null,
+      );
 }

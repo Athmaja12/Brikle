@@ -10,6 +10,108 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:confetti/confetti.dart';
 
+// ── Unified reward display model ────────────────────────────────────────
+// The backend hands back "you earned a coupon" in three different shapes
+// depending on the flow:
+//   1. COD order response      -> order_details.reward_coupon (singular,
+//                                  {coupon_code, discount_percentage,
+//                                  reward_material, expiry_date})
+//   2. Razorpay verify-payment -> same singular shape, but only known
+//                                  AFTER payment verification succeeds
+//   3. earned_coupons (list)   -> pre-existing bulk-coupon shape with
+//                                  id/reward_material_id etc.
+// This class normalizes all three into one shape so the UI below doesn't
+// need three separate code paths.
+class _RewardDisplay {
+  final String code;
+  final double discountPercentage;
+  final String rewardName;
+  final String expiryLabel;
+
+  _RewardDisplay({
+    required this.code,
+    required this.discountPercentage,
+    required this.rewardName,
+    required this.expiryLabel,
+  });
+}
+
+String _shortDate(Object? value) {
+  DateTime? dt;
+  if (value is DateTime) {
+    dt = value;
+  } else if (value is String) {
+    dt = DateTime.tryParse(value);
+  }
+  if (dt == null) return value?.toString() ?? '';
+  return dt.toLocal().toString().split(' ')[0];
+}
+
+/// Gathers every reward coupon relevant to this order/payment from
+/// whichever source actually has it, de-duplicating by coupon code.
+List<_RewardDisplay> _gatherRewards(
+  OrderPlacedResponse? order,
+  CartController controller,
+) {
+  final rewards = <_RewardDisplay>[];
+  final seenCodes = <String>{};
+
+  void addIfNew({
+    required String code,
+    required double discountPercentage,
+    required String rewardName,
+    required String expiryLabel,
+  }) {
+    if (code.isEmpty || seenCodes.contains(code)) return;
+    seenCodes.add(code);
+    rewards.add(
+      _RewardDisplay(
+        code: code,
+        discountPercentage: discountPercentage,
+        rewardName: rewardName,
+        expiryLabel: expiryLabel,
+      ),
+    );
+  }
+
+  // 1. Singular reward_coupon from the order-placement response
+  //    (this is how COD orders currently earn a coupon).
+  final orderReward = order?.rewardCoupon;
+  if (orderReward != null) {
+    addIfNew(
+      code: orderReward.couponCode,
+      discountPercentage: orderReward.discountPercentage,
+      rewardName: orderReward.rewardMaterial,
+      expiryLabel: _shortDate(orderReward.expiryDate),
+    );
+  }
+
+  // 2. Singular reward_coupon from /api/verify-payment/, only present
+  //    once a Razorpay payment has actually been verified.
+  final razorpayReward = controller.lastVerifiedRewardCoupon.value;
+  if (razorpayReward != null) {
+    addIfNew(
+      code: razorpayReward.couponCode,
+      discountPercentage: razorpayReward.discountPercentage,
+      rewardName: razorpayReward.rewardMaterial,
+      expiryLabel: _shortDate(razorpayReward.expiryDate),
+    );
+  }
+
+  // 3. Existing bulk earned_coupons list, if the backend ever populates it.
+  final earnedList = order?.earnedCoupons ?? controller.earnedCoupons;
+  for (final coupon in earnedList) {
+    addIfNew(
+      code: coupon.couponCode,
+      discountPercentage: coupon.discountPercentage,
+      rewardName: coupon.rewardMaterialName,
+      expiryLabel: _shortDate(coupon.expiryDate),
+    );
+  }
+
+  return rewards;
+}
+
 class OrderSuccessScreen extends StatefulWidget {
   final OrderPlacedResponse? order;
 
@@ -83,8 +185,15 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
     // (e.g. deep link) — controller state is no longer the primary
     // source of truth here.
     final order = widget.order ?? controller.lastOrderResponse.value;
-    final earnedCoupons =
-        widget.order?.earnedCoupons ?? controller.earnedCoupons;
+
+    // CHANGED: was `widget.order?.earnedCoupons ?? controller.earnedCoupons`
+    // which only ever looked at the bulk earned_coupons list — it missed
+    // the singular reward_coupon that COD orders return today, and it
+    // never had a way to reflect a coupon earned only after a Razorpay
+    // payment is verified (which happens after the order-placement
+    // response has already been parsed). _gatherRewards merges all three
+    // sources and de-dupes by coupon code.
+    final rewards = _gatherRewards(order, controller);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -321,8 +430,10 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                           ),
                         ),
 
-                        // ── Earned Coupons Section ──
-                        if (earnedCoupons.isNotEmpty) ...[
+                        // ── Earned Rewards Section ──
+                        // CHANGED: now driven by the unified `rewards`
+                        // list instead of only the bulk earnedCoupons list.
+                        if (rewards.isNotEmpty) ...[
                           SizedBox(height: sw * 0.05),
                           FadeTransition(
                             opacity: _fadeAnim,
@@ -373,7 +484,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
-                                            'You Earned ${earnedCoupons.length} Coupon${earnedCoupons.length > 1 ? 's' : ''}!',
+                                            'You Earned ${rewards.length} Coupon${rewards.length > 1 ? 's' : ''}!',
                                             style: GoogleFonts.manrope(
                                               fontSize: 18,
                                               fontWeight: FontWeight.w700,
@@ -384,8 +495,8 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                                       ],
                                     ),
                                     const SizedBox(height: 10),
-                                    ...earnedCoupons.map(
-                                      (coupon) => Container(
+                                    ...rewards.map(
+                                      (reward) => Container(
                                         margin: const EdgeInsets.only(
                                           bottom: 8,
                                         ),
@@ -425,7 +536,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    coupon.couponCode,
+                                                    reward.code,
                                                     style: GoogleFonts.manrope(
                                                       fontWeight:
                                                           FontWeight.bold,
@@ -434,7 +545,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                                                     ),
                                                   ),
                                                   Text(
-                                                    '${coupon.discountPercentage.toStringAsFixed(0)}% off on ${coupon.rewardMaterialName}',
+                                                    '${reward.discountPercentage.toStringAsFixed(0)}% off on ${reward.rewardName}',
                                                     style: GoogleFonts.manrope(
                                                       fontSize: 12,
                                                       color:
@@ -460,7 +571,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                                                     BorderRadius.circular(12),
                                               ),
                                               child: Text(
-                                                'Valid till ${coupon.formattedExpiryDate}',
+                                                'Valid till ${reward.expiryLabel}',
                                                 style: GoogleFonts.manrope(
                                                   fontSize: 10,
                                                   color: Colors.white,
@@ -520,3 +631,4 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
     );
   }
 }
+ 

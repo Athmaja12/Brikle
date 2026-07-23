@@ -1,5 +1,7 @@
 // lib/AddtoCart/Controller/addtocart_provider.dart
 
+import 'dart:async';
+
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
@@ -8,6 +10,7 @@ import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class CartController extends GetxController {
   static const String _tag = '[CartController]';
@@ -25,6 +28,8 @@ class CartController extends GetxController {
   static const double staticHandlingCharge = 0;
 
   // ── Payment Method State ──────────────────────────────
+  // NOTE: values here must match what the backend expects, i.e.
+  // "COD" or "RAZORPAY" — not "Online". See _PaymentMethodSelector.
   final RxString selectedPaymentMethod = 'COD'.obs;
   final RxBool hasSelectedPaymentMethod = false.obs;
   final RxBool showPaymentMethodSelector = false.obs;
@@ -41,6 +46,13 @@ class CartController extends GetxController {
   final RxList<CouponModel> earnedCoupons = <CouponModel>[].obs;
   final RxInt earnedCouponsCount = 0.obs;
 
+  // ── Razorpay State ──────────────────────────────────────────
+  late final Razorpay _razorpay;
+  Completer<bool>? _paymentCompleter;
+  int? _pendingRazorpayOrderId;
+  final Rx<EarnedRewardCoupon?> lastVerifiedRewardCoupon =
+      Rx<EarnedRewardCoupon?>(null);
+
   // ── END STATIC ───────────────────────────────────────────────────────
 
   int get itemCount => cartItems.length;
@@ -51,6 +63,10 @@ class CartController extends GetxController {
   void onInit() {
     super.onInit();
     debugPrint('$_tag onInit — controller created, fetching cart');
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     fetchCart();
     fetchMyCoupons();
   }
@@ -58,6 +74,7 @@ class CartController extends GetxController {
   @override
   void onClose() {
     debugPrint('$_tag onClose — controller disposed');
+    _razorpay.clear();
     super.onClose();
   }
 
@@ -492,6 +509,17 @@ class CartController extends GetxController {
   }
 
   // ── placeOrder method ──────────────────────────────
+  //
+  // For COD, behaviour is unchanged: place order -> success.
+  //
+  // For RAZORPAY, the backend places the order in PENDING state and
+  // hands back razorpay_data. We then open the native Razorpay checkout
+  // sheet and WAIT for the result before treating the order as placed —
+  // clearing the cart / burning the coupon / navigating to the success
+  // screen only happens after /api/verify-payment/ confirms the
+  // signature server-side. If the user cancels or the payment fails,
+  // placeOrder() returns null (same contract as any other failure) and
+  // the order sits server-side as PENDING for a retry.
   Future<OrderPlacedResponse?> placeOrder({
     required String shippingAddress,
     required String pincode,
@@ -517,6 +545,25 @@ class CartController extends GetxController {
       debugPrint('$_tag placeOrder response: $response');
 
       final result = OrderPlacedResponse.fromJson(response);
+
+      // ── RAZORPAY branch: open checkout sheet and wait for verification.
+      if (result.orderDetails.paymentMethod == 'RAZORPAY' &&
+          result.razorpayData != null) {
+        debugPrint(
+          '$_tag placeOrder — RAZORPAY order created (id: '
+          '${result.orderDetails.id}), opening checkout sheet',
+        );
+        final verified = await _openRazorpayCheckout(result);
+        if (!verified) {
+          debugPrint(
+            '$_tag placeOrder — Razorpay payment not verified, aborting '
+            'success flow. Order ${result.orderDetails.id} remains PENDING.',
+          );
+          return null;
+        }
+        debugPrint('$_tag placeOrder — Razorpay payment verified');
+      }
+
       orderConfirmationMessage.value = result.message;
 
       if (result.earnedCoupons != null) {
@@ -570,6 +617,153 @@ class CartController extends GetxController {
         '$_tag placeOrder finished, isCheckingOut=${isCheckingOut.value}',
       );
     }
+  }
+
+  // ── Razorpay Checkout ──────────────────────────────────────
+
+  /// Opens the native Razorpay checkout sheet for the just-created order
+  /// and suspends until either:
+  ///  - payment succeeds AND server-side signature verification passes
+  ///    -> resolves true
+  ///  - payment fails, is cancelled, or verification fails -> resolves false
+  Future<bool> _openRazorpayCheckout(OrderPlacedResponse order) async {
+    final data = order.razorpayData!;
+    _pendingRazorpayOrderId = order.orderDetails.id;
+    _paymentCompleter = Completer<bool>();
+
+    final address = selectedAddress.value;
+
+    final options = {
+      'key': data.razorpayKeyId,
+      // Razorpay expects amount in the smallest currency unit (paise for INR).
+      // data.amount from the backend is already the grand total in rupees.
+      'amount': (data.amount * 100).round(),
+      'currency': data.currency,
+      'name': 'Brikle',
+      'description': 'Order #${order.orderDetails.id}',
+      'order_id': data.razorpayOrderId,
+      'prefill': {
+        if (address?.email != null) 'email': address!.email,
+        if (address?.phoneNumber != null) 'contact': address!.phoneNumber,
+      },
+      'theme': {'color': '#${AppColors.primaryGreen.value.toRadixString(16).substring(2)}'},
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('$_tag _openRazorpayCheckout — failed to open sheet: $e');
+      Get.snackbar(
+        'Payment Error',
+        'Could not open the payment screen. Please try again.',
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    return _paymentCompleter!.future;
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    final orderId = _pendingRazorpayOrderId;
+    debugPrint(
+      '$_tag _handlePaymentSuccess — razorpayPaymentId: '
+      '${response.paymentId}, razorpayOrderId: ${response.orderId}',
+    );
+
+    if (orderId == null ||
+        response.orderId == null ||
+        response.paymentId == null ||
+        response.signature == null) {
+      debugPrint('$_tag _handlePaymentSuccess — missing required fields');
+      Get.snackbar(
+        'Verification Error',
+        'Payment succeeded but could not be verified. Contact support with '
+            'your payment ID: ${response.paymentId ?? "unknown"}',
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+      );
+      _paymentCompleter?.complete(false);
+      return;
+    }
+
+    try {
+      final verifyResult = await ApiService.verifyPayment(
+        orderId: orderId,
+        razorpayOrderId: response.orderId!,
+        razorpayPaymentId: response.paymentId!,
+        razorpaySignature: response.signature!,
+      );
+      final parsed = PaymentVerificationResponse.fromJson(verifyResult);
+      lastVerifiedRewardCoupon.value = parsed.rewardCoupon;
+
+      debugPrint(
+        '$_tag _handlePaymentSuccess — verified, paymentStatus: '
+        '${parsed.paymentStatus}',
+      );
+
+      Get.snackbar(
+        'Payment Successful',
+        parsed.message.isNotEmpty ? parsed.message : 'Payment verified!',
+        backgroundColor: AppColors.primaryGreen,
+        colorText: Colors.white,
+      );
+
+      _paymentCompleter?.complete(true);
+    } on ApiException catch (e) {
+      debugPrint('$_tag _handlePaymentSuccess — verify-payment failed: ${e.message}');
+      Get.snackbar(
+        'Verification Failed',
+        'Payment was received but verification failed: ${e.message}. '
+            'Contact support with your payment ID: ${response.paymentId}',
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+      );
+      _paymentCompleter?.complete(false);
+    } catch (e) {
+      debugPrint('$_tag _handlePaymentSuccess — unexpected error: $e');
+      Get.snackbar(
+        'Verification Failed',
+        'Payment was received but verification failed. Contact support '
+            'with your payment ID: ${response.paymentId}',
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+      );
+      _paymentCompleter?.complete(false);
+    } finally {
+      _pendingRazorpayOrderId = null;
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    debugPrint(
+      '$_tag _handlePaymentError — code: ${response.code}, message: '
+      '${response.message}',
+    );
+    Get.snackbar(
+      'Payment Failed',
+      response.message?.isNotEmpty == true
+          ? response.message!
+          : 'Payment was not completed. Please try again.',
+      backgroundColor: AppColors.errorRed,
+      colorText: Colors.white,
+    );
+    _pendingRazorpayOrderId = null;
+    _paymentCompleter?.complete(false);
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    // Fired when the user picks a wallet outside Razorpay's own flow
+    // (e.g. Paytm). This does not by itself mean success or failure —
+    // EVENT_PAYMENT_SUCCESS/EVENT_PAYMENT_ERROR still fire afterward.
+    debugPrint('$_tag _handleExternalWallet — wallet: ${response.walletName}');
+    Get.snackbar(
+      'External Wallet Selected',
+      response.walletName ?? 'Processing via external wallet...',
+      backgroundColor: AppColors.primaryGreen,
+      colorText: Colors.white,
+    );
   }
 
   void toggleCancellationPolicy() =>
