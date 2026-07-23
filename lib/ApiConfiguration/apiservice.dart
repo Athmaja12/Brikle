@@ -28,6 +28,17 @@ class ApiService {
 
   static Future<Map<String, String>> _authHeaders() async {
     final token = await SessionManager.getAccessToken();
+    // FIX: if there's no token yet (e.g. logged out, or called before
+    // login completes), the old code sent 'Authorization': 'Bearer null'
+    // as a literal string instead of failing predictably. That silently
+    // produces a 401 from the server with no useful signal locally.
+    // Returning headers without an Authorization key instead makes
+    // _wasAuthenticated() correctly report false, so callers don't
+    // trigger the refresh-token flow for a request that was never
+    // authenticated to begin with.
+    if (token == null || token.isEmpty) {
+      return {'Content-Type': 'application/json'};
+    }
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
@@ -72,10 +83,16 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 20));
     } catch (_) {
+      // Network failure during refresh — don't clear the session here.
+      // The refresh token itself may still be valid; this could just be
+      // a dropped connection. Clearing session + force-logout on every
+      // transient network blip would log the user out unnecessarily.
       return false;
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      // Refresh token itself was rejected (expired/invalid) — this is
+      // the only case that should actually force a logout.
       await SessionManager.clearSession();
       _forceLogoutAndRedirect();
       return false;
@@ -85,15 +102,15 @@ class ApiService {
     try {
       decoded = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {
-      await SessionManager.clearSession();
-      _forceLogoutAndRedirect();
+      // 2xx but unparseable body — treat as a failed refresh rather than
+      // crashing, but don't nuke the session for what might be a
+      // transient server hiccup returning malformed JSON.
       return false;
     }
 
     final newAccess = decoded['access']?.toString();
     if (newAccess == null || newAccess.isEmpty) {
-      await SessionManager.clearSession();
-      _forceLogoutAndRedirect();
+      // 2xx but missing the field we need — same reasoning as above.
       return false;
     }
 
@@ -250,7 +267,9 @@ class ApiService {
     required String shippingAddress,
     required String pincode,
     required String requestedDeliveryDate,
-    String? requestedDeliveryTime, // NEW — optional, sent if backend accepts it
+    String? requestedDeliveryTime,
+    int?
+    couponId, // NEW — was missing entirely; selected coupon never reached this call
   }) async {
     final body = <String, dynamic>{
       'payment_method': paymentMethod,
@@ -261,6 +280,7 @@ class ApiService {
     if (requestedDeliveryTime != null && requestedDeliveryTime.isNotEmpty) {
       body['requested_delivery_time'] = requestedDeliveryTime;
     }
+    if (couponId != null) body['coupon_id'] = couponId;
     return _post(ApiConfig.placeOrderUrl, body, headers: await _authHeaders());
   }
 
@@ -760,11 +780,24 @@ class ApiService {
     required String couponCode,
     required String recipientPhone,
   }) async {
-    final response = await _post(ApiConfig.shareCouponUrl, {
+    final response = await _postExpectingBody(ApiConfig.shareCouponUrl, {
       'coupon_code': couponCode,
       'recipient_phone': recipientPhone,
     }, headers: await _authHeaders());
-    return ShareCouponResponse.fromJson(response);
+
+    // Expected shape (success or failure): {"success": ..., "message": ...}
+    if (response.containsKey('success')) {
+      return ShareCouponResponse.fromJson(response);
+    }
+
+    // Fallback: if the backend instead returns a raw DRF-style validation
+    // error (e.g. {"recipient_phone": ["This number is not registered."]})
+    // rather than your {success, message} contract, still surface
+    // something meaningful instead of a blank/generic message.
+    final fallbackMessage =
+        _extractErrorMessage(response) ??
+        'This phone number is not registered on Brikle.';
+    return ShareCouponResponse(success: false, message: fallbackMessage);
   }
   // ══════════════════════════════════════════════════════════════════════════
   // ORDERS
@@ -919,6 +952,61 @@ class ApiService {
     }
 
     return _handleResponse(response);
+  }
+
+  /// Like _post, but never throws on 4xx — decodes and returns whatever
+  /// JSON body the server sent regardless of status code. Needed for
+  /// endpoints (like share-coupon) whose contract is "always respond with
+  /// {success, message}", where a 400 for a business-rule failure (e.g.
+  /// recipient not registered) still carries a real, useful message that
+  /// the generic _handleResponse()/_extractErrorMessage() path was
+  /// discarding in favor of a generic "Something went wrong" fallback.
+  static Future<Map<String, dynamic>> _postExpectingBody(
+    String url,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+    bool isRetry = false,
+  }) async {
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse(url),
+            headers: headers ?? _jsonHeaders,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw ApiException(
+        'Could not reach the server. Check your connection and try again.',
+      );
+    }
+
+    if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        return _postExpectingBody(
+          url,
+          body,
+          headers: await _authHeaders(),
+          isRetry: true,
+        );
+      }
+      throw ApiException(
+        'Your session has expired. Please log in again.',
+        statusCode: 401,
+        sessionExpired: true,
+      );
+    }
+
+    try {
+      return _decode(response);
+    } catch (_) {
+      throw ApiException(
+        'Something went wrong (code ${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
+    }
   }
 
   static Future<Map<String, dynamic>> _patch(

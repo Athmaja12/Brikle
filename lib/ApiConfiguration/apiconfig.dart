@@ -21,7 +21,6 @@ class ApiConfig {
 
   /// JWT Refresh Token
   static String get tokenRefreshUrl => '$baseUrl/api/token/refresh/';
-
   // ==========================================================================
   // PROFILE
   // ==========================================================================

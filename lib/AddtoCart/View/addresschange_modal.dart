@@ -111,64 +111,126 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
 
   void _showDistanceAlert() {
     Get.dialog(
-      AlertDialog(
-        title: const Text('📍 Delivery Distance Alert'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Please note:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '• The delivery distance affects the final price',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '• Longer distances may incur additional charges',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '• You can review the delivery charge before placing your order',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.shade300),
+      Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Delivery Distance Notice",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.amber.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Distance may increase the delivery charge',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.amber.shade800,
-                      ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                "The delivery charge depends on the distance between our store and your delivery location.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xffFFF8E8),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xffF4D28A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPoint(
+                      "Delivery distance affects the shipping charge.",
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _buildPoint(
+                      "Longer distances may have additional delivery fees.",
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _buildPoint(
+                      "The final delivery charge will be shown before you place the order.",
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: Get.back,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                ],
+                  child: const Text(
+                    "I Understand",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('I Understand'),
+            ],
           ),
-        ],
+        ),
       ),
+      barrierDismissible: true,
+    );
+  }
+
+  Widget _buildPoint(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 6),
+          width: 6,
+          height: 6,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryGreen,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -276,6 +338,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
         pincode: _pincodeController.text,
         deliveryDate: dateString,
         deliveryTime: timeString,
+        couponId: widget.controller.selectedCoupon.value?.id,
       );
 
       if (checkoutResult == null) {
@@ -443,125 +506,167 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
   // Future<bool> that only resolves once the user picks an action.
   Future<bool> _showDeliveryChargeBreakdown(CheckoutResponse response) async {
     final config = response.deliveryConfig;
+
     final result = await Get.dialog<bool>(
       barrierDismissible: false,
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header — green success banner, matches app's card style
+              /// Title
+              const Text(
+                "Delivery Charges",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                response.message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              /// Details Card
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.primaryGreen.withOpacity(0.3),
-                  ),
+                  color: const Color(0xffF8F9FB),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.inputBorder),
+                ),
+                child: Column(
+                  children: [
+                    _buildChargeRow(
+                      "Scheduled Delivery",
+                      "${response.scheduledDeliveryDate} • ${response.scheduledDeliveryTime}",
+                    ),
+
+                    const Divider(height: 26),
+
+                    _buildChargeRow(
+                      "Delivery Distance",
+                      "${config.totalDistanceKm.toStringAsFixed(1)} km",
+                    ),
+
+                    const Divider(height: 26),
+
+                    _buildChargeRow(
+                      "Free Distance",
+                      "${config.freeDistanceLimitKm} km",
+                    ),
+
+                    const Divider(height: 26),
+
+                    _buildChargeRow(
+                      "Additional Distance",
+                      "${config.extraDistance.toStringAsFixed(1)} km",
+                    ),
+
+                    const Divider(height: 26),
+
+                    _buildChargeRow(
+                      "Rate",
+                      "₹${config.chargePerExtraKm.toStringAsFixed(0)} / km",
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              /// Total Card
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryGreen,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 18,
+                    const Text(
+                      "Delivery Charge",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        response.message,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryGreen,
-                          fontSize: 14,
-                        ),
+
+                    const Spacer(),
+
+                    Text(
+                      "₹${response.paymentSummary.deliveryCharge.toStringAsFixed(0)}",
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryGreen,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-              const Text(
-                'Delivery Charge Breakdown',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              _buildInfoRow(
-                '📅 Scheduled',
-                '${response.scheduledDeliveryDate} at ${response.scheduledDeliveryTime}',
-              ),
-              _buildInfoRow(
-                '📍 Distance',
-                '${config.totalDistanceKm.toStringAsFixed(1)} km',
-              ),
-              _buildInfoRow('Free Limit', '${config.freeDistanceLimitKm} km'),
-              _buildInfoRow(
-                'Extra Distance',
-                '${config.extraDistance.toStringAsFixed(1)} km',
-              ),
-              _buildInfoRow(
-                'Charge per Extra KM',
-                '₹${config.chargePerExtraKm.toStringAsFixed(0)}',
-              ),
-              const Divider(height: 24),
-              _buildInfoRow(
-                'Delivery Charge',
-                '₹${response.paymentSummary.deliveryCharge.toStringAsFixed(0)}',
-                isTotal: true,
-              ),
-              const SizedBox(height: 20),
+
+              const SizedBox(height: 28),
+
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Get.back(result: false),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: AppColors.inputBorder),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: () => Get.back(result: false),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: AppColors.textDark,
-                          fontWeight: FontWeight.w600,
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(
+                            color: AppColors.textDark,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+
+                  const SizedBox(width: 14),
+
                   Expanded(
                     flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () => Get.back(result: true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryGreen,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () => Get.back(result: true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Proceed to Pay',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                        child: const Text(
+                          "Proceed to Payment",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -573,7 +678,30 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
         ),
       ),
     );
+
     return result ?? false;
+  }
+
+  Widget _buildChargeRow(String title, String value) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+          ),
+        ),
+
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: AppColors.textDark,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildInfoRow(String label, String value, {bool isTotal = false}) {

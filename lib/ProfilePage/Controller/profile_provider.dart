@@ -1,5 +1,7 @@
 // lib/ProfilePage/Controller/profile_controller.dart
 
+import 'dart:async';
+
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
@@ -411,9 +413,15 @@ class ProfileController extends GetxController {
         recipientPhone: recipientPhone,
       );
       if (result.success) {
-        // Coupon has moved to another account — refresh so it updates
-        // in this user's list too.
-        await fetchCoupons();
+        // Remove immediately from the local list so the UI updates the
+        // instant the user sees the success snackbar, instead of waiting
+        // on a full fetchCoupons() round-trip to reflect it.
+        coupons.removeWhere((c) => c.couponCode == couponCode);
+
+        // Still resync with the server in the background — covers cases
+        // like server-side side effects (e.g. earning a new coupon back)
+        // that a purely local removal wouldn't know about.
+        unawaited(fetchCoupons());
       }
       return result;
     } on ApiException catch (e) {

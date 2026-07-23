@@ -363,7 +363,7 @@ class ProductDetailScreen extends StatelessWidget {
                                 crossAxisCount: 2,
                                 mainAxisSpacing: 12,
                                 crossAxisSpacing: 12,
-                                childAspectRatio: 0.75,
+                                childAspectRatio: 0.65,
                               ),
                           itemBuilder: (context, index) =>
                               _SuggestedProductCard(
@@ -379,7 +379,7 @@ class ProductDetailScreen extends StatelessWidget {
                     ],
                   );
                 }),
-              ], 
+              ],
             ),
           ),
         );

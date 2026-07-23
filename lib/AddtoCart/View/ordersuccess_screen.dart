@@ -1,6 +1,7 @@
 // lib/AddtoCart/View/ordersuccess_screen.dart
 // Complete file with all fixes
 
+import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
@@ -10,7 +11,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:confetti/confetti.dart';
 
 class OrderSuccessScreen extends StatefulWidget {
-  const OrderSuccessScreen({super.key});
+  final OrderPlacedResponse? order;
+
+  const OrderSuccessScreen({super.key, this.order});
 
   @override
   State<OrderSuccessScreen> createState() => _OrderSuccessScreenState();
@@ -75,8 +78,13 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
   Widget build(BuildContext context) {
     final sw = MediaQuery.of(context).size.width;
     final controller = Get.find<CartController>();
-    final order = controller.lastOrderResponse.value;
-    final earnedCoupons = controller.earnedCoupons;
+    // Prefer the order passed in directly; only fall back to the
+    // controller's state if this screen was somehow opened without it
+    // (e.g. deep link) — controller state is no longer the primary
+    // source of truth here.
+    final order = widget.order ?? controller.lastOrderResponse.value;
+    final earnedCoupons =
+        widget.order?.earnedCoupons ?? controller.earnedCoupons;
 
     return Scaffold(
       backgroundColor: Colors.white,

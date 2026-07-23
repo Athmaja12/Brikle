@@ -5,6 +5,7 @@ import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
+import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -500,7 +501,8 @@ class CartController extends GetxController {
     debugPrint(
       '$_tag placeOrder(shippingAddress: "$shippingAddress", pincode: '
       '"$pincode", deliveryDate: "$deliveryDate", deliveryTime: '
-      '"$deliveryTime", paymentMethod: "${selectedPaymentMethod.value}")',
+      '"$deliveryTime", paymentMethod: "${selectedPaymentMethod.value}", '
+      'couponId: ${selectedCoupon.value?.id})',
     );
     try {
       isCheckingOut.value = true;
@@ -510,6 +512,7 @@ class CartController extends GetxController {
         pincode: pincode,
         requestedDeliveryDate: deliveryDate,
         requestedDeliveryTime: deliveryTime,
+        couponId: selectedCoupon.value?.id, // NEW — was never sent
       );
       debugPrint('$_tag placeOrder response: $response');
 
@@ -530,9 +533,25 @@ class CartController extends GetxController {
         '${result.orderDetails.grandTotal}',
       );
 
+      // The coupon that was just spent is no longer valid to reuse —
+      // clear it locally so a fresh cart session doesn't show a "spent"
+      // coupon as still applied.
+      selectedCoupon.value = null;
+      couponCode.value = '';
+
       debugPrint('$_tag placeOrder — clearing cart after successful order');
       await clearCart();
       await fetchMyCoupons();
+
+      // FIX: ProfileController.coupons (rendered by the Coupon listing
+      // page) is a completely separate RxList from this controller's
+      // myCoupons — the line above only refreshes CartController's own
+      // copy. Without this, a coupon just marked "used" server-side
+      // stays showing as "Active" on the Coupon listing screen until the
+      // user manually pull-to-refreshes it.
+      if (Get.isRegistered<ProfileController>()) {
+        await Get.find<ProfileController>().fetchCoupons();
+      }
 
       return result;
     } on ApiException catch (e) {
