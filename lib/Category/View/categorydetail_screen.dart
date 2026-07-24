@@ -522,7 +522,7 @@ class _ProductGrid extends StatelessWidget {
             // Card height derived from card width (keeps proportions
             // consistent across screen sizes) + extra room for text scale.
             final textScale = MediaQuery.of(context).textScaler.scale(1);
-            final cardHeight = cardWidth * 1.7 * textScale;
+            final cardHeight = cardWidth * 1.8 * textScale;
 
             return GridView.builder(
               shrinkWrap: true,

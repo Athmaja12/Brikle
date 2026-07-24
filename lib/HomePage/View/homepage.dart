@@ -9,6 +9,7 @@ import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/Category/View/categorydetail_screen.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/Model/home_model.dart';
+import 'package:brikle/HomePage/View/search_bar.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/View/wishlist_screen.dart';
@@ -238,6 +239,7 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          // const FlipkartSearchBar(isHomePage: true),
         ],
       ),
     );
@@ -659,7 +661,8 @@ class _TopDealsSection extends StatelessWidget {
         padding: EdgeInsets.only(
           left: Responsive.space(context, 16),
           right: Responsive.space(context, 16),
-          top: Responsive.space(context, 8),
+          top: Responsive.space(context, 16),
+          bottom: Responsive.space(context, 10),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -673,10 +676,10 @@ class _TopDealsSection extends StatelessWidget {
                     context,
                   ).copyWith(fontSize: 18),
                 ),
-                Text('View All', style: AppTextStyles.authPromptLink(context)),
+                // Text('View All', style: AppTextStyles.authPromptLink(context)),
               ],
             ),
-            SizedBox(height: Responsive.space(context, 8)),
+            SizedBox(height: Responsive.space(context, 10)),
             _buildDealsRows(activeDeals),
           ],
         ),
@@ -703,7 +706,7 @@ class _TopDealsSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(child: _dealCard(first)),
-              const SizedBox(width: 12),
+              const SizedBox(width: 5),
               Expanded(
                 child: second != null
                     ? _dealCard(second)
@@ -727,7 +730,7 @@ class _TopDealsSection extends StatelessWidget {
         price: deal.dealPrice,
       ),
       // dealBadgeText: deal.customTitle,
-      dealEndDate: deal.endDate,
+      // dealEndDate: deal.endDate,
       originalPrice: deal.retailPrice,
       discountPercent: deal.discountPercent,
     );
@@ -833,7 +836,7 @@ class _BestsellingSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(child: _bestsellingCard(first)),
-              const SizedBox(width: 15),
+              const SizedBox(width: 5),
               Expanded(
                 child: second != null
                     ? _bestsellingCard(second)

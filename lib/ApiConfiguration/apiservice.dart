@@ -1,4 +1,4 @@
-// lib/ApiConfiguration/apiservice.dart - Complete file with fixes
+// lib/ApiConfiguration/apiservice.dart - Complete file with fixes + 401 debug logging
 
 import 'dart:convert';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
@@ -91,6 +91,11 @@ class ApiService {
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      // 🔎 DEBUG — shows exactly why the refresh call itself was rejected
+      // (e.g. expired/invalid refresh token, wrong SECRET_KEY, etc.)
+      debugPrint(
+        '[ApiService] 🔎 refresh failed (${response.statusCode}): ${response.body}',
+      );
       // Refresh token itself was rejected (expired/invalid) — this is
       // the only case that should actually force a logout.
       await SessionManager.clearSession();
@@ -229,6 +234,9 @@ class ApiService {
       'pincode': pincode,
     }, headers: await _authHeaders());
   }
+
+
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // VEHICLES
@@ -917,6 +925,12 @@ class ApiService {
       );
     }
 
+    if (response.statusCode == 401) {
+      // 🔎 DEBUG — shows Django's actual rejection reason instead of
+      // just the generic "session expired" message the app shows.
+      debugPrint('[ApiService] 🔎 401 raw body (GET $url): ${response.body}');
+    }
+
     if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
       final refreshed = await _refreshAccessToken();
       if (refreshed) {
@@ -951,6 +965,11 @@ class ApiService {
       throw ApiException(
         'Could not reach the server. Check your connection and try again.',
       );
+    }
+
+    if (response.statusCode == 401) {
+      // 🔎 DEBUG
+      debugPrint('[ApiService] 🔎 401 raw body (POST $url): ${response.body}');
     }
 
     if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
@@ -993,6 +1012,13 @@ class ApiService {
     } catch (_) {
       throw ApiException(
         'Could not reach the server. Check your connection and try again.',
+      );
+    }
+
+    if (response.statusCode == 401) {
+      // 🔎 DEBUG
+      debugPrint(
+        '[ApiService] 🔎 401 raw body (POST-expecting-body $url): ${response.body}',
       );
     }
 
@@ -1044,6 +1070,11 @@ class ApiService {
       );
     }
 
+    if (response.statusCode == 401) {
+      // 🔎 DEBUG
+      debugPrint('[ApiService] 🔎 401 raw body (PATCH $url): ${response.body}');
+    }
+
     if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
       final refreshed = await _refreshAccessToken();
       if (refreshed) {
@@ -1077,6 +1108,13 @@ class ApiService {
     } catch (_) {
       throw ApiException(
         'Could not reach the server. Check your connection and try again.',
+      );
+    }
+
+    if (response.statusCode == 401) {
+      // 🔎 DEBUG
+      debugPrint(
+        '[ApiService] 🔎 401 raw body (DELETE $url): ${response.body}',
       );
     }
 

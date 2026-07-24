@@ -310,196 +310,6 @@ class _CartItemRow extends StatelessWidget {
   final CartController controller;
   const _CartItemRow({required this.item, required this.controller});
 
-  void _showDeleteSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                /// Drag Handle
-                Container(
-                  width: 48,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-
-                const SizedBox(height: 28),
-
-                /// Delete Icon
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 38,
-                    color: Colors.red.shade600,
-                  ),
-                ),
-
-                const SizedBox(height: 22),
-
-                const Text(
-                  "Remove from Cart?",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textDark,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Text(
-                  "Are you sure you want to remove this product from your cart?",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xffF8F9FB),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.inventory_2_outlined,
-                          color: AppColors.primaryGreen,
-                        ),
-                      ),
-
-                      const SizedBox(width: 14),
-
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.materialName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            Text(
-                              item.sizeDimension,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 54,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.shade300),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            "Keep Item",
-                            style: TextStyle(
-                              color: AppColors.textDark,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 14),
-
-                    Expanded(
-                      child: SizedBox(
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            controller.removeItem(item);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade600,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            "Remove",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showBulkPricingSheet(BuildContext context) {
     if (!item.hasTiers || item.priceTiers.isEmpty) return;
     showModalBottomSheet(
@@ -630,16 +440,21 @@ class _CartItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ── Figma layout ──────────────────────────────────────────────────
+    // [image]  [name + wholesale link  ...........]  [price]
+    //                                                 [stepper]
+    // No delete button — decrementing to 0 removes the item, same as
+    // before (handled inside _QuantityStepper's onTap for '-').
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
-              width: 56,
-              height: 56,
+              width: 48,
+              height: 48,
               child: item.imageUrl.isNotEmpty
                   ? Image.network(
                       item.imageUrl,
@@ -657,6 +472,8 @@ class _CartItemRow extends StatelessWidget {
             ),
           ),
           SizedBox(width: Responsive.space(context, 12)),
+
+          // ── Left column: name + wholesale link ──────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,37 +486,28 @@ class _CartItemRow extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                if (item.hasTiers && item.priceTiers.isNotEmpty)
+                if (item.hasTiers && item.priceTiers.isNotEmpty) ...[
+                  const SizedBox(height: 4),
                   GestureDetector(
                     onTap: () => _showBulkPricingSheet(context),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.local_offer_outlined,
-                          size: 13,
-                          color: AppColors.primaryGreen,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Buy at wholesale price',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.primaryGreen,
-                            decoration: TextDecoration.underline,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                    child: const Text(
+                      'Buy at wholesale price',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                SizedBox(height: Responsive.space(context, 8)),
-                _QuantityStepper(item: item, controller: controller),
+                ],
               ],
             ),
           ),
+
           SizedBox(width: Responsive.space(context, 8)),
+
+          // ── Right column: price on top, stepper below ────────────────
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -710,23 +518,8 @@ class _CartItemRow extends StatelessWidget {
                   fontSize: 15,
                 ),
               ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => _showDeleteSheet(context),
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 18,
-                    color: Colors.red.shade500,
-                  ),
-                ),
-              ),
+              const SizedBox(height: 8),
+              _QuantityStepper(item: item, controller: controller),
             ],
           ),
         ],

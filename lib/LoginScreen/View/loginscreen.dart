@@ -48,29 +48,44 @@ class LoginView extends GetView<LoginController> {
     }
 
     Future<void> handleGoogleSignIn() async {
+      debugPrint('[LoginView] ── Google Sign-In button tapped ──');
       try {
-        final String? idToken = await _googleAuthService.signInWithGoogle();
-        if (idToken == null) return;
-
-        final data = await _authApiService.loginWithGoogle(idToken);
-        debugPrint('[LoginView] Google login successful: $data');
-
-        // ⚠️ This was missing — without it the user is logged out on restart
-        await SessionManager.saveSession(
-          accessToken: data['access'] as String,
-          refreshToken: data['refresh'] as String,
-          customerId: data['customer_id'] as int?,
-          phoneNumber: data['phone_number'] as String?,
+        debugPrint(
+          '[LoginView] Step 1: calling GoogleAuthService.signInWithGoogle()',
         );
+        final String? idToken = await _googleAuthService.signInWithGoogle();
 
-        if (!context.mounted) return;
+        if (idToken == null) {
+          debugPrint(
+            '[LoginView] ❌ No idToken returned — user likely cancelled. Aborting.',
+          );
+          return;
+        }
+        debugPrint('[LoginView] ✅ Got idToken from Google/Firebase');
+
+        debugPrint(
+          '[LoginView] Step 2: calling AuthApiService.loginWithGoogle()',
+        );
+        final data = await _authApiService.loginWithGoogle(idToken);
+        debugPrint('[LoginView] ✅ Backend login successful. Response: $data');
+
+        if (!context.mounted) {
+          debugPrint(
+            '[LoginView] ⚠️ Context unmounted after backend call — aborting navigation',
+          );
+          return;
+        }
+
+        debugPrint('[LoginView] Step 3: navigating to MainScreen');
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const MainScreen()),
           (route) => false,
         );
-      } catch (e) {
-        debugPrint('[LoginView] Google Sign-In error: $e');
+        debugPrint('[LoginView] ── Google Sign-In flow COMPLETE ──');
+      } catch (e, stack) {
+        debugPrint('[LoginView] ❌ Google Sign-In error: $e');
+        debugPrint('[LoginView] Stack trace: $stack');
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

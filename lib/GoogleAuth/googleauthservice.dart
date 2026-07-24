@@ -1,4 +1,3 @@
-// google_auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,27 +7,20 @@ class GoogleAuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   Future<String?> signInWithGoogle() async {
+    debugPrint('[GoogleAuthService] ── signInWithGoogle() START ──');
     try {
-      GoogleSignInAccount? googleUser;
+      // Force a clean slate before every sign-in so the picker always
+      // shows, instead of silently reusing a cached account.
+      await _googleSignIn.signOut();
 
-      // If a Google account is already cached, use it silently (no picker)
-      final currentUser = _googleSignIn.currentUser;
-      if (currentUser != null) {
-        googleUser = currentUser;
-        debugPrint(
-          '[GoogleAuthService] Using cached Google account: ${googleUser.email}',
-        );
-      } else {
-        // No cached account → show the account picker
-        googleUser = await _googleSignIn.signIn();
-      }
- 
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
       if (googleUser == null) {
-        debugPrint('[GoogleAuthService] User cancelled sign-in');
+        debugPrint('[GoogleAuthService] ❌ User cancelled sign-in');
         return null;
       }
+      debugPrint('[GoogleAuthService] ✅ Account selected: ${googleUser.email}');
 
-      // Always get a fresh auth token (handles expiry automatically)
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
@@ -39,21 +31,26 @@ class GoogleAuthService {
 
       final UserCredential userCredential = await _firebaseAuth
           .signInWithCredential(credential);
-
-      // Get fresh Firebase ID token to send to your backend
       final String? idToken = await userCredential.user?.getIdToken(true);
-      debugPrint('[GoogleAuthService] Firebase idToken obtained');
 
+      debugPrint('[GoogleAuthService] ── signInWithGoogle() END (success) ──');
       return idToken;
-    } catch (e) {
-      debugPrint('[GoogleAuthService] Error: $e');
+    } catch (e, stack) {
+      debugPrint('[GoogleAuthService] ❌ Error: $e');
+      debugPrint('[GoogleAuthService] Stack trace: $stack');
       return null;
     }
   }
 
   Future<void> signOut() async {
+    debugPrint('[GoogleAuthService] ── signOut() START ──');
+    try {
+      await _googleSignIn.disconnect();
+    } catch (e) {
+      debugPrint('[GoogleAuthService] ⚠️ disconnect() failed: $e');
+    }
     await _googleSignIn.signOut();
     await _firebaseAuth.signOut();
-    debugPrint('[GoogleAuthService] Signed out from Google + Firebase');
+    debugPrint('[GoogleAuthService] ── signOut() END ──');
   }
 }

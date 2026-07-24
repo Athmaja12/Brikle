@@ -1,12 +1,14 @@
 // lib/main.dart
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Calculation/View/blockCalculation_Page.dart';
 import 'package:brikle/Calculation/View/calculatiorPage.dart';
 import 'package:brikle/Calculation/View/cementcalculation_page.dart';
 import 'package:brikle/Calculation/View/steelCalculation_Page.dart';
 import 'package:brikle/Calculation/View/waterproofCalculation_Page.dart';
+import 'package:brikle/GoogleAuth/googleauthapiservice.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/LoginScreen/View/loginscreen.dart';
 import 'package:brikle/OnboardingScreens/View/onboardingscrenn.dart';
@@ -24,6 +26,8 @@ Future<void> main() async {
   await Firebase.initializeApp();
   await dotenv.load(fileName: '.env');
 
+  debugPrint('[DEBUG] ApiConfig.baseUrl      = ${ApiConfig.baseUrl}');
+  debugPrint('[DEBUG] AuthApiService.baseUrl = ${AuthApiService.baseUrl}');
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
   Get.put(WishlistController(), permanent: true);

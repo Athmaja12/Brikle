@@ -212,213 +212,215 @@ class _SharedProductCardState extends State<SharedProductCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetailScreen(product: product),
-                    ),
-                  );
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Top row: discount badge (left) + wishlist heart (right)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (widget.discountPercent != null &&
-                            widget.discountPercent! > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDFF5E3),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${widget.discountPercent}% Off',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.primaryGreen,
-                                fontWeight: FontWeight.w700,
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailScreen(product: product),
+                      ),
+                    );
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Top row: discount badge (left) + wishlist heart (right)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (widget.discountPercent != null &&
+                              widget.discountPercent! > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
                               ),
-                            ),
-                          )
-                        else
-                          const SizedBox.shrink(),
-                        WishlistHeart(variantId: product.variantId),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDFF5E3),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${widget.discountPercent}% Off',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.primaryGreen,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox.shrink(),
+                          WishlistHeart(variantId: product.variantId),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
 
-                    // ── Image + custom_title ribbon
-                    Stack(
-                      children: [
-                        SizedBox(
-                          height: 70,
-                          width: double.infinity,
-                          child: _isValidImageUrl(product.imageUrl)
-                              ? Image.network(
-                                  product.imageUrl,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(
+                      // ── Image + custom_title ribbon
+                      Stack(
+                        children: [
+                          SizedBox(
+                            height: 100,
+                            width: double.infinity,
+                            child: _isValidImageUrl(product.imageUrl)
+                                ? Image.network(
+                                    product.imageUrl,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.inventory_2_outlined,
+                                      size: 60,
+                                      color: Colors.black26,
+                                    ),
+                                  )
+                                : const Icon(
                                     Icons.inventory_2_outlined,
                                     size: 60,
                                     color: Colors.black26,
                                   ),
-                                )
-                              : const Icon(
-                                  Icons.inventory_2_outlined,
-                                  size: 60,
-                                  color: Colors.black26,
-                                ),
-                        ),
-                        // if (widget.dealBadgeText != null &&
-                        // widget.dealBadgeText!.isNotEmpty)
-                        // Positioned(
-                        //   top: 0,
-                        //   left: 0,
-                        //   child: Container(
-                        //     padding: const EdgeInsets.symmetric(
-                        //       horizontal: 6,
-                        //       vertical: 2,
-                        //     ),
-                        //     decoration: BoxDecoration(
-                        //       color: const Color(0xFFFF7A00),
-                        //       borderRadius: BorderRadius.circular(6),
-                        //     ),
-                        //     // child: Text(
-                        //     //   // widget.dealBadgeText!.toUpperCase(),
-                        //     //   style: const TextStyle(
-                        //     //     fontSize: 8,
-                        //     //     fontWeight: FontWeight.w700,
-                        //     //     color: Colors.white,
-                        //     //     letterSpacing: 0.3,
-                        //     //   ),
-                        //     // ),
-                        //   ),
-                        // ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                          ),
+                          // if (widget.dealBadgeText != null &&
+                          // widget.dealBadgeText!.isNotEmpty)
+                          // Positioned(
+                          //   top: 0,
+                          //   left: 0,
+                          //   child: Container(
+                          //     padding: const EdgeInsets.symmetric(
+                          //       horizontal: 6,
+                          //       vertical: 2,
+                          //     ),
+                          //     decoration: BoxDecoration(
+                          //       color: const Color(0xFFFF7A00),
+                          //       borderRadius: BorderRadius.circular(6),
+                          //     ),
+                          //     // child: Text(
+                          //     //   // widget.dealBadgeText!.toUpperCase(),
+                          //     //   style: const TextStyle(
+                          //     //     fontSize: 8,
+                          //     //     fontWeight: FontWeight.w700,
+                          //     //     color: Colors.white,
+                          //     //     letterSpacing: 0.3,
+                          //     //   ),
+                          //     // ),
+                          //   ),
+                          // ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
 
-                    // ── Trust badges: Assured + 100% Trusted (shown on every card)
-                    Row(
-                      children: [
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8F5E9),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.check_circle,
-                                  size: 9,
-                                  color: AppColors.primaryGreen,
-                                ),
-                                const SizedBox(width: 2),
-                                Flexible(
-                                  child: Text(
-                                    '100% TRUSTED',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.manrope(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primaryGreen,
+                      // ── Trust badges: Assured + 100% Trusted (shown on every card)
+                      Row(
+                        children: [
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle,
+                                    size: 9,
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Flexible(
+                                    child: Text(
+                                      '100% TRUSTED',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.primaryGreen,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
 
-                    // ── Name
-                    SizedBox(
-                      height: 26,
-                      child: Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          height: 15 / 15,
-                          color: const Color(0xFF212121),
+                      // ── Name
+                      SizedBox(
+                        height: 26,
+                        child: Text(
+                          product.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            height: 15 / 15,
+                            color: const Color(0xFF212121),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
+                      const SizedBox(height: 5),
 
-                    // ── Price row: deal price + strikethrough + inline % off
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          '₹${unitPrice.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                        if (widget.originalPrice != null &&
-                            widget.originalPrice! > unitPrice) ...[
-                          const SizedBox(width: 6),
+                      // ── Price row: deal price + strikethrough + inline % off
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
                           Text(
-                            '₹${widget.originalPrice!.toStringAsFixed(0)}',
+                            '₹${unitPrice.toStringAsFixed(0)}',
                             style: const TextStyle(
-                              decoration: TextDecoration.lineThrough,
-                              color: AppColors.textGray,
-                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
                             ),
                           ),
-                        ],
-                        if (widget.discountPercent != null &&
-                            widget.discountPercent! > 0) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '${widget.discountPercent}% off',
-                            style: const TextStyle(
-                              color: AppColors.primaryGreen,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-
-                    SizedBox(
-                      height: 11,
-                      child: quantity > 1
-                          ? Text(
-                              'Total: ₹${totalPrice.toStringAsFixed(0)}',
+                          if (widget.originalPrice != null &&
+                              widget.originalPrice! > unitPrice) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '₹${widget.originalPrice!.toStringAsFixed(0)}',
                               style: const TextStyle(
-                                fontSize: 11,
+                                decoration: TextDecoration.lineThrough,
                                 color: AppColors.textGray,
+                                fontSize: 12,
                               ),
-                            )
-                          : null,
-                    ),
-                  ],
+                            ),
+                          ],
+                          // if (widget.discountPercent != null &&
+                          //     widget.discountPercent! > 0) ...[
+                          //   const SizedBox(width: 6),
+                          //   Text(
+                          //     '${widget.discountPercent}% off',
+                          //     style: const TextStyle(
+                          //       color: AppColors.primaryGreen,
+                          //       fontSize: 11,
+                          //       fontWeight: FontWeight.w600,
+                          //     ),
+                          //   ),
+                          // ],
+                        ],
+                      ),
+
+                      SizedBox(
+                        height: 15,
+                        child: quantity > 1
+                            ? Text(
+                                'Total: ₹${totalPrice.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textGray,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
