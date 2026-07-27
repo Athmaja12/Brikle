@@ -69,6 +69,25 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  // ── Opens the "My Details" dialog. Always called instead of tapping the
+  // dialog open directly, so we can apply condition #4: manually-entered
+  // profiles are re-fetched fresh every time the icon is tapped, since
+  // their data may have changed outside the app (e.g. admin edits).
+  // OTP/Google accounts still refresh, but don't block the tap on it. ──────
+  Future<void> _onProfileIconTap(BuildContext context) async {
+    if (_ctrl.isManualEntry) {
+      // Manual entry: block briefly and guarantee freshest data before
+      // the dialog opens.
+      await _ctrl.fetchProfile();
+    } else {
+      // Phone/email accounts: cached copy is reliable enough to show
+      // immediately; refresh happens quietly in the background.
+      _ctrl.fetchProfile();
+    }
+    if (!context.mounted) return;
+    _showProfileDetailsDialog(context);
+  }
+
   // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
     return Row(
@@ -76,7 +95,7 @@ class _ProfileViewState extends State<ProfileView> {
       children: [
         // ── Tappable avatar → opens "My Details" dialog ─────────────────────
         GestureDetector(
-          onTap: () => _showProfileDetailsDialog(context),
+          onTap: () => _onProfileIconTap(context),
           child: Container(
             width: Responsive.space(context, 52),
             height: Responsive.space(context, 52),
@@ -98,7 +117,7 @@ class _ProfileViewState extends State<ProfileView> {
         SizedBox(width: Responsive.space(context, 12)),
         Expanded(
           child: GestureDetector(
-            onTap: () => _showProfileDetailsDialog(context),
+            onTap: () => _onProfileIconTap(context),
             behavior: HitTestBehavior.opaque,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,7 +155,9 @@ class _ProfileViewState extends State<ProfileView> {
                     ),
                     SizedBox(width: Responsive.space(context, 6)),
                     Text(
-                      _ctrl.phoneNumber.isNotEmpty ? _ctrl.phoneNumber : '—',
+                      _ctrl.displayPhoneNumber.isNotEmpty
+                          ? _ctrl.displayPhoneNumber
+                          : '—',
                       style: GoogleFonts.manrope(
                         fontSize: Responsive.font(context, 13),
                         fontWeight: FontWeight.w400,
@@ -173,26 +194,6 @@ class _ProfileViewState extends State<ProfileView> {
             ),
           ),
         ),
-        // GestureDetector(
-        //   onTap: () => setState(() => _notificationsOn = !_notificationsOn),
-        //   child: Container(
-        //     width: Responsive.space(context, 44),
-        //     height: Responsive.space(context, 44),
-        //     decoration: BoxDecoration(
-        //       color: _notificationsOn
-        //           ? AppColors.primaryGreen
-        //           : const Color(0xFFE5E7EB),
-        //       shape: BoxShape.circle,
-        //     ),
-        //     child: Icon(
-        //       _notificationsOn
-        //           ? Icons.notifications_rounded
-        //           : Icons.notifications_off_outlined,
-        //       color: _notificationsOn ? Colors.white : AppColors.textGray,
-        //       size: Responsive.space(context, 22),
-        //     ),
-        //   ),
-        // ),
       ],
     );
   }
@@ -291,7 +292,14 @@ class _ProfileViewState extends State<ProfileView> {
                 _detailRow(
                   icon: Icons.phone_outlined,
                   label: 'Phone',
-                  value: p.phoneNumber.isNotEmpty ? p.phoneNumber : '—',
+                  value: p.displayPhoneNumber.isNotEmpty
+                      ? p.displayPhoneNumber
+                      : '—',
+                  // Small lock hint so the user understands, at a glance,
+                  // why the phone field in Edit Profile won't be editable.
+                  trailingIcon: _ctrl.isPhoneRegistered
+                      ? Icons.lock_outline
+                      : null,
                 ),
                 _detailRow(
                   icon: Icons.mail_outline_rounded,
@@ -303,7 +311,7 @@ class _ProfileViewState extends State<ProfileView> {
                   label: 'Account Type',
                   value: p.customerTypeLabel,
                 ),
-                if (p.customerType == 'contractor' &&
+                if (p.customerType != 'individual' &&
                     (p.gstNumber?.isNotEmpty ?? false))
                   _detailRow(
                     icon: Icons.receipt_long_outlined,
@@ -358,6 +366,7 @@ class _ProfileViewState extends State<ProfileView> {
     required IconData icon,
     required String label,
     required String value,
+    IconData? trailingIcon,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -387,6 +396,8 @@ class _ProfileViewState extends State<ProfileView> {
               ),
             ),
           ),
+          if (trailingIcon != null)
+            Icon(trailingIcon, size: 14, color: AppColors.textGray),
         ],
       ),
     );
@@ -468,9 +479,6 @@ class _ProfileViewState extends State<ProfileView> {
   }
 
   // ── Delivery Address ─────────────────────────────────────────────────────
-  // Address BOOK (multiple saved addresses) via /api/addresses/.
-  // Fully separate from the single profile address/pincode fields edited
-  // in the "Edit Profile" sheet (PATCH /api/customer-profile/).
   Widget _buildDeliveryAddress(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1206,15 +1214,31 @@ class _ProfileViewState extends State<ProfileView> {
 
   // ── Edit Profile Sheet ──────────────────────────────────────────────────────
   // Covers every field the backend's PATCH /api/customer-profile/ accepts:
-  // full_name, email, address, pincode, customer_type, gst_number.
+  // full_name, email, phone_number (conditionally), address, pincode,
+  // customer_type, gst_number.
+  //
+  // Phone number rule:
+  //  - Registered via phone OTP  → phone shown read-only (locked).
+  //  - Logged in via mail/Google → phone shown editable (can add one).
+  //  - Account type stays editable in all cases.
   void _showEditProfileSheet() {
     final p = _ctrl.profile.value;
     final nameCtrl = TextEditingController(text: p.fullName);
     final emailCtrl = TextEditingController(text: p.email ?? '');
+    final phoneCtrl = TextEditingController(text: p.displayPhoneNumber);
     final addrCtrl = TextEditingController(text: p.address);
     final pincodeCtrl = TextEditingController(text: p.pincode);
     final gstCtrl = TextEditingController(text: p.gstNumber ?? '');
-    String customerType = p.customerType ?? 'home_owner';
+    const validTypes = {
+      'individual',
+      'contractor',
+      'reseller',
+      'applicator',
+      'seller',
+    };
+    String customerType = validTypes.contains(p.customerType)
+        ? p.customerType!
+        : 'individual';
     bool isLoading = false;
 
     Get.bottomSheet(
@@ -1264,6 +1288,28 @@ class _ProfileViewState extends State<ProfileView> {
                   keyboard: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 14),
+
+                // ── Phone Number: gated by registration type ────────────────
+                // ── Phone Number: gated by registration type ────────────────
+                if (_ctrl.canEditPhoneNumber) ...[
+                  _sheetLabeledField(
+                    'Phone Number',
+                    phoneCtrl,
+                    keyboard: TextInputType.phone,
+                    hint: p.displayPhoneNumber.isNotEmpty
+                        ? null
+                        : 'Add your phone number',
+                  ),
+                ] else ...[
+                  _readOnlyField(
+                    label: 'Phone Number',
+                    value: p.displayPhoneNumber.isNotEmpty
+                        ? p.displayPhoneNumber
+                        : '—',
+                  ),
+                ],
+                const SizedBox(height: 14),
+
                 _sheetLabeledField('Address', addrCtrl, maxLines: 2),
                 const SizedBox(height: 14),
                 _sheetLabeledField(
@@ -1272,7 +1318,6 @@ class _ProfileViewState extends State<ProfileView> {
                   keyboard: TextInputType.number,
                   hint: 'Enter 6-digit pincode',
                 ),
-
                 const SizedBox(height: 16),
                 Text(
                   'Account Type',
@@ -1283,29 +1328,41 @@ class _ProfileViewState extends State<ProfileView> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
-                    Expanded(
-                      child: _AccountTypeChip(
-                        label: 'Home Owner',
-                        selected: customerType == 'home_owner',
-                        onTap: () =>
-                            setSheet(() => customerType = 'home_owner'),
-                      ),
+                    _AccountTypeChip(
+                      label: 'Individual',
+                      selected: customerType == 'individual',
+                      onTap: () => setSheet(() => customerType = 'individual'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _AccountTypeChip(
-                        label: 'Contractor',
-                        selected: customerType == 'contractor',
-                        onTap: () =>
-                            setSheet(() => customerType = 'contractor'),
-                      ),
+                    _AccountTypeChip(
+                      label: 'Contractor',
+                      selected: customerType == 'contractor',
+                      onTap: () => setSheet(() => customerType = 'contractor'),
+                    ),
+                    _AccountTypeChip(
+                      label: 'Reseller',
+                      selected: customerType == 'reseller',
+                      onTap: () => setSheet(() => customerType = 'reseller'),
+                    ),
+                    _AccountTypeChip(
+                      label: 'Applicator',
+                      selected: customerType == 'applicator',
+                      onTap: () => setSheet(() => customerType = 'applicator'),
+                    ),
+                    _AccountTypeChip(
+                      label: 'Seller',
+                      selected: customerType == 'seller',
+                      onTap: () => setSheet(() => customerType = 'seller'),
                     ),
                   ],
                 ),
 
-                if (customerType == 'contractor') ...[
+                // GST is relevant to any business-type account, not just
+                // 'contractor' — individuals are the only type without one.
+                if (customerType != 'individual') ...[
                   const SizedBox(height: 14),
                   _sheetLabeledField(
                     'GST Number',
@@ -1336,7 +1393,16 @@ class _ProfileViewState extends State<ProfileView> {
                               );
                               return;
                             }
-                            if (customerType == 'contractor' &&
+                            if (_ctrl.canEditPhoneNumber &&
+                                phoneCtrl.text.trim().isNotEmpty &&
+                                phoneCtrl.text.trim().length < 10) {
+                              Get.snackbar(
+                                'Error',
+                                'Please enter a valid phone number',
+                              );
+                              return;
+                            }
+                            if (customerType != 'individual' &&
                                 gstCtrl.text.trim().isNotEmpty &&
                                 !_ctrl.isGstValid(gstCtrl.text.trim())) {
                               Get.snackbar(
@@ -1351,13 +1417,20 @@ class _ProfileViewState extends State<ProfileView> {
                             final success = await _ctrl.updateProfile(
                               fullName: nameCtrl.text.trim(),
                               email: emailCtrl.text.trim(),
+                              // Only sent through when this account is
+                              // allowed to change its phone number
+                              // (condition #2 / #3). Controller also
+                              // double-checks this before calling the API.
+                              phoneNumber: _ctrl.canEditPhoneNumber
+                                  ? phoneCtrl.text.trim()
+                                  : null,
                               address: addrCtrl.text.trim(),
                               pincode: pincodeCtrl.text.trim(),
                               customerType: customerType,
                               gstNumber:
-                                  customerType == 'contractor' &&
+                                  customerType != 'individual' &&
                                       gstCtrl.text.trim().isNotEmpty
-                                  ? gstCtrl.text.trim().toUpperCase()
+                                  ? gstCtrl.text.trim().toUpperCase() 
                                   : null,
                             );
 
@@ -1448,6 +1521,48 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  /// Read-only, locked-looking field — used for the phone number when the
+  /// account registered via phone OTP (condition #2).
+  Widget _readOnlyField({required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.manrope(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textGray,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    color: AppColors.inputText,
+                  ),
+                ),
+              ),
+              Icon(Icons.lock_outline, size: 16, color: AppColors.textGray),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
@@ -1473,7 +1588,8 @@ class _AccountTypeChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        height: Responsive.height(context, 44),
+        height: Responsive.height(context, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryGreen : Colors.white,

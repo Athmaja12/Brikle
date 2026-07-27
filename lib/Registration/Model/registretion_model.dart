@@ -1,8 +1,40 @@
-enum CustomerType { homeOwner, contractor }
+enum CustomerType { individual, contractor, reseller, applicator, seller }
 
 extension CustomerTypeApi on CustomerType {
-  String get apiValue =>
-      this == CustomerType.contractor ? 'contractor' : 'home_owner';
+  /// Matches the backend's choices exactly:
+  /// ('individual', 'Individual'), ('contractor', 'Contractor'),
+  /// ('reseller', 'Reseller'), ('applicator', 'Applicator'),
+  /// ('seller', 'Seller')
+  String get apiValue {
+    switch (this) {
+      case CustomerType.individual:
+        return 'individual';
+      case CustomerType.contractor:
+        return 'contractor';
+      case CustomerType.reseller:
+        return 'reseller';
+      case CustomerType.applicator:
+        return 'applicator';
+      case CustomerType.seller:
+        return 'seller';
+    }
+  }
+
+  /// Display label for chips/dropdowns.
+  String get label {
+    switch (this) {
+      case CustomerType.individual:
+        return 'Individual';
+      case CustomerType.contractor:
+        return 'Contractor';
+      case CustomerType.reseller:
+        return 'Reseller';
+      case CustomerType.applicator:
+        return 'Applicator';
+      case CustomerType.seller:
+        return 'Seller';
+    }
+  }
 }
 
 class SignupModel {
@@ -22,7 +54,7 @@ class SignupModel {
     this.streetAddress1 = '',
     this.streetAddress2 = '',
     this.pincode = '',
-    this.customerType = CustomerType.homeOwner, // ← was CustomerType.individual
+    this.customerType = CustomerType.individual,
     this.gstNumber = '',
   });
 
@@ -37,6 +69,9 @@ class SignupModel {
   bool get isPincodeValid =>
       pincode.trim().length == 6 && RegExp(r'^\d{6}$').hasMatch(pincode.trim());
 
+  // ⚠️ ASSUMED — only 'contractor' requires GST, same as before. If
+  // reseller/applicator/seller should also require GST on your backend,
+  // just add them to this check.
   bool get isGstRequired => customerType == CustomerType.contractor;
 
   bool get isGstValid {

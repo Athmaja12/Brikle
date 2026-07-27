@@ -21,7 +21,7 @@ class SignupController extends GetxController {
   final RxBool isAddress2Valid = true.obs;
   final RxBool isPincodeValid = true.obs;
   final RxBool isGstValid = true.obs;
-  final Rx<CustomerType> customerType = CustomerType.homeOwner.obs;
+  final Rx<CustomerType> customerType = CustomerType.individual.obs;
   final RxBool isLoading = false.obs;
   String lastOtp = '';
 
@@ -45,12 +45,14 @@ class SignupController extends GetxController {
 
   void onAddress1Changed(String value) {
     model.streetAddress1 = value;
-    if (!isAddress1Valid.value) isAddress1Valid.value = model.isStreetAddress1Valid;
+    if (!isAddress1Valid.value)
+      isAddress1Valid.value = model.isStreetAddress1Valid;
   }
 
   void onAddress2Changed(String value) {
     model.streetAddress2 = value;
-    if (!isAddress2Valid.value) isAddress2Valid.value = model.isStreetAddress2Valid;
+    if (!isAddress2Valid.value)
+      isAddress2Valid.value = model.isStreetAddress2Valid;
   }
 
   void onPincodeChanged(String value) {
@@ -66,9 +68,9 @@ class SignupController extends GetxController {
   void onCustomerTypeChanged(CustomerType type) {
     customerType.value = type;
     model.customerType = type;
-    // Re-validate GST immediately when switching type — e.g. switching to
-    // individual should clear any stale GST error, switching to contractor
-    // with empty GST should show one if they try to submit.
+    // Re-validate GST immediately when switching type — e.g. switching away
+    // from contractor should clear any stale GST error, switching to
+    // contractor with empty GST should show one if they try to submit.
     isGstValid.value = model.isGstValid;
   }
 
@@ -98,7 +100,9 @@ class SignupController extends GetxController {
         streetAddress1: model.streetAddress1,
         streetAddress2: model.streetAddress2,
         customerType: model.customerType.apiValue,
-        gstNumber: model.isGstRequired ? model.gstNumber.trim().toUpperCase() : null,
+        gstNumber: model.isGstRequired
+            ? model.gstNumber.trim().toUpperCase()
+            : null,
       );
 
       final otp = response['otp']?.toString() ?? 'N/A';

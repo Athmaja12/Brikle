@@ -10,6 +10,7 @@ import 'package:brikle/Calculation/View/steelCalculation_Page.dart';
 import 'package:brikle/Calculation/View/waterproofCalculation_Page.dart';
 import 'package:brikle/GoogleAuth/googleauthapiservice.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
+import 'package:brikle/HomePage/Controller/search_Provider.dart';
 import 'package:brikle/LoginScreen/View/loginscreen.dart';
 import 'package:brikle/OnboardingScreens/View/onboardingscrenn.dart';
 import 'package:brikle/ProfilePage/View/orderDetailScreen.dart';
@@ -31,7 +32,7 @@ Future<void> main() async {
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
   Get.put(WishlistController(), permanent: true);
-
+  Get.put(GlobalSearchController());
   runApp(const MyApp());
 }
 

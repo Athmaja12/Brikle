@@ -1,15 +1,13 @@
-/// Matches GET /api/customer-profile/ response exactly:
-/// { full_name, email, phone_number, address, pincode,
-///   customer_type, gst_number, is_verified }
 class ProfileModel {
   final String fullName;
   final String? email;
   final String phoneNumber;
   final String address;
   final String pincode;
-  final String? customerType; // 'home_owner' | 'contractor'
+  final String? customerType;
   final String? gstNumber;
   final bool isVerified;
+  final String? registrationType;
 
   ProfileModel({
     this.fullName = '',
@@ -20,6 +18,7 @@ class ProfileModel {
     this.customerType,
     this.gstNumber,
     this.isVerified = false,
+    this.registrationType,
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
@@ -32,7 +31,26 @@ class ProfileModel {
       customerType: json['customer_type']?.toString(),
       gstNumber: json['gst_number']?.toString(),
       isVerified: json['is_verified'] == true,
+      registrationType:
+          json['registration_type']?.toString() ??
+          _inferRegistrationType(json),
     );
+  }
+
+  /// Backend uses a placeholder like "GOOGLE-68" in phone_number for
+  /// accounts that signed up/in via Google and never set a real phone.
+  /// A real phone number is digits (with optional leading +), nothing else.
+  static bool _isPlaceholderPhone(String phone) {
+    if (phone.isEmpty) return false;
+    return !RegExp(r'^\+?[0-9]+$').hasMatch(phone);
+  }
+
+  static String _inferRegistrationType(Map<String, dynamic> json) {
+    final phone = json['phone_number']?.toString() ?? '';
+    final email = json['email']?.toString() ?? '';
+    if (phone.isNotEmpty && !_isPlaceholderPhone(phone)) return 'phone';
+    if (email.isNotEmpty) return 'email';
+    return 'manual';
   }
 
   Map<String, dynamic> toJson() => {
@@ -44,6 +62,7 @@ class ProfileModel {
     'customer_type': customerType,
     'gst_number': gstNumber,
     'is_verified': isVerified,
+    'registration_type': registrationType,
   };
 
   ProfileModel copyWith({
@@ -55,6 +74,7 @@ class ProfileModel {
     String? customerType,
     String? gstNumber,
     bool? isVerified,
+    String? registrationType,
   }) {
     return ProfileModel(
       fullName: fullName ?? this.fullName,
@@ -65,28 +85,37 @@ class ProfileModel {
       customerType: customerType ?? this.customerType,
       gstNumber: gstNumber ?? this.gstNumber,
       isVerified: isVerified ?? this.isVerified,
+      registrationType: registrationType ?? this.registrationType,
     );
   }
 
-  /// Friendly label for the dialog, e.g. "Home Owner" / "Contractor"
+  /// True when phone_number is a real number, not the "GOOGLE-xx" placeholder.
+  bool get hasRealPhoneNumber =>
+      phoneNumber.isNotEmpty && !_isPlaceholderPhone(phoneNumber);
+
+  /// What to actually display/prefill anywhere in the UI — never the
+  /// placeholder itself.
+  String get displayPhoneNumber => hasRealPhoneNumber ? phoneNumber : '';
+
   String get customerTypeLabel {
     switch (customerType) {
+      case 'individual':
+        return 'Individual';
       case 'contractor':
         return 'Contractor';
-      case 'home_owner':
-        return 'Home Owner';
+      case 'reseller':
+        return 'Reseller';
+      case 'applicator':
+        return 'Applicator';
+      case 'seller':
+        return 'Seller';
       default:
         return '—';
     }
   }
 
-  /// Combined display line for the address card, e.g.
-  /// "12/129 Grace Villa, kochi - 678001"
   String get fullAddress {
     if (address.trim().isEmpty) return '';
     return pincode.trim().isNotEmpty ? '$address - $pincode' : address;
   }
 }
-
-
-

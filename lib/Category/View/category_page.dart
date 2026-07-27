@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/pincode.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/Category/Controller/category_controller.dart';
 import 'package:brikle/Category/Model/category_model.dart';
+import 'package:brikle/HomePage/Controller/home_provider.dart';
+import 'package:brikle/HomePage/View/search_bar.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/View/wishlist_screen.dart';
 import 'package:flutter/material.dart';
@@ -59,136 +63,127 @@ class _SearchHeader extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(
+          // Logo centering: a plain Row with Spacer()/Spacer() only
+          // centers the logo within whatever space is *left over* after
+          // the "Deliver To" block and the icon cluster — since those
+          // two are different widths, the logo drifted off-center.
+          // Stacking a full-width Row (left content + icons, pinned to
+          // the edges) underneath a separately centered logo guarantees
+          // the logo sits at the true midpoint of the header.
+          Stack(
+            alignment: Alignment.center,
             children: [
-              Icon(Icons.location_on, color: AppColors.primaryGreen, size: 18),
-              SizedBox(width: Responsive.space(context, 4)),
-              Obx(
-                () => GestureDetector(
-                  onTap: () => showPincodeSheet(
-                    context: context,
-                    deliverToPincode: controller.deliverToPincode,
-                    isCheckingPincode: controller.isCheckingPincode,
-                    isPincodeServiceable: controller.isPincodeServiceable,
-                    pincodeMessage: controller.pincodeMessage,
-                    onCheck: controller.checkPincode,
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: AppColors.primaryGreen,
+                    size: 18,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Deliver To',
-                        style: AppTextStyles.termsText(context),
-                      ),
-                      Row(
+                  SizedBox(width: Responsive.space(context, 4)),
+                  Obx(
+                    () => GestureDetector(
+                      onTap: () => _showPincodeSheet(context, HomeController()),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            controller.deliverToPincode.value,
-                            style: AppTextStyles.fieldLabel(context).copyWith(
-                              color: AppColors.textDark,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            'Deliver To',
+                            style: AppTextStyles.termsText(context),
                           ),
-                          const Icon(Icons.keyboard_arrow_down, size: 16),
+                          Row(
+                            children: [
+                              Text(
+                                controller.deliverToPincode.value,
+                                style: AppTextStyles.fieldLabel(context)
+                                    .copyWith(
+                                      color: AppColors.textDark,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const Icon(Icons.keyboard_arrow_down, size: 16),
+                            ],
+                          ),
                         ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => Get.to(() => const WishlistScreen()),
+                    child: Obx(() {
+                      final count = Get.find<WishlistController>().items.length;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(
+                            Icons.favorite_border_rounded,
+                            size: 22,
+                            color: Colors.black87,
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              top: -4,
+                              right: -6,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                constraints: const BoxConstraints(
+                                  minWidth: 10,
+                                  minHeight: 10,
+                                ),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  count > 99 ? '99+' : '$count',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }),
+                  ),
+                  // Notification icon removed per request.
+                ],
+              ),
+              // Sits on top, centered on the Stack itself — not affected
+              // by how wide the Row's children are.
+              IgnorePointer(
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Br',
+                        style: AppTextStyles.brikleLogoAccent(
+                          context,
+                        ).copyWith(fontSize: 20),
+                      ),
+                      TextSpan(
+                        text: 'ikle',
+                        style: AppTextStyles.brikleLogoDark(
+                          context,
+                        ).copyWith(fontSize: 20),
                       ),
                     ],
                   ),
                 ),
               ),
-              const Spacer(),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Br',
-                      style: AppTextStyles.brikleLogoAccent(
-                        context,
-                      ).copyWith(fontSize: 20),
-                    ),
-                    TextSpan(
-                      text: 'ikle',
-                      style: AppTextStyles.brikleLogoDark(
-                        context,
-                      ).copyWith(fontSize: 20),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () => Get.to(() => const WishlistScreen()),
-                child: Obx(() {
-                  final count = Get.find<WishlistController>().items.length;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(
-                        Icons.favorite_border_rounded,
-                        size: 22,
-                        color: Colors.black87,
-                      ),
-                      if (count > 0)
-                        Positioned(
-                          top: -4,
-                          right: -6,
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            constraints: const BoxConstraints(
-                              minWidth: 10,
-                              minHeight: 10,
-                            ),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              count > 99 ? '99+' : '$count',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                }),
-              ),
-              SizedBox(width: Responsive.space(context, 16)),
-              const Icon(Icons.notifications_none_rounded),
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
-          Container(
-            height: Responsive.height(context, 44),
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.space(context, 12),
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.fieldFill,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.inputBorder),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.search, color: AppColors.textGray, size: 20),
-                SizedBox(width: Responsive.space(context, 8)),
-                Expanded(
-                  child: Text(
-                    "Search for 'Asian Paints'",
-                    style: AppTextStyles.loginSubtitle(
-                      context,
-                    ).copyWith(fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [const GlobalSearchBar(), const GlobalSearchOverlay()],
           ),
         ],
       ),
@@ -392,4 +387,249 @@ class _PromoGridSection extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showPincodeSheet(BuildContext context, HomeController controller) {
+  final textController = TextEditingController(
+    text: controller.deliverToPincode.value,
+  );
+
+  Timer? _debounceTimer;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    backgroundColor: Colors.white,
+    builder: (sheetContext) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.pincodeMessage.value = '';
+        controller.isPincodeServiceable.value = true;
+      });
+
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 16,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Title
+            Text(
+              'Enter Pincode',
+              style: AppTextStyles.welcomeBackTitle(
+                context,
+              ).copyWith(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Check delivery availability in your area',
+              style: AppTextStyles.termsText(
+                context,
+              ).copyWith(fontSize: 13, color: AppColors.textGray),
+            ),
+            const SizedBox(height: 20),
+
+            // Pincode input
+            TextField(
+              controller: textController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              autofocus: true,
+              onChanged: (value) {
+                controller.pincodeMessage.value = '';
+                controller.isPincodeServiceable.value = true;
+                _debounceTimer?.cancel();
+                if (value.length == 6) {
+                  _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+                    controller.checkPincode(value.trim());
+                  });
+                }
+              },
+              decoration: InputDecoration(
+                hintText: 'Enter 6-digit pincode',
+                counterText: '',
+                prefixIcon: Icon(
+                  Icons.location_on_outlined,
+                  color: AppColors.primaryGreen,
+                  size: 20,
+                ),
+                filled: true,
+                fillColor: AppColors.fieldFill,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AppColors.primaryGreen,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Status message
+            Obx(() {
+              if (controller.pincodeMessage.value.isEmpty)
+                return const SizedBox.shrink();
+
+              final isServiceable = controller.isPincodeServiceable.value;
+              final color = isServiceable
+                  ? AppColors.primaryGreen
+                  : AppColors.errorRed;
+
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isServiceable
+                          ? Icons.check_circle_outline
+                          : Icons.error_outline,
+                      color: color,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        controller.pincodeMessage.value,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+            const SizedBox(height: 16),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: AppColors.textGray,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: Obx(() {
+                    final isValid = textController.text.trim().length == 6;
+                    final isChecking = controller.isCheckingPincode.value;
+                    final hasMessage =
+                        controller.pincodeMessage.value.isNotEmpty;
+                    final isServiceable = controller.isPincodeServiceable.value;
+
+                    return ElevatedButton(
+                      onPressed: isValid && !isChecking
+                          ? () {
+                              final pin = textController.text.trim();
+                              controller.checkPincode(pin);
+                              if (isServiceable) {
+                                Future.delayed(
+                                  const Duration(milliseconds: 600),
+                                  () {
+                                    if (controller.isPincodeServiceable.value) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                  },
+                                );
+                              }
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isValid
+                            ? AppColors.primaryGreen
+                            : Colors.grey.shade300,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                        minimumSize: const Size(0, 48),
+                      ),
+                      child: isChecking
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              hasMessage && isServiceable ? 'Apply' : 'Check',
+                              style: TextStyle(
+                                color: isValid
+                                    ? Colors.white
+                                    : Colors.grey.shade600,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  ).whenComplete(() {
+    _debounceTimer?.cancel();
+  });
 }

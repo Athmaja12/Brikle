@@ -51,6 +51,17 @@ class ProfileController extends GetxController {
 
   bool isGstValid(String gst) => _gstRegex.hasMatch(gst.trim().toUpperCase());
 
+  bool get isPhoneRegistered =>
+      profile.value.registrationType == 'phone' &&
+      profile.value.hasRealPhoneNumber;
+
+  bool get canEditPhoneNumber => !isPhoneRegistered;
+
+  bool get isManualEntry => profile.value.registrationType == 'manual';
+
+  // Use this instead of `phoneNumber` anywhere the UI shows/prefills it.
+  String get displayPhoneNumber => profile.value.displayPhoneNumber;
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void onInit() {
@@ -62,6 +73,13 @@ class ProfileController extends GetxController {
     fetchAddresses();
   }
 
+  Future<void> refreshOnProfileOpen() async {
+    if (isManualEntry) {
+      await fetchProfile();
+    } else {
+      unawaited(fetchProfile());
+    }
+  }
   // ══════════════════════════════════════════════════════════════════════════
   // SHARED SNACKBAR HELPER
   // ══════════════════════════════════════════════════════════════════════════
@@ -126,6 +144,7 @@ class ProfileController extends GetxController {
   Future<bool> updateProfile({
     String? fullName,
     String? email,
+    String? phoneNumber,
     String? address,
     String? pincode,
     String? customerType,
@@ -137,6 +156,9 @@ class ProfileController extends GetxController {
       final response = await ApiService.updateProfile(
         fullName: fullName,
         email: email,
+        // Only ever send a phone number if this account is actually
+        // allowed to change it — belt-and-braces on top of the UI gate.
+        phoneNumber: canEditPhoneNumber ? phoneNumber : null,
         address: address,
         pincode: pincode,
         customerType: customerType,
@@ -161,6 +183,8 @@ class ProfileController extends GetxController {
         isError: true,
       );
       return false;
+    } finally {
+      isUpdating.value = false;
     }
   }
 

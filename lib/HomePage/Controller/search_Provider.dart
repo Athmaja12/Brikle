@@ -1,85 +1,88 @@
-// import 'dart:async';
+import 'dart:async';
+import 'package:brikle/ApiConfiguration/apiconfig.dart';
+import 'package:brikle/ApiConfiguration/apiservice.dart';
+import 'package:brikle/HomePage/Model/search_model.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
-// import 'package:brikle/ApiConfiguration/apiservice.dart';
-// import 'package:brikle/HomePage/Model/search_model.dart';
-// import 'package:flutter/material.dart';
-// import 'package:get/get.dart';
+class GlobalSearchController extends GetxController {
+  final TextEditingController textController = TextEditingController();
+  final FocusNode focusNode = FocusNode();
+  final LayerLink layerLink = LayerLink();
 
-// // Renamed to avoid conflict with Flutter's SearchController
-// class AppSearchController extends GetxController {
-//   final RxList<SearchProduct> searchResults = <SearchProduct>[].obs;
-//   final RxBool isLoading = false.obs;
-//   final RxString searchQuery = ''.obs;
-//   final RxBool isSearching = false.obs;
-//   final RxBool isFocused = false.obs;
-//   final TextEditingController textController = TextEditingController();
+  var query = ''.obs;
+  var results = <SearchResultItem>[].obs;
+  var isLoading = false.obs;
+  var isOverlayVisible = false.obs;
 
-//   // Debounce timer for search
-//   Timer? _debounceTimer;
-//   static const Duration _debounceDuration = Duration(milliseconds: 300);
+  Worker? _debounceWorker;
 
-//   @override
-//   void onClose() {
-//     _debounceTimer?.cancel();
-//     textController.dispose();
-//     super.onClose();
-//   }
+  @override
+  void onInit() {
+    super.onInit();
+    _debounceWorker = debounce(
+      query,
+      (_) => _search(),
+      time: const Duration(milliseconds: 400),
+    );
 
-//   void onSearchTextChanged(String query) {
-//     searchQuery.value = query;
-    
-//     // Cancel any pending search
-//     _debounceTimer?.cancel();
-    
-//     if (query.isEmpty) {
-//       searchResults.clear();
-//       isSearching.value = false;
-//       return;
-//     }
+    focusNode.addListener(() {
+      if (focusNode.hasFocus && query.value.isNotEmpty) {
+        isOverlayVisible.value = true;
+      } else if (!focusNode.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 150), () {
+          isOverlayVisible.value = false;
+        });
+      }
+    });
+  }
 
-//     isSearching.value = true;
-    
-//     // Debounce the search
-//     _debounceTimer = Timer(_debounceDuration, () {
-//       _performSearch(query);
-//     });
-//   }
+  // REPLACE _search() with:
+  Future<void> _search() async {
+    final q = query.value.trim();
+    if (q.isEmpty) {
+      results.clear();
+      isOverlayVisible.value = false;
+      return;
+    }
+    try {
+      isLoading.value = true;
+      isOverlayVisible.value = true;
+      final url = ApiConfig.globalSearchUrl(q);
+      debugPrint('[Search] hitting URL: $url');
+      final data = await ApiService.globalSearch(q);
+      debugPrint('[Search] got ${data.length} results');
+      results.value = data;
+      if (data.isEmpty) debugPrint('[Search] API returned empty products list');
+    } catch (e) {
+      debugPrint('[Search] error: $e');
+      results.clear();
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
-//   Future<void> _performSearch(String query) async {
-//     try {
-//       isLoading.value = true;
-//       final results = await ApiService.globalSearch(query);
-//       searchResults.value = results
-//           .map((e) => SearchProduct.fromJson(e as Map<String, dynamic>))
-//           .toList();
-//     } catch (e) {
-//       debugPrint('[AppSearchController] Error performing search: $e');
-//       searchResults.clear();
-//     } finally {
-//       isLoading.value = false;
-//     }
-//   }
+  void onChanged(String val) {
+    query.value = val;
+    if (val.isEmpty) {
+      results.clear();
+      isOverlayVisible.value = false;
+    }
+  }
 
-//   void clearSearch() {
-//     searchQuery.value = '';
-//     searchResults.clear();
-//     isSearching.value = false;
-//     isFocused.value = false;
-//     textController.clear();
-//     _debounceTimer?.cancel();
-//   }
+  void clear() {
+    textController.clear();
+    query.value = '';
+    results.clear();
+    isOverlayVisible.value = false;
+    focusNode.unfocus();
+  }
 
-//   void setFocus(bool focused) {
-//     isFocused.value = focused;
-//     if (!focused && searchQuery.isEmpty) {
-//       searchResults.clear();
-//       isSearching.value = false;
-//     }
-//   }
-
-//   void navigateToProduct(SearchProduct product) {
-//     // Navigate to product detail page
-//     // Get.to(() => ProductDetailScreen(product: product));
-//     clearSearch();
-//   }
-// }
+  @override
+  void onClose() {
+    _debounceWorker?.dispose();
+    textController.dispose();
+    focusNode.dispose();
+    super.onClose();
+  }
+}

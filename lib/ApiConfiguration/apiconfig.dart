@@ -19,12 +19,10 @@ class ApiConfig {
   static String get loginVerifyUrl => '$baseUrl/api/customer-login-verify/';
   static String get logoutUrl => '$baseUrl/api/customer-logout/';
 
-
   static String get googleLoginUrl => '$baseUrl/api/auth/google/';
 
-  // static String globalSearchUrl(String query) {
-  //   return '/material/global-search/?q=${Uri.encodeComponent(query)}';
-  // }
+  static String globalSearchUrl(String query) =>
+      '$baseUrl/api/material/global-search/?q=${Uri.encodeComponent(query)}';
 
   /// JWT Refresh Token
   static String get tokenRefreshUrl => '$baseUrl/api/token/refresh/';

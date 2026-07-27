@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
@@ -126,24 +127,45 @@ class _SharedProductCardState extends State<SharedProductCard> {
     final renderBox =
         _buttonKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.attached) return;
-
     final position = renderBox.localToGlobal(Offset.zero);
     final buttonWidth = renderBox.size.width;
+    // Center the burst over THIS card's button specifically — position
+    // comes from this card's own _buttonKey, so it never lands on any
+    // other product card on screen.
+    final buttonCenterX = position.dx + (buttonWidth / 2);
+    const popupWidth = 190.0;
+    const burstSize = 200.0; // wider box so the big burst has room to fly
 
     final overlayState = Overlay.of(context);
     late final OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => Positioned(
-        left: position.dx,
-        top: position.dy - 34, // hovers just above the button
-        width: buttonWidth,
-        child: _UnlockPill(price: tier.price),
+        left: buttonCenterX - (burstSize / 2),
+        top:
+            position.dy - (burstSize / 2) + 20, // hovers just above this button
+        width: burstSize,
+        height: burstSize,
+        child: IgnorePointer(
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              // Bigger celebration burst — behind, doesn't replace the pill.
+              const _CelebrationBurst(),
+              // Original pill box stays exactly as before, on top.
+              SizedBox(
+                width: popupWidth,
+                child: _UnlockPill(price: tier.price),
+              ),
+            ],
+          ),
+        ),
       ),
     );
     _unlockOverlay = entry;
     overlayState.insert(entry);
 
-    Future.delayed(const Duration(milliseconds: 1600), () {
+    Future.delayed(const Duration(milliseconds: 1700), () {
       if (_unlockOverlay == entry) {
         entry.remove();
         _unlockOverlay = null;
@@ -541,6 +563,17 @@ class _SharedProductCardState extends State<SharedProductCard> {
                                   extentOffset: _qtyController.text.length,
                                 );
                               },
+                              onChanged: (value) {
+                                // Fire the moment the typed number lands on
+                                // a bulk tier — don't wait for blur/submit.
+                                // Doesn't touch the cart yet (that still
+                                // happens on commit), just gives instant
+                                // visual feedback while the user is typing.
+                                final parsed = int.tryParse(value.trim());
+                                if (parsed != null && parsed > 0) {
+                                  _maybeShowUnlockPopup(parsed);
+                                }
+                              },
                               onSubmitted: (_) {
                                 _commitTypedQuantity();
                                 _qtyFocusNode.unfocus();
@@ -664,8 +697,12 @@ class _SharedProductCardState extends State<SharedProductCard> {
   }
 }
 
-// ── "🎉 You unlocked ₹X!" popup pill ───────────────────────────────────
-// Fades + scales in, holds, then the parent removes it after ~1.6s.
+// ── "🎉 You unlocked ₹X!" popup with a small confetti "popper" blast
+// ── "🎉 You unlocked ₹X!" popup with a small confetti "popper" blast
+// right behind it. Both are anchored via the caller's Positioned rect,
+// which is derived from that specific card's own _buttonKey — so this
+// only ever appears on the one product card whose bulk tier was hit,
+// never anywhere else on screen.
 class _UnlockPill extends StatelessWidget {
   final double price;
   const _UnlockPill({required this.price});
@@ -673,45 +710,176 @@ class _UnlockPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutBack,
-        builder: (context, value, child) => Opacity(
-          opacity: value.clamp(0, 1),
-          child: Transform.scale(scale: 0.7 + (0.3 * value), child: child),
+      child: SizedBox(
+        height: 60,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [const _ConfettiBurst(), _buildPill()],
         ),
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFD9F7E3),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primaryGreen, width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+      ),
+    );
+  }
+
+  Widget _buildPill() {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) => Opacity(
+        opacity: value.clamp(0, 1),
+        child: Transform.scale(scale: 0.7 + (0.3 * value), child: child),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 0),
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD9F7E3),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.primaryGreen, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            child: Text(
-              '🎉 You unlocked ₹${price.toStringAsFixed(0)}!',
-              textAlign: TextAlign.start,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF15803D),
-              ),
+          ],
+        ),
+        // FittedBox scales the text down to fit the available width
+        // instead of ellipsis-truncating it — so "₹550!" always shows
+        // in full, just slightly smaller if the pill is narrow.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '🎉 You unlocked ₹${price.toStringAsFixed(0)}!',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            softWrap: false,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF15803D),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Small burst of colored dots flying outward from the center and
+// fading — the "popper blast" itself, scoped to whichever card's
+// Positioned rect it's placed inside by the caller.
+class _ConfettiBurst extends StatelessWidget {
+  const _ConfettiBurst();
+
+  static const _colors = [
+    Color(0xFFFFC107),
+    Color(0xFFEF5350),
+    Color(0xFF42A5F5),
+    Color(0xFF66BB6A),
+    Color(0xFFAB47BC),
+    Color(0xFFFF7043),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const particleCount = 10;
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: List.generate(particleCount, (i) {
+        final angle = (2 * math.pi / particleCount) * i;
+        final color = _colors[i % _colors.length];
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 650),
+          curve: Curves.easeOut,
+          builder: (context, t, child) {
+            final distance = 30 * t;
+            final dx = distance * math.cos(angle);
+            final dy = distance * math.sin(angle);
+            return Opacity(
+              opacity: (1 - t).clamp(0, 1),
+              child: Transform.translate(
+                offset: Offset(dx, dy),
+                child: Transform.scale(scale: 1 - (t * 0.4), child: child),
+              ),
+            );
+          },
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _CelebrationBurst extends StatelessWidget {
+  const _CelebrationBurst();
+
+  static const _colors = [
+    Color(0xFFFFC107),
+    Color(0xFFEF5350),
+    Color(0xFF42A5F5),
+    Color(0xFF66BB6A),
+    Color(0xFFAB47BC),
+    Color(0xFFFF7043),
+    Color(0xFF26C6DA),
+    Color(0xFFEC407A),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const particleCount = 24;
+    final rnd = math.Random();
+
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: List.generate(particleCount, (i) {
+        final angle =
+            (2 * math.pi / particleCount) * i + (rnd.nextDouble() * 0.4 - 0.2);
+        final distance = 60.0 + rnd.nextDouble() * 40;
+        final size = 5.0 + rnd.nextDouble() * 5;
+        final color = _colors[i % _colors.length];
+        final isSquare = i.isEven;
+        final spinTurns = 0.5 + rnd.nextDouble() * 1.5;
+        final delayMs = rnd.nextInt(80);
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: Duration(milliseconds: 750 + delayMs),
+          curve: Curves.easeOut,
+          builder: (context, t, child) {
+            final dx = distance * t * math.cos(angle);
+            final dy = distance * t * math.sin(angle) + (18 * t * t);
+            return Opacity(
+              opacity: (1 - t).clamp(0, 1),
+              child: Transform.translate(
+                offset: Offset(dx, dy),
+                child: Transform.rotate(
+                  angle: spinTurns * 2 * math.pi * t,
+                  child: Transform.scale(scale: 1 - (t * 0.3), child: child),
+                ),
+              ),
+            );
+          },
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: color,
+              shape: isSquare ? BoxShape.rectangle : BoxShape.circle,
+              borderRadius: isSquare ? BorderRadius.circular(1.5) : null,
+            ),
+          ),
+        );
+      }),
     );
   }
 }

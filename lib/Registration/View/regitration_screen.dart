@@ -52,7 +52,6 @@ class SignupView extends GetView<SignupController> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ── Top bar: back button, left-aligned ────────────
-                  // ── Top bar: back button, left-aligned ────────────
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: Responsive.space(context, 24),
@@ -99,8 +98,7 @@ class SignupView extends GetView<SignupController> {
                       horizontal: Responsive.space(context, 24),
                     ),
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.stretch, // was .center
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
                           'Create Account',
@@ -115,39 +113,71 @@ class SignupView extends GetView<SignupController> {
                         ),
                         SizedBox(height: Responsive.space(context, 28)),
 
-                        // ── Customer type toggle ────────────────────
+                        // ── Customer type selector — 5 options ──────
                         Text(
                           'Account Type',
                           style: AppTextStyles.fieldLabel(context),
                         ),
                         SizedBox(height: Responsive.space(context, 8)),
                         Obx(
-                          () => Row(
-                            children: [
-                              Expanded(
-                                child: _CustomerTypeChip(
-                                  label: 'Individual',
-                                  selected:
-                                      controller.customerType.value ==
-                                      CustomerType.homeOwner,
-                                  onTap: () => controller.onCustomerTypeChanged(
-                                    CustomerType.homeOwner,
-                                  ),
+                          () => Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.inputBorder),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<CustomerType>(
+                                value: controller.customerType.value,
+                                isExpanded: true,
+                                hint: Text(
+                                  'Select Account Type',
+                                  style: TextStyle(color: AppColors.textDark),
                                 ),
-                              ),
-                              SizedBox(width: Responsive.space(context, 12)),
-                              Expanded(
-                                child: _CustomerTypeChip(
-                                  label: 'Contractor',
-                                  selected:
-                                      controller.customerType.value ==
-                                      CustomerType.contractor,
-                                  onTap: () => controller.onCustomerTypeChanged(
-                                    CustomerType.contractor,
-                                  ),
+                                icon: Icon(
+                                  Icons.arrow_drop_down,
+                                  color: AppColors.textDark,
                                 ),
+                                dropdownColor: AppColors
+                                    .background, // Use your app's background color
+                                borderRadius: BorderRadius.circular(
+                                  12,
+                                ), // Rounded corners for dropdown
+                                elevation: 8, // Shadow elevation
+                                items: CustomerType.values.map((type) {
+                                  final icon = _getIconForType(type);
+                                  return DropdownMenuItem<CustomerType>(
+                                    value: type,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          icon,
+                                          size: 20,
+                                          color: AppColors.primaryGreen,
+                                        ),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          type.label,
+                                          style: TextStyle(
+                                            color: AppColors.textDark,
+                                            fontSize: Responsive.font(
+                                              context,
+                                              15,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    controller.onCustomerTypeChanged(value);
+                                  }
+                                },
                               ),
-                            ],
+                            ),
                           ),
                         ),
                         SizedBox(height: Responsive.space(context, 20)),
@@ -289,6 +319,21 @@ class SignupView extends GetView<SignupController> {
       ),
     );
   }
+
+  IconData _getIconForType(CustomerType type) {
+    switch (type) {
+      case CustomerType.individual:
+        return Icons.person_outline_rounded;
+      case CustomerType.contractor:
+        return Icons.engineering_outlined;
+      case CustomerType.reseller:
+        return Icons.storefront_outlined;
+      case CustomerType.applicator:
+        return Icons.design_services_outlined;
+      case CustomerType.seller:
+        return Icons.sell_outlined;
+    }
+  }
 }
 
 /// Label + field wrapped together with consistent spacing — keeps every
@@ -318,40 +363,143 @@ class _FieldBlock extends StatelessWidget {
   }
 }
 
-class _CustomerTypeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+/// Vertical list of selectable account-type cards — icon + label +
+/// one-line description + a check indicator when selected. Reads far
+/// better than equal-width chips once there are more than 2–3 options,
+/// since labels of very different lengths ("Individual" vs "Applicator")
+/// no longer have to fight for the same fixed-width box.
+class _CustomerTypeSelector extends StatelessWidget {
+  final CustomerType selected;
+  final ValueChanged<CustomerType> onSelect;
 
-  const _CustomerTypeChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+  const _CustomerTypeSelector({required this.selected, required this.onSelect});
+
+  static const _meta = <CustomerType, (IconData, String)>{
+    CustomerType.individual: (
+      Icons.person_outline_rounded,
+      'Buying for personal or home use',
+    ),
+    CustomerType.contractor: (
+      Icons.engineering_outlined,
+      'Construction or renovation professional',
+    ),
+    CustomerType.reseller: (
+      Icons.storefront_outlined,
+      'Buying materials to resell',
+    ),
+    CustomerType.applicator: (
+      Icons.design_services_outlined,
+      'Applies or installs materials on-site',
+    ),
+    CustomerType.seller: (
+      Icons.sell_outlined,
+      'Sells materials on the platform',
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: Responsive.height(context, 48),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryGreen : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? AppColors.primaryGreen : AppColors.inputBorder,
-            width: selected ? 1.4 : 1,
+    return Column(
+      children: CustomerType.values.map((type) {
+        final isSelected = selected == type;
+        final (icon, description) = _meta[type]!;
+        final isLast = type == CustomerType.values.last;
+
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: isLast ? 0 : Responsive.space(context, 10),
           ),
-        ),
-        child: Text(
-          label,
-          style: AppTextStyles.buttonText(
-            context,
-          ).copyWith(color: selected ? Colors.white : AppColors.textDark),
-        ),
-      ),
+          child: GestureDetector(
+            onTap: () => onSelect(type),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.space(context, 14),
+                vertical: Responsive.space(context, 12),
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primaryGreen.withOpacity(0.08)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.primaryGreen
+                      : AppColors.inputBorder,
+                  width: isSelected ? 1.4 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: Responsive.space(context, 38),
+                    height: Responsive.space(context, 38),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryGreen
+                          : const Color(0xFFF3F4F6),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      icon,
+                      size: Responsive.space(context, 19),
+                      color: isSelected ? Colors.white : AppColors.textDark,
+                    ),
+                  ),
+                  SizedBox(width: Responsive.space(context, 12)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          type.label,
+                          style: AppTextStyles.buttonText(context).copyWith(
+                            color: AppColors.textDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.space(context, 2)),
+                        Text(
+                          description,
+                          style: AppTextStyles.termsText(
+                            context,
+                          ).copyWith(fontSize: Responsive.font(context, 11.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: Responsive.space(context, 8)),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: Responsive.space(context, 22),
+                    height: Responsive.space(context, 22),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected
+                          ? AppColors.primaryGreen
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primaryGreen
+                            : AppColors.inputBorder,
+                        width: 1.4,
+                      ),
+                    ),
+                    child: isSelected
+                        ? Icon(
+                            Icons.check,
+                            size: Responsive.space(context, 14),
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

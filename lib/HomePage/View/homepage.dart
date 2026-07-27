@@ -39,6 +39,19 @@ class HomeScreen extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure controller is initialized and data is loaded
+    if (!Get.isRegistered<HomeController>()) {
+      Get.put(HomeController());
+    }
+
+    // Call refresh on first build if data is empty
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = Get.find<HomeController>();
+      if (controller.carousels.isEmpty) {
+        controller.refresh();
+      }
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F6),
       body: SafeArea(
@@ -214,32 +227,10 @@ class _Header extends StatelessWidget {
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
-          Container(
-            height: Responsive.height(context, 44),
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.space(context, 12),
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.fieldFill,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.inputBorder),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.search, color: AppColors.textGray, size: 20),
-                SizedBox(width: Responsive.space(context, 8)),
-                Expanded(
-                  child: Text(
-                    "Search for 'Asian Paints'",
-                    style: AppTextStyles.loginSubtitle(
-                      context,
-                    ).copyWith(fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [const GlobalSearchBar(), const GlobalSearchOverlay()],
           ),
-          // const FlipkartSearchBar(isHomePage: true),
         ],
       ),
     );

@@ -11,6 +11,7 @@ import 'package:brikle/Calculation/Model/productCalculator_model.dart';
 import 'package:brikle/Calculation/Model/steelCalculation_model.dart';
 import 'package:brikle/Calculation/Model/waterproofCalculation_model.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/HomePage/Model/search_model.dart';
 import 'package:brikle/Product/Model/productdetails_model.dart';
 import 'package:brikle/ProfilePage/Model/address_model.dart';
 import 'package:brikle/ProfilePage/Model/order_model.dart';
@@ -234,9 +235,6 @@ class ApiService {
       'pincode': pincode,
     }, headers: await _authHeaders());
   }
-
-
-
 
   // ══════════════════════════════════════════════════════════════════════════
   // VEHICLES
@@ -595,6 +593,45 @@ class ApiService {
       headers: await _authHeaders(),
     );
     return response['results'] as List? ?? [];
+  }
+
+  // ADD after getBestSelling():
+  // ADD a new method specifically for search debugging:
+  static Future<List<SearchResultItem>> globalSearch(String query) async {
+    final url = ApiConfig.globalSearchUrl(query);
+    final headers = await _authHeaders();
+
+    debugPrint('[Search] full URL: $url');
+    debugPrint('[Search] headers: $headers');
+
+    http.Response response;
+    try {
+      response = await http
+          .get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 20));
+    } catch (e) {
+      debugPrint('[Search] network error: $e');
+      throw ApiException('Network error');
+    }
+
+    debugPrint('[Search] status code: ${response.statusCode}');
+    debugPrint('[Search] raw body: ${response.body}');
+
+    if (response.statusCode != 200) {
+      debugPrint('[Search] non-200 response!');
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[Search] decoded keys: ${decoded.keys.toList()}');
+      final products = decoded['products'] as List? ?? [];
+      debugPrint('[Search] products count: ${products.length}');
+      return products.map((e) => SearchResultItem.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('[Search] parse error: $e');
+      return [];
+    } 
   }
 
   static Future<List<dynamic>> getProducts() async {

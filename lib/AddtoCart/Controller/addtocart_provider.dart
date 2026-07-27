@@ -113,7 +113,6 @@ class CartController extends GetxController {
   }
 
   // ── END Coupon Methods ──────────────────────────────
-
   Future<void> fetchCart({bool showLoader = true}) async {
     debugPrint('$_tag fetchCart(showLoader: $showLoader) called');
     if (showLoader) {
@@ -646,7 +645,10 @@ class CartController extends GetxController {
         if (address?.email != null) 'email': address!.email,
         if (address?.phoneNumber != null) 'contact': address!.phoneNumber,
       },
-      'theme': {'color': '#${AppColors.primaryGreen.value.toRadixString(16).substring(2)}'},
+      'theme': {
+        'color':
+            '#${AppColors.primaryGreen.value.toRadixString(16).substring(2)}',
+      },
     };
 
     try {
@@ -712,7 +714,9 @@ class CartController extends GetxController {
 
       _paymentCompleter?.complete(true);
     } on ApiException catch (e) {
-      debugPrint('$_tag _handlePaymentSuccess — verify-payment failed: ${e.message}');
+      debugPrint(
+        '$_tag _handlePaymentSuccess — verify-payment failed: ${e.message}',
+      );
       Get.snackbar(
         'Verification Failed',
         'Payment was received but verification failed: ${e.message}. '
