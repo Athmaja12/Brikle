@@ -23,9 +23,19 @@ class CartController extends GetxController {
   // ── STATIC placeholders ──────────────────────────────────────
   final RxString couponCode = ''.obs;
   final RxBool gstinAdded = false.obs;
+  final RxString gstinNumber = ''.obs;
   static const double staticDiscount = 0;
   static const String staticDeliveryChargeLabel = 'FREE';
   static const double staticHandlingCharge = 0;
+
+  // ── Bill Details expand/collapse ──────────────────────────────
+  final RxBool billDetailsExpanded = true.obs;
+
+  static final RegExp _gstRegex = RegExp(
+    r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$',
+  );
+
+  bool isGstValid(String gst) => _gstRegex.hasMatch(gst.trim().toUpperCase());
 
   // ── Payment Method State ──────────────────────────────
   // NOTE: values here must match what the backend expects, i.e.
@@ -69,6 +79,33 @@ class CartController extends GetxController {
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     fetchCart();
     fetchMyCoupons();
+
+    // FIX: processCheckout() was never being called anywhere in the
+    // checkout flow, so checkoutResponse stayed null and Bill Details'
+    // delivery charge always showed the static FREE/0 fallback instead
+    // of the real, distance-based charge. Now it recalculates any time
+    // address, delivery date/time, coupon, or cart contents change —
+    // as soon as all three required fields (address, date, time) exist.
+    ever(selectedAddress, (_) => _maybeRefreshCheckout());
+    ever(selectedDeliveryDate, (_) => _maybeRefreshCheckout());
+    ever(selectedDeliveryTime, (_) => _maybeRefreshCheckout());
+    ever(selectedCoupon, (_) => _maybeRefreshCheckout());
+    ever(cartItems, (_) => _maybeRefreshCheckout());
+  }
+
+  void _maybeRefreshCheckout() {
+    final address = selectedAddress.value;
+    final date = selectedDeliveryDate.value;
+    final time = selectedDeliveryTime.value;
+    if (address == null || date == null || time == null) return;
+    if (cartItems.isEmpty) return;
+    debugPrint('$_tag _maybeRefreshCheckout — recalculating bill details');
+    processCheckout(
+      pincode: address.pincode,
+      deliveryDate: date,
+      deliveryTime: time,
+      couponId: selectedCoupon.value?.id,
+    );
   }
 
   @override
@@ -278,11 +315,24 @@ class CartController extends GetxController {
     Get.snackbar('Coupon', 'Coupon feature coming soon');
   }
 
-  void addGstin() {
-    debugPrint('$_tag addGstin() — static stub, no backend yet');
-    gstinAdded.value = true;
-    Get.snackbar('GSTIN', 'GSTIN feature coming soon');
+  /// Saves the GSTIN locally for this order. Entirely OPTIONAL — passing
+  /// an empty string is valid and just clears it; no checkout flow ever
+  /// blocks on this field being filled.
+  void saveGstin(String value) {
+    final trimmed = value.trim().toUpperCase();
+    debugPrint('$_tag saveGstin("$trimmed")');
+    gstinNumber.value = trimmed;
+    gstinAdded.value = trimmed.isNotEmpty;
   }
+
+  void removeGstin() {
+    debugPrint('$_tag removeGstin');
+    gstinNumber.value = '';
+    gstinAdded.value = false;
+  }
+
+  void toggleBillDetails() =>
+      billDetailsExpanded.value = !billDetailsExpanded.value;
 
   // ── Address & Delivery State ──────────────────────────────
   final Rx<AddressModel?> selectedAddress = Rx<AddressModel?>(null);

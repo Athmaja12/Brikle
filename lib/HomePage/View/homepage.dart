@@ -8,6 +8,7 @@ import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/Category/View/categorydetail_screen.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
+import 'package:brikle/HomePage/Controller/search_Provider.dart';
 import 'package:brikle/HomePage/Model/home_model.dart';
 import 'package:brikle/HomePage/View/search_bar.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
@@ -40,8 +41,15 @@ class HomeScreen extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     // Ensure controller is initialized and data is loaded
+    // Ensure controller is initialized and data is loaded
     if (!Get.isRegistered<HomeController>()) {
       Get.put(HomeController());
+    }
+    // Was never registered anywhere — Get.find<GlobalSearchController>()
+    // inside GlobalSearchBar was throwing, which is why the search bar
+    // wasn't working at all.
+    if (!Get.isRegistered<GlobalSearchController>()) {
+      Get.put(GlobalSearchController());
     }
 
     // Call refresh on first build if data is empty
@@ -227,10 +235,7 @@ class _Header extends StatelessWidget {
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [const GlobalSearchBar(), const GlobalSearchOverlay()],
-          ),
+          const GlobalSearchBar(),
         ],
       ),
     );
@@ -410,9 +415,9 @@ class _CategoriesSection extends StatelessWidget {
                     const imageBoxHeight = 98.0;
 
                     return GestureDetector(
-                      onTap: () {
+                      onTap: () async {
                         controller.onCategoryTap(index);
-                        Navigator.push(
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => CategoryProductsScreenWrapper(
@@ -420,7 +425,11 @@ class _CategoriesSection extends StatelessWidget {
                             ),
                           ),
                         );
+                        // Back on Home — clear the highlight so it doesn't
+                        // stay stuck on whatever category was last opened.
+                        controller.resetAfterCategoryVisit();
                       },
+
                       child: Container(
                         width: cardWidth * scale,
                         height: cardHeight * scale,
@@ -719,6 +728,8 @@ class _TopDealsSection extends StatelessWidget {
         name: deal.name,
         imageUrl: deal.imageUrl,
         price: deal.dealPrice,
+        isAssured: deal.isAssured, // NEW
+        assuredCertificate: deal.assuredCertificate,
       ),
       // dealBadgeText: deal.customTitle,
       // dealEndDate: deal.endDate,
@@ -850,6 +861,8 @@ class _BestsellingSection extends StatelessWidget {
         imageUrl: item.imageUrl,
         price: item.hasOffer ? item.dealPrice! : item.retailPrice,
         brandName: item.brandName,
+         isAssured: item.isAssured,                    // NEW
+        assuredCertificate: item.assuredCertificate,
       ),
       originalPrice: item.hasOffer ? item.retailPrice : null,
       discountPercent: item.hasOffer ? item.discountPercent : null,

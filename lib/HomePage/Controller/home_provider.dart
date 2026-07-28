@@ -205,8 +205,6 @@ class HomeController extends GetxController {
     }
   }
 
-
-
   Future<void> _loadBestselling(int categoryId) async {
     isBestsellingLoading.value = true;
     debugPrint(
@@ -249,6 +247,13 @@ class HomeController extends GetxController {
       debugPrint(
         '[HomeController] onCategoryTap: index $index out of range (categories.length=${categories.length})',
       );
+    }
+  }
+
+  void resetAfterCategoryVisit() {
+    selectedCategoryIndex.value = 0;
+    if (categories.isNotEmpty) {
+      _loadBestselling(categories[0].id);
     }
   }
 

@@ -22,7 +22,7 @@ class ApiConfig {
   static String get googleLoginUrl => '$baseUrl/api/auth/google/';
 
   static String globalSearchUrl(String query) =>
-      '$baseUrl/api/material/global-search/?q=${Uri.encodeComponent(query)}';
+      '$baseUrl/api/material/global-search/?search=${Uri.encodeComponent(query)}';
 
   /// JWT Refresh Token
   static String get tokenRefreshUrl => '$baseUrl/api/token/refresh/';

@@ -302,36 +302,14 @@ class _SharedProductCardState extends State<SharedProductCard> {
                                     color: Colors.black26,
                                   ),
                           ),
-                          // if (widget.dealBadgeText != null &&
-                          // widget.dealBadgeText!.isNotEmpty)
-                          // Positioned(
-                          //   top: 0,
-                          //   left: 0,
-                          //   child: Container(
-                          //     padding: const EdgeInsets.symmetric(
-                          //       horizontal: 6,
-                          //       vertical: 2,
-                          //     ),
-                          //     decoration: BoxDecoration(
-                          //       color: const Color(0xFFFF7A00),
-                          //       borderRadius: BorderRadius.circular(6),
-                          //     ),
-                          //     // child: Text(
-                          //     //   // widget.dealBadgeText!.toUpperCase(),
-                          //     //   style: const TextStyle(
-                          //     //     fontSize: 8,
-                          //     //     fontWeight: FontWeight.w700,
-                          //     //     color: Colors.white,
-                          //     //     letterSpacing: 0.3,
-                          //     //   ),
-                          //     // ),
-                          //   ),
-                          // ),
                         ],
                       ),
                       const SizedBox(height: 4),
 
-                      // ── Trust badges: Assured + 100% Trusted (shown on every card)
+                      // ── Trust badges: 100% Trusted (always) + Assured (only
+                      // when the backend flagged this product). Both live in
+                      // ONE Row so they sit side by side and share the same
+                      // vertical rhythm as the rest of the card.
                       Row(
                         children: [
                           const SizedBox(width: 4),
@@ -369,6 +347,56 @@ class _SharedProductCardState extends State<SharedProductCard> {
                               ),
                             ),
                           ),
+                          if (product.isAssured) ...[
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: GestureDetector(
+                                onTap:
+                                    _isValidImageUrl(product.assuredCertificate)
+                                    ? () => _showCertificateModal(
+                                        context,
+                                        product.assuredCertificate!,
+                                      )
+                                    : null,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF3E0),
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(
+                                      color: const Color(0xFFEF6C00),
+                                      width: 0.6,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.verified,
+                                        size: 9,
+                                        color: Color(0xFFEF6C00),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Flexible(
+                                        child: Text(
+                                          'ASSURED',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.manrope(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFFEF6C00),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -414,18 +442,6 @@ class _SharedProductCardState extends State<SharedProductCard> {
                               ),
                             ),
                           ],
-                          // if (widget.discountPercent != null &&
-                          //     widget.discountPercent! > 0) ...[
-                          //   const SizedBox(width: 6),
-                          //   Text(
-                          //     '${widget.discountPercent}% off',
-                          //     style: const TextStyle(
-                          //       color: AppColors.primaryGreen,
-                          //       fontSize: 11,
-                          //       fontWeight: FontWeight.w600,
-                          //     ),
-                          //   ),
-                          // ],
                         ],
                       ),
 
@@ -695,9 +711,81 @@ class _SharedProductCardState extends State<SharedProductCard> {
       ),
     );
   }
+
+  // ── Certificate viewer modal — shown when the Assured badge is tapped.
+  // Kept as a method on this State (not a top-level function) so it's
+  // scoped the same way as the other dialog helpers in this class.
+  void _showCertificateModal(BuildContext context, String certificateUrl) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            alignment: Alignment.topRight,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+                  maxWidth: MediaQuery.of(ctx).size.width * 0.9,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4,
+                    child: Image.network(
+                      certificateUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const SizedBox(
+                          height: 200,
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox(
+                            height: 200,
+                            child: Center(
+                              child: Text(
+                                "Couldn't load certificate.",
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(6.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  radius: 16,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
-// ── "🎉 You unlocked ₹X!" popup with a small confetti "popper" blast
 // ── "🎉 You unlocked ₹X!" popup with a small confetti "popper" blast
 // right behind it. Both are anchored via the caller's Positioned rect,
 // which is derived from that specific card's own _buttonKey — so this
@@ -903,6 +991,7 @@ class _StepperSymbol extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
+          
         ),
       ),
     );

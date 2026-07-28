@@ -7,6 +7,12 @@ String _fullImageUrl(String? path) {
   return '${ApiConfig.baseUrl}$path';
 }
 
+String? _fullCertUrl(dynamic raw) {
+  final path = raw?.toString();
+  if (path == null || path.isEmpty) return null;
+  return _fullImageUrl(path);
+}
+
 class CarouselItem {
   final int id;
   final String imageUrl;
@@ -56,6 +62,8 @@ class DealItem {
   final String? customTitle;
   final DateTime? endDate; // NEW
   final bool isExpired; // NEW
+  final bool isAssured; // NEW
+  final String? assuredCertificate;
 
   const DealItem({
     required this.dealId,
@@ -69,6 +77,8 @@ class DealItem {
     this.customTitle,
     this.endDate, // NEW
     this.isExpired = false, // NEW
+    this.isAssured = false, // NEW
+    this.assuredCertificate,
   });
 
   factory DealItem.fromJson(Map<String, dynamic> json) {
@@ -100,6 +110,8 @@ class DealItem {
       customTitle: json['custom_title']?.toString(),
       endDate: _toDate(json['end_date']), // NEW
       isExpired: json['is_expired'] == true, // NEW
+      isAssured: material['is_assured'] == true, // NEW
+      assuredCertificate: _fullCertUrl(material['assured_certificate']),
     );
   }
 }
@@ -119,10 +131,10 @@ class BestSellingItem {
   final String? subcategoryName;
   final double retailPrice;
   final bool isBestSelling;
-
-  // Optional — only non-null if the backend actually sends offer data.
   final int? discountPercent;
   final double? dealPrice;
+  final bool isAssured; // NEW
+  final String? assuredCertificate;
 
   const BestSellingItem({
     required this.id,
@@ -137,6 +149,8 @@ class BestSellingItem {
     this.isBestSelling = false,
     this.discountPercent,
     this.dealPrice,
+    this.isAssured = false, // NEW
+    this.assuredCertificate,
   });
 
   /// True only when the backend actually provided BOTH a positive
@@ -206,6 +220,8 @@ class BestSellingItem {
       dealPrice: toDoubleOrNull(
         json['deal_price'] ?? json['offer_price'] ?? json['special_price'],
       ),
+      isAssured: json['is_assured'] == true, // NEW
+      assuredCertificate: _fullCertUrl(json['assured_certificate']),
     );
   }
 }

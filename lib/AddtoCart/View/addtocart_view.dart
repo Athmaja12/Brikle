@@ -12,6 +12,8 @@ import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
+import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -74,6 +76,8 @@ class _CartBody extends GetView<CartController> {
                         _GstinCard(controller: controller),
                         SizedBox(height: Responsive.space(context, 12)),
                         _BillDetailsCard(controller: controller),
+                        SizedBox(height: Responsive.space(context, 12)),
+                        _CancellationPolicyCard(controller: controller),
                         SizedBox(height: Responsive.space(context, 16)),
                         Obx(() {
                           final hasAddress =
@@ -310,6 +314,28 @@ class _CartItemRow extends StatelessWidget {
   final CartController controller;
   const _CartItemRow({required this.item, required this.controller});
 
+  void _openProductDetail(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(
+          product: CategoryProductItem(
+            variantId: item.variantId,
+            // NOTE: assumes CartItem exposes materialId. If your
+            // CartItem model uses a different field name for this,
+            // swap it in here — variantId alone isn't a safe stand-in
+            // since ProductDetailScreen uses materialId to fetch
+            // suggestions/details for the right product.
+            materialId: item.variantId,
+            name: item.materialName,
+            imageUrl: item.imageUrl,
+            price: item.unitPriceWithGst,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showBulkPricingSheet(BuildContext context) {
     if (!item.hasTiers || item.priceTiers.isEmpty) return;
     showModalBottomSheet(
@@ -450,58 +476,72 @@ class _CartItemRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: item.imageUrl.isNotEmpty
-                  ? Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Container(color: AppColors.fieldFill),
-                    )
-                  : Container(
-                      color: AppColors.fieldFill,
-                      child: const Icon(
-                        Icons.inventory_2_outlined,
-                        color: Colors.black26,
-                      ),
-                    ),
-            ),
-          ),
-          SizedBox(width: Responsive.space(context, 12)),
-
-          // ── Left column: name + wholesale link ──────────────────────
+          // ── Tappable region: image + name → opens the product's
+          // detail page. Kept separate from the wholesale-price link
+          // and the quantity stepper so those still work independently.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${item.materialName}, ${item.sizeDimension}',
-                  style: AppTextStyles.fieldLabel(
-                    context,
-                  ).copyWith(color: AppColors.textDark),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (item.hasTiers && item.priceTiers.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () => _showBulkPricingSheet(context),
-                    child: const Text(
-                      'Buy at wholesale price',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w500,
-                      ),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openProductDetail(context),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: item.imageUrl.isNotEmpty
+                          ? Image.network(
+                              item.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  Container(color: AppColors.fieldFill),
+                            )
+                          : Container(
+                              color: AppColors.fieldFill,
+                              child: const Icon(
+                                Icons.inventory_2_outlined,
+                                color: Colors.black26,
+                              ),
+                            ),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.space(context, 12)),
+
+                  // ── name + wholesale link ────────────────────────────
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item.materialName}, ${item.sizeDimension}',
+                          style: AppTextStyles.fieldLabel(
+                            context,
+                          ).copyWith(color: AppColors.textDark),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (item.hasTiers && item.priceTiers.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          GestureDetector(
+                            onTap: () => _showBulkPricingSheet(context),
+                            child: const Text(
+                              'Buy at wholesale price',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue,
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
 
@@ -943,50 +983,190 @@ class _CouponDropdownItem extends StatelessWidget {
   }
 }
 
-class _GstinCard extends StatelessWidget {
+class _GstinCard extends StatefulWidget {
   final CartController controller;
   const _GstinCard({required this.controller});
 
   @override
+  State<_GstinCard> createState() => _GstinCardState();
+}
+
+class _GstinCardState extends State<_GstinCard> {
+  late final TextEditingController _textCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _textCtrl = TextEditingController(
+      text: widget.controller.gstinNumber.value,
+    );
+  }
+
+  @override
+  void dispose() {
+    _textCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onAddPressed() {
+    final value = _textCtrl.text.trim();
+    if (value.isNotEmpty && !widget.controller.isGstValid(value)) {
+      Get.snackbar('Invalid GSTIN', 'Enter a valid GSTIN, or leave it blank.');
+      return;
+    }
+    widget.controller.saveGstin(value);
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          const Icon(Icons.description_outlined, color: AppColors.textGray),
-          SizedBox(width: Responsive.space(context, 12)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final controller = widget.controller;
+
+    return Obx(() {
+      final saved = controller.gstinNumber.value;
+      final hasGstin = saved.isNotEmpty;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                const Text(
-                  'Add GSTIN',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                const Icon(
+                  Icons.description_outlined,
+                  color: AppColors.textGray,
                 ),
-                Text(
-                  'Claim GST input credit on your order',
-                  style: AppTextStyles.termsText(context),
+                SizedBox(width: Responsive.space(context, 12)),
+                Expanded(
+                  child: Text(
+                    'Add GSTIN',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
-          ),
-          TextButton(
-            onPressed: controller.addGstin,
-            child: const Text(
-              'Add',
-              style: TextStyle(
-                color: AppColors.primaryGreen,
-                fontWeight: FontWeight.w600,
+            // SizedBox(height: Responsive.space(context, 4)),
+            // Text(
+            //   hasGstin
+            //       ? 'Claiming GST input credit on this order'
+            //       : 'Claim GST input credit on your order — not required',
+            //   style: AppTextStyles.termsText(context),
+            // ),
+            SizedBox(height: Responsive.space(context, 10)),
+            if (hasGstin)
+              // Already saved — show it plainly with a Remove action,
+              // no dialog needed.
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F9F1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primaryGreen.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        saved,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.space(context, 8)),
+                  TextButton(
+                    onPressed: () {
+                      controller.removeGstin();
+                      _textCtrl.clear();
+                    },
+                    child: const Text(
+                      'Remove',
+                      style: TextStyle(
+                        color: AppColors.errorRed,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              // Inline textbox + Add button — no bottom sheet/dialog.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textCtrl,
+                      textCapitalization: TextCapitalization.characters,
+                      style: const TextStyle(fontSize: 14),
+                      onSubmitted: (_) => _onAddPressed(),
+                      decoration: InputDecoration(
+                        hintText: 'Enter GSTIN (optional)',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.inputBorder,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.inputBorder,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.primaryGreen,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.space(context, 8)),
+                  ElevatedButton(
+                    onPressed: _onAddPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Add',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -1079,54 +1259,106 @@ class _BillDetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Bill Details',
-                style: AppTextStyles.welcomeBackTitle(
-                  context,
-                ).copyWith(fontSize: 16),
-              ),
-              const Icon(Icons.keyboard_arrow_down),
-            ],
-          ),
-          const Divider(height: 24),
-          _BillRow(
-            label: 'Sub Total (Inclusive of GST)',
-            value: '₹${controller.subTotal.toStringAsFixed(0)}',
-          ),
-          _BillRow(
-            label: 'Discount',
-            value: '₹${CartController.staticDiscount.toStringAsFixed(0)}',
+          // FIX: header now actually toggles the card — previously the
+          // chevron was purely decorative with no onTap wired to it.
+          InkWell(
+            onTap: controller.toggleBillDetails,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Bill Details',
+                  style: AppTextStyles.welcomeBackTitle(
+                    context,
+                  ).copyWith(fontSize: 16),
+                ),
+                Obx(
+                  () => Icon(
+                    controller.billDetailsExpanded.value
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                  ),
+                ),
+              ],
+            ),
           ),
           Obx(() {
-            final checkout = controller.checkoutResponse.value;
-            final deliveryCharge = checkout?.paymentSummary.deliveryCharge ?? 0;
-            return _BillRow(
-              label: 'Delivery Charge',
-              value: deliveryCharge > 0
-                  ? '₹${deliveryCharge.toStringAsFixed(0)}'
-                  : 'FREE',
-              valueColor: deliveryCharge > 0 ? null : AppColors.primaryGreen,
+            if (!controller.billDetailsExpanded.value) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(height: 24),
+                _BillRow(
+                  label: 'Sub Total (Inclusive of GST)',
+                  value: '₹${controller.subTotal.toStringAsFixed(0)}',
+                ),
+                _BillRow(
+                  label: 'Discount',
+                  value: '₹${CartController.staticDiscount.toStringAsFixed(0)}',
+                ),
+                Obx(() {
+                  // FIX: this now actually reflects the real, distance-based
+                  // delivery charge — checkoutResponse is populated as soon
+                  // as address + delivery date + delivery time are all set
+                  // (see CartController._maybeRefreshCheckout), instead of
+                  // staying null and always falling back to FREE/0.
+                  final checkout = controller.checkoutResponse.value;
+                  final deliveryCharge =
+                      checkout?.paymentSummary.deliveryCharge ?? 0;
+                  return _BillRow(
+                    label: 'Delivery Charge',
+                    value: deliveryCharge > 0
+                        ? '₹${deliveryCharge.toStringAsFixed(0)}'
+                        : 'FREE',
+                    valueColor: deliveryCharge > 0
+                        ? null
+                        : AppColors.primaryGreen,
+                  );
+                }),
+                _BillRow(
+                  label: 'Handling Charge',
+                  value:
+                      '₹${CartController.staticHandlingCharge.toStringAsFixed(0)}',
+                ),
+                const Divider(height: 24),
+                Obx(() {
+                  final checkout = controller.checkoutResponse.value;
+                  final total =
+                      checkout?.paymentSummary.grandTotal ?? controller.total;
+                  return _BillRow(
+                    label: 'Total',
+                    value: '₹${total.toStringAsFixed(0)}',
+                    bold: true,
+                  );
+                }),
+              ],
             );
           }),
-          _BillRow(
-            label: 'Handling Charge',
-            value: '₹${CartController.staticHandlingCharge.toStringAsFixed(0)}',
-          ),
-          const Divider(height: 24),
-          Obx(() {
-            final checkout = controller.checkoutResponse.value;
-            final total =
-                checkout?.paymentSummary.grandTotal ?? controller.total;
-            return _BillRow(
-              label: 'Total',
-              value: '₹${total.toStringAsFixed(0)}',
-              bold: true,
-            );
-          }),
-          const Divider(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Cancellation Policy — now its own standalone card, not nested
+// inside Bill Details.
+class _CancellationPolicyCard extends StatelessWidget {
+  final CartController controller;
+  const _CancellationPolicyCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           InkWell(
             onTap: controller.toggleCancellationPolicy,
             child: Row(
@@ -1154,8 +1386,9 @@ class _BillDetailsCard extends StatelessWidget {
             ),
           ),
           Obx(() {
-            if (!controller.cancellationPolicyExpanded.value)
+            if (!controller.cancellationPolicyExpanded.value) {
               return const SizedBox.shrink();
+            }
             return Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(

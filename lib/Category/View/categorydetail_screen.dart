@@ -12,6 +12,7 @@ import 'package:brikle/Category/Controller/categorydeatail_controller.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
+import 'package:brikle/HomePage/Controller/search_Provider.dart';
 import 'package:brikle/HomePage/View/search_bar.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
@@ -43,6 +44,9 @@ class CategoryProductsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!Get.isRegistered<GlobalSearchController>()) {
+      Get.put(GlobalSearchController());
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F6),
       body: SafeArea(
@@ -217,10 +221,7 @@ class _TopBar extends StatelessWidget {
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [const GlobalSearchBar(), const GlobalSearchOverlay()],
-          ),
+          const GlobalSearchBar(),
         ],
       ),
     );
@@ -739,8 +740,13 @@ class _ProductGrid extends StatelessWidget {
                 crossAxisSpacing: spacing,
                 mainAxisExtent: cardHeight,
               ),
-              itemBuilder: (context, index) =>
-                  SharedProductCard(product: products[index]),
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return SharedProductCard(
+                  key: ValueKey('product_${product.variantId}'),
+                  product: product,
+                );
+              },
             );
           },
         ),

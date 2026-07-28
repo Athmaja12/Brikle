@@ -7,6 +7,7 @@ import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/Category/Controller/category_controller.dart';
 import 'package:brikle/Category/Model/category_model.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
+import 'package:brikle/HomePage/Controller/search_Provider.dart';
 import 'package:brikle/HomePage/View/search_bar.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/View/wishlist_screen.dart';
@@ -20,6 +21,9 @@ class CategoryPage extends GetView<CategoryController> {
   Widget build(BuildContext context) {
     if (!Get.isRegistered<CategoryController>()) {
       Get.put(CategoryController());
+    }
+    if (!Get.isRegistered<GlobalSearchController>()) {
+      Get.put(GlobalSearchController());
     }
 
     return Scaffold(
@@ -181,10 +185,7 @@ class _SearchHeader extends StatelessWidget {
             ],
           ),
           SizedBox(height: Responsive.space(context, 12)),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [const GlobalSearchBar(), const GlobalSearchOverlay()],
-          ),
+          const GlobalSearchBar(),
         ],
       ),
     );

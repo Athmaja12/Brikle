@@ -8,6 +8,12 @@ String _fullImageUrl(String? path) {
   return '$base$path';
 }
 
+String? _fullCertUrl(dynamic raw) {
+  final path = raw?.toString();
+  if (path == null || path.isEmpty) return null;
+  return _fullImageUrl(path);
+}
+
 class PriceTier {
   final String name;
   final int minQty;
@@ -44,6 +50,9 @@ class CategoryProductItem {
   final bool hasTiers;
   final List<PriceTier> priceTiers; // sorted ascending by minQty
 
+  final bool isAssured; // NEW
+  final String? assuredCertificate;
+
   const CategoryProductItem({
     required this.variantId,
     required this.materialId,
@@ -56,6 +65,8 @@ class CategoryProductItem {
     required this.price,
     this.hasTiers = false,
     this.priceTiers = const [],
+    this.isAssured = false, // NEW
+    this.assuredCertificate,
   });
 
   /// Effective unit price for a given quantity — picks the highest tier
@@ -109,6 +120,14 @@ class CategoryProductItem {
       price: (variant['retail_price_with_gst'] as num?)?.toDouble() ?? 0,
       hasTiers: variant['has_tiers'] == true,
       priceTiers: tiers,
+      isAssured:
+          (variantMaterial['is_assured'] ?? fallbackMaterial['is_assured']) ==
+          true, // NEW
+      assuredCertificate: _fullCertUrl(
+        // NEW
+        variantMaterial['assured_certificate'] ??
+            fallbackMaterial['assured_certificate'],
+      ),
     );
   }
 }
