@@ -1,4 +1,5 @@
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
@@ -9,11 +10,27 @@ import 'package:get/get.dart';
 
 class ProductDetailController extends GetxController {
   final CategoryProductItem product;
-  ProductDetailController({required this.product});
+  // Optional — only ever populated when navigation originates from a
+  // deal/bestseller card that actually carries discount pricing.
+  // CategoryProductItem itself has no discount fields (confirmed against
+  // categorydetail_model.dart), so plain category/search navigation will
+  // correctly show no strike-through at all — that's expected, not a bug.
+  final double? originalPrice;
+  final int? discountPercent;
+
+  ProductDetailController({
+    required this.product,
+    this.originalPrice,
+    this.discountPercent,
+  });
 
   final RxBool isLoading = true.obs;
   final Rx<MaterialDetail?> detail = Rx<MaterialDetail?>(null);
   late final Rx<CategoryProductItem> activeProduct = product.obs;
+
+  // ── Offers ──────────────────────────────────────────────────────────
+  final RxList<CouponModel> offers = <CouponModel>[].obs;
+  final RxBool isLoadingOffers = false.obs;
 
   final RxInt selectedImageIndex = 0.obs;
   final RxBool isWishlisted = false.obs;
@@ -53,6 +70,7 @@ class ProductDetailController extends GetxController {
       suggestedProducts.assignAll(
         await ApiService.getMaterialSuggestions(product.materialId),
       );
+      _loadOffers();
 
       // Placeholder from a "Suggested for you" tap has no real variant —
       // resolve it into a full priced product now, under this screen's
@@ -82,6 +100,24 @@ class ProductDetailController extends GetxController {
       isLoading.value = false;
     }
   }
+
+  /// Loads the user's available coupons for the Offers preview card.
+  /// Reuses the exact same source as Cart's coupon list — no new backend
+  /// endpoint needed. Shown here purely as a preview; applying a coupon
+  /// still happens in Cart, same as before.
+  Future<void> _loadOffers() async {
+    isLoadingOffers.value = true;
+    try {
+      final coupons = await ApiService.getMyCoupons();
+      offers.assignAll(coupons.where((c) => c.isValid));
+    } catch (e) {
+      debugPrint('[ProductDetailController] _loadOffers failed: $e');
+    } finally {
+      isLoadingOffers.value = false;
+    }
+  }
+
+  /// Tapping a bulk-pricing tier sets the cart quantity directly to that
 
   /// Tapping a bulk-pricing tier sets the cart quantity directly to that
   /// tier's minQty — same UX as the Cart page's bulk-pricing sheet.

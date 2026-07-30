@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
@@ -14,15 +15,30 @@ import 'package:brikle/Product/Model/productdetails_model.dart';
 import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final CategoryProductItem product;
-  const ProductDetailScreen({super.key, required this.product});
+  // Optional — pass these through when navigating from a deal/bestseller
+  // card so the MRP strike-through has real data to show.
+  final double? originalPrice;
+  final int? discountPercent;
+
+  const ProductDetailScreen({
+    super.key,
+    required this.product,
+    this.originalPrice,
+    this.discountPercent,
+  });
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(
-      ProductDetailController(product: product),
+      ProductDetailController(
+        product: product,
+        originalPrice: originalPrice,
+        discountPercent: discountPercent,
+      ),
       tag: 'product_detail_${product.variantId}',
     );
 
@@ -56,13 +72,60 @@ class ProductDetailScreen extends StatelessWidget {
                           context,
                         ).copyWith(fontSize: 18),
                       ),
+
                       SizedBox(height: Responsive.space(context, 8)),
-                      Text(
-                        '₹${product.price.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                        ),
+
+                      // ── Price + MRP strike-through + discount badge ──
+                      // originalPrice/discountPercent are optional — only
+                      // populated when arriving from a deal/bestseller
+                      // card. Plain category/search navigation correctly
+                      // shows just the price, no strike-through.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '₹${product.price.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (controller.originalPrice != null &&
+                              controller.originalPrice! > product.price) ...[
+                            SizedBox(width: Responsive.space(context, 8)),
+                            Text(
+                              '₹${controller.originalPrice!.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                decoration: TextDecoration.lineThrough,
+                                color: AppColors.textGray,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                          if (controller.discountPercent != null &&
+                              controller.discountPercent! > 0) ...[
+                            SizedBox(width: Responsive.space(context, 8)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDFF5E3),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${controller.discountPercent}% Off',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primaryGreen,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       Text('per unit', style: AppTextStyles.termsText(context)),
 
@@ -73,14 +136,36 @@ class ProductDetailScreen extends StatelessWidget {
                           product: product,
                           controller: controller,
                         ),
-                      ] else ...[
-                        SizedBox(height: Responsive.space(context, 4)),
-                        Text(
-                          'Incl. GST. Shipping calculated at checkout.',
-                          style: AppTextStyles.termsText(context),
-                        ),
                       ],
+
+                      // FIX (#8): this disclaimer previously only showed
+                      // in the no-tiers branch — products WITH bulk tiers
+                      // showed no GST/shipping note at all. Now always
+                      // visible regardless of tiers.
+                      SizedBox(height: Responsive.space(context, 4)),
+                      Text(
+                        'Incl. GST. Shipping calculated at checkout.',
+                        style: AppTextStyles.termsText(context),
+                      ),
+
+                      // ── Offers preview (#1) ──────────────────────────
+                      Obx(() {
+                        if (controller.isLoadingOffers.value) {
+                          return const SizedBox.shrink();
+                        }
+                        if (controller.offers.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            top: Responsive.space(context, 10),
+                          ),
+                          child: _OffersCard(offers: controller.offers),
+                        );
+                      }),
+
                       SizedBox(height: Responsive.space(context, 16)),
+
                       Obx(() {
                         final qty = controller.cartQuantity.value;
                         return qty == 0
@@ -176,9 +261,12 @@ class ProductDetailScreen extends StatelessWidget {
                             true
                         ? controller.detail.value!.productHighlights
                         : 'No highlights available.',
-                    style: AppTextStyles.loginSubtitle(
-                      context,
-                    ).copyWith(fontSize: 14, color: AppColors.textGray),
+                    textAlign: TextAlign.left,
+                    style: AppTextStyles.loginSubtitle(context).copyWith(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                      height: 1.5,
+                    ),
                   ),
                 ),
                 _ExpandableSection(
@@ -187,9 +275,12 @@ class ProductDetailScreen extends StatelessWidget {
                   onTap: controller.toggleDescription,
                   child: Text(
                     controller.detail.value?.description ?? '',
-                    style: AppTextStyles.loginSubtitle(
-                      context,
-                    ).copyWith(fontSize: 14, color: AppColors.textGray),
+                    textAlign: TextAlign.left,
+                    style: AppTextStyles.loginSubtitle(context).copyWith(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                      height: 1.5,
+                    ),
                   ),
                 ),
                 _ExpandableSection(
@@ -201,23 +292,27 @@ class ProductDetailScreen extends StatelessWidget {
                     children: (controller.detail.value?.faqs ?? [])
                         .map(
                           (f) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.only(bottom: 14),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   f.question,
+                                  textAlign: TextAlign.left,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
+                                    height: 1.4,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: 4),
                                 Text(
                                   f.answer,
+                                  textAlign: TextAlign.left,
                                   style: const TextStyle(
                                     color: AppColors.textGray,
                                     fontSize: 13,
+                                    height: 1.5,
                                   ),
                                 ),
                               ],
@@ -234,7 +329,12 @@ class ProductDetailScreen extends StatelessWidget {
                   child: const Text(
                     '7-day easy returns available on this product. Item must be unused '
                     'and in original packaging. Refunds processed within 5-7 business days.',
-                    style: TextStyle(fontSize: 14, color: AppColors.textGray),
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                      height: 1.5,
+                    ),
                   ),
                 ),
 
@@ -484,6 +584,105 @@ class _BulkPricingCardState extends State<_BulkPricingCard> {
   }
 }
 
+// ── Offers preview — read-only list of the user's applicable coupons.
+// Reuses CouponModel from CartController's data source. Applying a
+// coupon still happens in Cart; this is just visibility on the product
+// page so users know a discount exists before adding to cart.
+class _OffersCard extends StatelessWidget {
+  final List<CouponModel> offers;
+  const _OffersCard({required this.offers});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFC107).withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(
+                Icons.confirmation_number_outlined,
+                size: 16,
+                color: Color(0xFFB28704),
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Available Offers',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Color(0xFFB28704),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...offers
+              .take(2)
+              .map(
+                (coupon) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.circle,
+                        size: 5,
+                        color: AppColors.textGray,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: coupon.couponCode,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                              TextSpan(
+                                text:
+                                    ' — ${coupon.discountPercentage.toStringAsFixed(0)}% off on ${coupon.rewardMaterialName}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textGray,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          if (offers.length > 2)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '+ ${offers.length - 2} more offer${offers.length - 2 > 1 ? 's' : ''} — apply at checkout',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textGray,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Image gallery: main image + thumbnail strip, back + wishlist overlay ──
 class _ImageGallery extends StatelessWidget {
   final ProductDetailController controller;
@@ -534,9 +733,18 @@ class _ImageGallery extends StatelessWidget {
               Positioned(
                 top: 12,
                 right: 12,
-                child: WishlistHeart(
-                  variantId: controller.product.variantId,
-                  withBackground: true,
+                child: Row(
+                  children: [
+                    _CircleIconButton(
+                      icon: Icons.share_outlined,
+                      onTap: () => _shareProduct(controller),
+                    ),
+                    const SizedBox(width: 8),
+                    WishlistHeart(
+                      variantId: controller.product.variantId,
+                      withBackground: true,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -587,7 +795,47 @@ class _ImageGallery extends StatelessWidget {
   }
 }
 
+void _shareProduct(ProductDetailController controller) {
+  final name = controller.detail.value?.name.isNotEmpty == true
+      ? controller.detail.value!.name
+      : controller.activeProduct.value.name;
+  final price = controller.activeProduct.value.price;
+  // NOTE: no public web/deep-link URL system was found in the codebase
+  // for individual products, so this shares a plain text description.
+  // If/when a shareable product URL exists, append it here.
+  Share.share('Check out $name for ₹${price.toStringAsFixed(0)} on Brikle!');
+}
+
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon, size: 20, color: Colors.black87),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Suggestion card: image + name + brand only, no price/cart ──────────
+// NOTE (#6/#9): SmartSuggestion (Product/Model/productdetails_model.dart)
+// has no price field — confirmed against /api/materials/{id}/suggestions/.
+// Showing a price here would mean faking data, so this card is designed
+// to be an honest, tap-through browsing card rather than pretending to
+// be a mini product-with-price card. If price becomes genuinely useful
+// here, the backend suggestions endpoint needs to start returning it —
+// that's outside what this file alone can fix.
 class _SuggestedProductCard extends StatelessWidget {
   final SmartSuggestion suggestion;
   final VoidCallback onTap;
@@ -608,23 +856,51 @@ class _SuggestedProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: suggestion.imageUrl.isNotEmpty
-                  ? Image.network(
-                      suggestion.imageUrl,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.inventory_2_outlined,
-                        size: 50,
-                        color: Colors.black26,
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: suggestion.imageUrl.isNotEmpty
+                      ? Image.network(
+                          suggestion.imageUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.inventory_2_outlined,
+                            size: 50,
+                            color: Colors.black26,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.inventory_2_outlined,
+                          size: 50,
+                          color: Colors.black26,
+                        ),
+                ),
+                if (suggestion.isBestSelling)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
                       ),
-                    )
-                  : const Icon(
-                      Icons.inventory_2_outlined,
-                      size: 50,
-                      color: Colors.black26,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF7A00),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'BESTSELLER',
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
                     ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             if (suggestion.brandName.isNotEmpty)
@@ -641,6 +917,25 @@ class _SuggestedProductCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
             ),
+            const SizedBox(height: 6),
+            Row(
+              children: const [
+                Text(
+                  'View details',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 2),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 12,
+                  color: AppColors.primaryGreen,
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -648,6 +943,7 @@ class _SuggestedProductCard extends StatelessWidget {
   }
 }
 
+// ── Collapsible section — chevron flips, content shows/hides ────────────
 // ── Collapsible section — chevron flips, content shows/hides ────────────
 class _ExpandableSection extends StatelessWidget {
   final String title;
@@ -691,9 +987,13 @@ class _ExpandableSection extends StatelessWidget {
             ),
           ),
           if (expanded.value)
+            // FIX: width: double.infinity forces the content to span the
+            // full section width instead of shrink-wrapping to its text —
+            // that's what caused the misalignment (Align only positions
+            // a narrower box, it doesn't stretch it).
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Align(alignment: Alignment.centerLeft, child: child),
+              child: SizedBox(width: double.infinity, child: child),
             ),
           const Divider(height: 1),
         ],
@@ -840,8 +1140,8 @@ class _CelebrationBurst extends StatelessWidget {
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: List.generate(particleCount, (i) {
-        final angle = (2 * math.pi / particleCount) * i +
-            (rnd.nextDouble() * 0.4 - 0.2);
+        final angle =
+            (2 * math.pi / particleCount) * i + (rnd.nextDouble() * 0.4 - 0.2);
         final distance = 60.0 + rnd.nextDouble() * 40;
         final size = 5.0 + rnd.nextDouble() * 5;
         final color = _colors[i % _colors.length];

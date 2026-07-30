@@ -241,7 +241,11 @@ class _SharedProductCardState extends State<SharedProductCard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ProductDetailScreen(product: product),
+                        builder: (_) => ProductDetailScreen(
+                          product: product,
+                          originalPrice: widget.originalPrice,
+                          discountPercent: widget.discountPercent,
+                        ),
                       ),
                     );
                   },
@@ -541,7 +545,13 @@ class _SharedProductCardState extends State<SharedProductCard> {
                         children: [
                           _StepperSymbol(
                             label: '-',
-                            onTap: () => cartController.decrement(cartItem!),
+                            onTap: () {
+                              if (quantity <= 1) {
+                                cartController.removeItem(cartItem!);
+                              } else {
+                                cartController.decrement(cartItem!);
+                              }
+                            },
                           ),
                           // ── Manually-editable quantity field ──
                           // Tap it to type a quantity directly; still stays
@@ -991,7 +1001,6 @@ class _StepperSymbol extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
-          
         ),
       ),
     );

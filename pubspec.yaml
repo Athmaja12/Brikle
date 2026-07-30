@@ -50,6 +50,7 @@ dependencies:
   intl: ^0.20.3
   confetti: ^0.8.0
   razorpay_flutter: ^1.4.5
+  share_plus: ^10.1.2
 
 dev_dependencies:
   flutter_test:

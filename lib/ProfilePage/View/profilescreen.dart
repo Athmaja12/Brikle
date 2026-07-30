@@ -1318,6 +1318,7 @@ class _ProfileViewState extends State<ProfileView> {
                   keyboard: TextInputType.number,
                   hint: 'Enter 6-digit pincode',
                 ),
+
                 const SizedBox(height: 16),
                 Text(
                   'Account Type',
@@ -1328,36 +1329,64 @@ class _ProfileViewState extends State<ProfileView> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _AccountTypeChip(
-                      label: 'Individual',
-                      selected: customerType == 'individual',
-                      onTap: () => setSheet(() => customerType = 'individual'),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    color: Colors.white,
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButtonFormField<String>(
+                      value: customerType,
+                      isExpanded: true,
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: AppColors.textGray,
+                      ),
+                      style: GoogleFonts.manrope(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.inputText,
+                      ),
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'individual',
+                          child: Text('Individual'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'contractor',
+                          child: Text('Contractor'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'reseller',
+                          child: Text('Reseller'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'applicator',
+                          child: Text('Applicator'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'seller',
+                          child: Text('Seller'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheet(() => customerType = value);
+                      },
                     ),
-                    _AccountTypeChip(
-                      label: 'Contractor',
-                      selected: customerType == 'contractor',
-                      onTap: () => setSheet(() => customerType = 'contractor'),
-                    ),
-                    _AccountTypeChip(
-                      label: 'Reseller',
-                      selected: customerType == 'reseller',
-                      onTap: () => setSheet(() => customerType = 'reseller'),
-                    ),
-                    _AccountTypeChip(
-                      label: 'Applicator',
-                      selected: customerType == 'applicator',
-                      onTap: () => setSheet(() => customerType = 'applicator'),
-                    ),
-                    _AccountTypeChip(
-                      label: 'Seller',
-                      selected: customerType == 'seller',
-                      onTap: () => setSheet(() => customerType = 'seller'),
-                    ),
-                  ],
+                  ),
                 ),
 
                 // GST is relevant to any business-type account, not just
@@ -1430,7 +1459,7 @@ class _ProfileViewState extends State<ProfileView> {
                               gstNumber:
                                   customerType != 'individual' &&
                                       gstCtrl.text.trim().isNotEmpty
-                                  ? gstCtrl.text.trim().toUpperCase() 
+                                  ? gstCtrl.text.trim().toUpperCase()
                                   : null,
                             );
 
@@ -1571,43 +1600,43 @@ class _ProfileViewState extends State<ProfileView> {
   }
 }
 
-class _AccountTypeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+// class _AccountTypeChip extends StatelessWidget {
+//   final String label;
+//   final bool selected;
+//   final VoidCallback onTap;
 
-  const _AccountTypeChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+//   const _AccountTypeChip({
+//     required this.label,
+//     required this.selected,
+//     required this.onTap,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: Responsive.height(context, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryGreen : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? AppColors.primaryGreen : const Color(0xFFE5E7EB),
-            width: selected ? 1.4 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.manrope(
-            fontSize: Responsive.font(context, 13),
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : AppColors.inputText,
-          ),
-        ),
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return GestureDetector(
+//       onTap: onTap,
+//       child: AnimatedContainer(
+//         duration: const Duration(milliseconds: 150),
+//         height: Responsive.height(context, 40),
+//         padding: const EdgeInsets.symmetric(horizontal: 16),
+//         alignment: Alignment.center,
+//         decoration: BoxDecoration(
+//           color: selected ? AppColors.primaryGreen : Colors.white,
+//           borderRadius: BorderRadius.circular(12),
+//           border: Border.all(
+//             color: selected ? AppColors.primaryGreen : const Color(0xFFE5E7EB),
+//             width: selected ? 1.4 : 1,
+//           ),
+//         ),
+//         child: Text(
+//           label,
+//           style: GoogleFonts.manrope(
+//             fontSize: Responsive.font(context, 13),
+//             fontWeight: FontWeight.w600,
+//             color: selected ? Colors.white : AppColors.inputText,
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
