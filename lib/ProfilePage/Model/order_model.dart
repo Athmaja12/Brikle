@@ -1,5 +1,8 @@
+import 'package:brikle/ProfilePage/Model/review_model.dart';
+
 /// Matches GET /api/my-orders/ response exactly
 /// Order List Model for Flipkart-style order management
+
 class OrderModel {
   final int id;
   final String paymentMethod;
@@ -14,6 +17,8 @@ class OrderModel {
   final String requestedDeliveryDateTime;
   final List<OrderItemModel> items;
   final String createdAt;
+  final int materialId;
+  OrderReviewModel? review; // ← was ReviewModel?
 
   OrderModel({
     required this.id,
@@ -29,11 +34,16 @@ class OrderModel {
     required this.requestedDeliveryDateTime,
     required this.items,
     required this.createdAt,
+    required this.materialId,
+    this.review,
   });
+
+  bool get isDelivered => orderStatus.toUpperCase() == 'DELIVERED';
+
+  bool get hasReview => review != null;
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
-      // Safe int parsing - handles both String and int
       id: _parseInt(json['id']),
       paymentMethod: json['payment_method']?.toString() ?? 'COD',
       paymentStatus: json['payment_status']?.toString() ?? 'PENDING',
@@ -50,6 +60,10 @@ class OrderModel {
           .map((e) => OrderItemModel.fromJson(e))
           .toList(),
       createdAt: json['created_at']?.toString() ?? '',
+      materialId: _parseInt(json['material_id']),
+      review: json['review'] != null
+          ? OrderReviewModel.fromJson(json['review'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -67,19 +81,17 @@ class OrderModel {
     'requested_delivery_date_time': requestedDeliveryDateTime,
     'items': items.map((e) => e.toJson()).toList(),
     'created_at': createdAt,
+    'material_id': materialId,
+    if (review != null) 'review': review!.toJson(),
   };
 
-  // Safe int parser helper
   static int _parseInt(dynamic value) {
     if (value == null) return 0;
     if (value is int) return value;
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
+    if (value is String) return int.tryParse(value) ?? 0;
     return 0;
   }
 
-  // Helper for status color
   String get orderStatusDisplay {
     switch (orderStatus.toUpperCase()) {
       case 'PLACED':
@@ -128,7 +140,6 @@ class OrderItemModel {
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
     return OrderItemModel(
-      // Safe int parsing for all numeric fields
       id: _parseInt(json['id']),
       variant: _parseInt(json['variant']),
       materialName: json['material_name']?.toString() ?? '',
@@ -147,7 +158,6 @@ class OrderItemModel {
 
   double get totalPrice => (double.tryParse(priceAtPurchase) ?? 0) * quantity;
 
-  // Safe int parser helper
   static int _parseInt(dynamic value) {
     if (value == null) return 0;
     if (value is int) return value;
@@ -156,4 +166,65 @@ class OrderItemModel {
     }
     return 0;
   }
+}
+/// Matches POST /api/orders/{orderId}/review/ response exactly:
+/// { "id": 1, "order": 153, "customer_name": "Albert", "rating": 5,
+///   "comment": "...", "created_at": "..." }
+class OrderReviewModel {
+  final int id;
+  final int order;
+  final String customerName;
+  final int rating;
+  final String comment;
+  final String createdAt;
+
+  OrderReviewModel({
+    required this.id,
+    required this.order,
+    required this.customerName,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+  });
+
+  factory OrderReviewModel.fromJson(Map<String, dynamic> json) {
+    return OrderReviewModel(
+      id: _parseInt(json['id']),
+      order: _parseInt(json['order']),
+      customerName: json['customer_name']?.toString() ?? '',
+      rating: _parseInt(json['rating']),
+      comment: json['comment']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'order': order,
+    'customer_name': customerName,
+    'rating': rating,
+    'comment': comment,
+    'created_at': createdAt,
+  };
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+}
+
+/// Wrapper so the UI/controller gets a clean success/message/data contract
+/// even on a 400 (e.g. "already reviewed this order").
+class OrderReviewResponse {
+  final bool success;
+  final String message;
+  final OrderReviewModel? review;
+
+  OrderReviewResponse({
+    required this.success,
+    required this.message,
+    this.review,
+  });
 }

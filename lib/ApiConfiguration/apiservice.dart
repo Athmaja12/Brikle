@@ -877,67 +877,107 @@ class ApiService {
   // REVIEWS & RATINGS
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Get all reviews for a material (like Flipkart product reviews)
-  static Future<List<ReviewModel>> getMaterialReviews(int materialId) async {
-    debugPrint('[ApiService] getMaterialReviews($materialId)');
-    final response = await _get(
-      ApiConfig.materialReviewsUrl(materialId),
-      headers: await _authHeaders(),
-    );
-
-    debugPrint('[ApiService] getMaterialReviews response: $response');
-
-    // // Handle different response formats
-    // if (response is List) {
-    //   return response.map((e) => ReviewModel.fromJson(e)).toList();
-    // }
-
-    final results = response['results'] as List? ?? [];
-    return results.map((e) => ReviewModel.fromJson(e)).toList();
-  }
-
-  /// Post a review for a material (like Flipkart rating)
-  static Future<ReviewResponseModel> postMaterialReview({
-    required int materialId,
+/// Submit a review & rating for a whole ORDER (Flipkart-style).
+  /// POST /api/orders/{orderId}/review/
+  static Future<OrderReviewResponse> postOrderReview({
+    required int orderId,
     required int rating,
     required String comment,
   }) async {
-    debugPrint('[ApiService] postMaterialReview($materialId, rating: $rating)');
-
+    debugPrint('[ApiService] postOrderReview($orderId, rating: $rating)');
     try {
-      final response = await _post(ApiConfig.materialReviewsUrl(materialId), {
+      final response = await _post(ApiConfig.orderReviewUrl(orderId), {
         'rating': rating,
         'comment': comment,
       }, headers: await _authHeaders());
 
-      debugPrint('[ApiService] postMaterialReview response: $response');
-      return ReviewResponseModel.fromJson(response);
+      debugPrint('[ApiService] postOrderReview response: $response');
+      return OrderReviewResponse(
+        success: true,
+        message: 'Review submitted successfully',
+        review: OrderReviewModel.fromJson(response),
+      );
     } on ApiException catch (e) {
-      debugPrint('[ApiService] postMaterialReview ApiException: ${e.message}');
-
-      // If it's a 400 error, it might be "already reviewed"
-      if (e.statusCode == 400) {
-        return ReviewResponseModel(
-          success: false,
-          message: 'You have already reviewed this product.',
-          review: null,
-        );
-      }
-
-      return ReviewResponseModel(
+      debugPrint('[ApiService] postOrderReview ApiException: ${e.message}');
+      // 400 here is almost always "already reviewed" or a validation error —
+      // e.message already carries the server's real reason (see
+      // _extractErrorMessage), so just surface it instead of masking it.
+      return OrderReviewResponse(
         success: false,
-        message: e.message,
-        review: null,
+        message: e.message.isNotEmpty
+            ? e.message
+            : 'You have already reviewed this order.',
       );
     } catch (e) {
-      debugPrint('[ApiService] postMaterialReview error: $e');
-      return ReviewResponseModel(
+      debugPrint('[ApiService] postOrderReview unexpected error: $e');
+      return OrderReviewResponse(
         success: false,
         message: 'Failed to submit review. Please try again.',
-        review: null,
       );
     }
   }
+
+  // /// Get all reviews for a material (like Flipkart product reviews)
+  // static Future<List<ReviewModel>> getMaterialReviews(int materialId) async {
+  //   debugPrint('[ApiService] getMaterialReviews($materialId)');
+  //   final response = await _get(
+  //     ApiConfig.materialReviewsUrl(materialId),
+  //     headers: await _authHeaders(),
+  //   );
+
+  //   debugPrint('[ApiService] getMaterialReviews response: $response');
+
+  //   // // Handle different response formats
+  //   // if (response is List) {
+  //   //   return response.map((e) => ReviewModel.fromJson(e)).toList();
+  //   // }
+
+  //   final results = response['results'] as List? ?? [];
+  //   return results.map((e) => ReviewModel.fromJson(e)).toList();
+  // }
+
+  // /// Post a review for a material (like Flipkart rating)
+  // static Future<ReviewResponseModel> postMaterialReview({
+  //   required int materialId,
+  //   required int rating,
+  //   required String comment,
+  // }) async {
+  //   debugPrint('[ApiService] postMaterialReview($materialId, rating: $rating)');
+
+  //   try {
+  //     final response = await _post(ApiConfig.materialReviewsUrl(materialId), {
+  //       'rating': rating,
+  //       'comment': comment,
+  //     }, headers: await _authHeaders());
+
+  //     debugPrint('[ApiService] postMaterialReview response: $response');
+  //     return ReviewResponseModel.fromJson(response);
+  //   } on ApiException catch (e) {
+  //     debugPrint('[ApiService] postMaterialReview ApiException: ${e.message}');
+
+  //     // If it's a 400 error, it might be "already reviewed"
+  //     if (e.statusCode == 400) {
+  //       return ReviewResponseModel(
+  //         success: false,
+  //         message: 'You have already reviewed this product.',
+  //         review: null,
+  //       );
+  //     }
+
+  //     return ReviewResponseModel(
+  //       success: false,
+  //       message: e.message,
+  //       review: null,
+  //     );
+  //   } catch (e) {
+  //     debugPrint('[ApiService] postMaterialReview error: $e');
+  //     return ReviewResponseModel(
+  //       success: false,
+  //       message: 'Failed to submit review. Please try again.',
+  //       review: null,
+  //     );
+  //   }
+  // }
   // ══════════════════════════════════════════════════════════════════════════
   // HTTP HELPERS
   // ══════════════════════════════════════════════════════════════════════════

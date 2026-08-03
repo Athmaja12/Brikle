@@ -17,7 +17,7 @@ class LoginController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    debugPrint('[LoginController] onInit');
+    debugPrint('[LoginController] onInit'); 
   }
 
   void onPhoneChanged(String value) {

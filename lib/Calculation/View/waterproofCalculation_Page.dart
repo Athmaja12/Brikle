@@ -634,8 +634,10 @@ class _ProductsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final products =
-        provider.calculationResult?.relatedProducts.admixture ?? [];
+   final related = provider.calculationResult?.relatedProducts;
+final products = related == null
+    ? <WaterproofingProduct>[]
+    : [...related.waterproofing, ...related.admixture];
     if (products.isEmpty) return const SizedBox.shrink();
 
     return Column(

@@ -3,9 +3,6 @@ import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:brikle/ProfilePage/Model/order_model.dart';
-import 'package:brikle/ProfilePage/View/reviewDialog.dart';
-import 'package:brikle/ProfilePage/View/reviewListScreen.dart';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -30,6 +27,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     super.initState();
     debugPrint('[OrderDetailScreen] initState with orderId: ${widget.orderId}');
     _loadOrderDetail();
+  }
+
+  int _selectedRating = 0;
+  final TextEditingController _commentController = TextEditingController();
+  bool _isSubmittingReview = false;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   /// There is no separate order-detail API. /api/my-orders/ already returns
@@ -71,11 +78,30 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     debugPrint('[OrderDetailScreen] Order found: ${order.id}');
     debugPrint('[OrderDetailScreen] Items count: ${order.items.length}');
 
-    // Fetch material details (for images) for each item — separate concern.
+    // Fetch material details (for images, and — critically — the real
+    // material ID) for each item. IMPORTANT: item.variant is a VARIANT id,
+    // not a material id. We pass it into getMaterialDetails() as a lookup
+    // key (this endpoint apparently accepts a variant id and returns the
+    // parent material's full record), and then read the material's own
+    // 'id' field out of the response — see _resolveMaterialId() below.
+    // Using item.variant directly as if it WERE the material id is what
+    // caused "You can only review products you have actually purchased"
+    // from the reviews endpoint.
     for (var item in order.items) {
+      debugPrint(
+        '[OrderDetailScreen] Looking up material via getMaterialDetails(item.variant=${item.variant}) '
+        'for item.id=${item.id} materialName="${item.materialName}"',
+      );
       try {
         final materialData = await ApiService.getMaterialDetails(item.variant);
         _materialDetails[item.variant] = materialData;
+        debugPrint(
+          '[OrderDetailScreen] getMaterialDetails(${item.variant}) RAW RESPONSE => $materialData',
+        );
+        debugPrint(
+          '[OrderDetailScreen] getMaterialDetails(${item.variant}) => response id field = '
+          '${materialData['id']} (this is what gets used as the "resolved" material id)',
+        );
       } catch (e) {
         debugPrint(
           '[OrderDetailScreen] Failed to fetch material ${item.variant}: $e',
@@ -87,6 +113,30 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       _order = order;
       _isLoading = false;
     });
+  }
+
+  /// Resolves the REAL material id for an order item. item.variant is a
+  /// variant id, not a material id — the material's true primary key
+  /// comes from the 'id' field of the material record fetched via
+  /// getMaterialDetails(item.variant) in _loadOrderDetail(). Falls back to
+  /// item.variant only if that lookup failed or the response has no 'id'
+  /// (better to attempt with a possibly-wrong id than crash outright).
+  int _resolveMaterialId(OrderItemModel item) {
+    final materialData = _materialDetails[item.variant];
+    final rawId = materialData?['id'];
+    final resolved = rawId is int
+        ? rawId
+        : int.tryParse(rawId?.toString() ?? '');
+    final finalId = resolved ?? item.variant;
+
+    debugPrint(
+      '[OrderDetailScreen] _resolveMaterialId(item.variant=${item.variant}) → '
+      'materialData present=${materialData != null}, rawId=$rawId, '
+      'resolved=$resolved, FINAL=$finalId '
+      '${resolved == null ? "⚠️ FELL BACK TO item.variant — likely wrong for review submission" : ""}',
+    );
+
+    return finalId;
   }
 
   @override
@@ -166,8 +216,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           _buildStatusCard(context, order),
           gap,
           _buildDeliveryCard(context, order),
-          // gap,
-          // _buildOrderItems(context, order),
+          gap,
+          _buildOrderItems(context, order),
           gap,
           _buildPriceDetails(context, order),
         ],
@@ -349,194 +399,290 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  // ── Items card ───────────────────────────────────────────────────────────
-  // Widget _buildOrderItems(BuildContext context, OrderModel order) {
-  //   return _sectionCard(
-  //     context: context,
-  //     padding: EdgeInsets.zero,
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         Padding(
-  //           padding: EdgeInsets.fromLTRB(
-  //             Responsive.space(context, 16),
-  //             Responsive.space(context, 16),
-  //             Responsive.space(context, 16),
-  //             Responsive.space(context, 8),
-  //           ),
-  //           child: _sectionTitle('Items (${order.items.length})'),
-  //         ),
-  //         ...order.items.map(
-  //           (item) => Padding(
-  //             padding: EdgeInsets.fromLTRB(
-  //               Responsive.space(context, 16),
-  //               0,
-  //               Responsive.space(context, 16),
-  //               Responsive.space(context, 12),
-  //             ),
-  //             child: _buildItemCard(context, item),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
+  // ── Items card — display only now, no per-item review actions ──────────────
+  Widget _buildOrderItems(BuildContext context, OrderModel order) {
+    return _sectionCard(
+      context: context,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              Responsive.space(context, 16),
+              Responsive.space(context, 16),
+              Responsive.space(context, 16),
+              Responsive.space(context, 8),
+            ),
+            child: _sectionTitle('Items (${order.items.length})'),
+          ),
+          ...order.items.map(
+            (item) => Padding(
+              padding: EdgeInsets.fromLTRB(
+                Responsive.space(context, 16),
+                0,
+                Responsive.space(context, 16),
+                Responsive.space(context, 12),
+              ),
+              child: _buildItemCard(context, item),
+            ),
+          ),
 
-  // Widget _buildItemCard(BuildContext context, OrderItemModel item) {
-  //   // The variant ID IS the material ID
-  //   final int materialId = item.variant;
-  //   final materialData = _materialDetails[materialId];
-  //   final String imageUrl = materialData?['image']?.toString() ?? '';
+          // ── One review section for the whole order — targets the first
+          // item only. Sits inside the same card, below the item list,
+          // separated by a divider.
+          if (order.items.isNotEmpty) ...[
+            Divider(height: 1, color: Colors.grey.shade200),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                Responsive.space(context, 16),
+                Responsive.space(context, 12),
+                Responsive.space(context, 16),
+                Responsive.space(context, 16),
+              ),
+               child: _buildReviewSection(context, order),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-  //   return Container(
-  //     decoration: BoxDecoration(
-  //       color: Colors.grey.shade50,
-  //       borderRadius: BorderRadius.circular(10),
-  //       border: Border.all(color: Colors.grey.shade200),
-  //     ),
-  //     child: Column(
-  //       children: [
-  //         Padding(
-  //           padding: const EdgeInsets.all(12),
-  //           child: Row(
-  //             children: [
-  //               Container(
-  //                 width: 56,
-  //                 height: 56,
-  //                 decoration: BoxDecoration(
-  //                   color: Colors.white,
-  //                   borderRadius: BorderRadius.circular(8),
-  //                   border: Border.all(color: Colors.grey.shade200),
-  //                 ),
-  //                 child: imageUrl.isNotEmpty
-  //                     ? ClipRRect(
-  //                         borderRadius: BorderRadius.circular(8),
-  //                         child: Image.network(
-  //                           imageUrl,
-  //                           width: 56,
-  //                           height: 56,
-  //                           fit: BoxFit.cover,
-  //                           errorBuilder: (context, error, stackTrace) {
-  //                             return const Icon(
-  //                               Icons.inventory_2_outlined,
-  //                               color: AppColors.primaryGreen,
-  //                               size: 28,
-  //                             );
-  //                           },
-  //                         ),
-  //                       )
-  //                     : const Icon(
-  //                         Icons.inventory_2_outlined,
-  //                         color: AppColors.primaryGreen,
-  //                         size: 28,
-  //                       ),
-  //               ),
-  //               const SizedBox(width: 12),
-  //               Expanded(
-  //                 child: Column(
-  //                   crossAxisAlignment: CrossAxisAlignment.start,
-  //                   children: [
-  //                     Text(
-  //                       item.materialName,
-  //                       style: GoogleFonts.manrope(
-  //                         fontSize: 14,
-  //                         fontWeight: FontWeight.w600,
-  //                         color: AppColors.inputText,
-  //                       ),
-  //                       maxLines: 2,
-  //                       overflow: TextOverflow.ellipsis,
-  //                     ),
-  //                     const SizedBox(height: 4),
-  //                     Text(
-  //                       'Qty: ${item.quantity} × ₹${item.priceAtPurchase}',
-  //                       style: GoogleFonts.manrope(
-  //                         fontSize: 12,
-  //                         color: AppColors.textGray,
-  //                       ),
-  //                     ),
-  //                   ],
-  //                 ),
-  //               ),
-  //               Text(
-  //                 '₹${item.totalPrice.toStringAsFixed(2)}',
-  //                 style: GoogleFonts.manrope(
-  //                   fontSize: 14,
-  //                   fontWeight: FontWeight.w700,
-  //                   color: AppColors.inputText,
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //         Divider(height: 1, color: Colors.grey.shade200),
-  //         Row(
-  //           children: [
-  //             Expanded(
-  //               child: TextButton.icon(
-  //                 onPressed: () {
-  //                   Get.to(
-  //                     () => ReviewListScreen(
-  //                       materialId: materialId,
-  //                       materialName: item.materialName,
-  //                     ),
-  //                     transition: Transition.rightToLeft,
-  //                   );
-  //                 },
-  //                 icon: const Icon(
-  //                   Icons.star_border_outlined,
-  //                   size: 17,
-  //                   color: AppColors.primaryGreen,
-  //                 ),
-  //                 label: Text(
-  //                   'Reviews',
-  //                   style: GoogleFonts.manrope(
-  //                     fontSize: 13,
-  //                     fontWeight: FontWeight.w600,
-  //                     color: AppColors.primaryGreen,
-  //                   ),
-  //                 ),
-  //                 style: TextButton.styleFrom(
-  //                   padding: const EdgeInsets.symmetric(vertical: 10),
-  //                 ),
-  //               ),
-  //             ),
-  //             Container(width: 1, height: 20, color: Colors.grey.shade200),
-  //             Expanded(
-  //               child: TextButton.icon(
-  //                 onPressed: () {
-  //                   Get.dialog(
-  //                     ReviewDialog(
-  //                       materialId: materialId,
-  //                       materialName: item.materialName,
-  //                     ),
-  //                     barrierDismissible: false,
-  //                   );
-  //                 },
-  //                 icon: const Icon(
-  //                   Icons.rate_review_outlined,
-  //                   size: 17,
-  //                   color: AppColors.primaryGreen,
-  //                 ),
-  //                 label: Text(
-  //                   'Write Review',
-  //                   style: GoogleFonts.manrope(
-  //                     fontSize: 13,
-  //                     fontWeight: FontWeight.w600,
-  //                     color: AppColors.primaryGreen,
-  //                   ),
-  //                 ),
-  //                 style: TextButton.styleFrom(
-  //                   padding: const EdgeInsets.symmetric(vertical: 10),
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
+  Widget _buildItemCard(BuildContext context, OrderItemModel item) {
+    final materialData = _materialDetails[item.variant];
+    final String imageUrl = materialData?['image']?.toString() ?? '';
 
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: imageUrl.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      imageUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(
+                          Icons.inventory_2_outlined,
+                          color: AppColors.primaryGreen,
+                          size: 28,
+                        );
+                      },
+                    ),
+                  )
+                : const Icon(
+                    Icons.inventory_2_outlined,
+                    color: AppColors.primaryGreen,
+                    size: 28,
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.materialName,
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.inputText,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Qty: ${item.quantity} × ₹${item.priceAtPurchase}',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '₹${item.totalPrice.toStringAsFixed(2)}',
+            style: GoogleFonts.manrope(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.inputText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Review & Rating (order-level, Flipkart-style) ─────────────────────────
+  Widget _buildReviewSection(BuildContext context, OrderModel order) {
+    // Only orders that are DELIVERED can be reviewed at all.
+    if (!order.isDelivered) return const SizedBox.shrink();
+
+    if (order.hasReview) {
+      final review = order.review!;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('Your Review'),
+          const SizedBox(height: 8),
+          _buildStaticStars(review.rating),
+          if (review.comment.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              review.comment,
+              style: GoogleFonts.manrope(
+                fontSize: 13,
+                color: AppColors.inputText,
+                height: 1.4,
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            'Reviewed on ${_formatDateTime(review.createdAt)}',
+            style: GoogleFonts.manrope(fontSize: 11, color: AppColors.textGray),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Rate & Review this Order'),
+        const SizedBox(height: 10),
+        _buildStarPicker(),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _commentController,
+          maxLines: 3,
+          style: GoogleFonts.manrope(fontSize: 13, color: AppColors.inputText),
+          decoration: InputDecoration(
+            hintText: 'Share your experience (optional)',
+            hintStyle: GoogleFonts.manrope(fontSize: 13, color: AppColors.textGray),
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            contentPadding: const EdgeInsets.all(12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isSubmittingReview ? null : () => _submitReview(order),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: _isSubmittingReview
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    'Submit Review',
+                    style: GoogleFonts.manrope(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStarPicker() {
+    return Row(
+      children: List.generate(5, (index) {
+        final starValue = index + 1;
+        return IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: Icon(
+            starValue <= _selectedRating ? Icons.star : Icons.star_border,
+            color: Colors.amber,
+            size: 32,
+          ),
+          onPressed: () => setState(() => _selectedRating = starValue),
+        );
+      }),
+    );
+  }
+
+  Widget _buildStaticStars(int rating) {
+    return Row(
+      children: List.generate(5, (index) {
+        return Icon(
+          index < rating ? Icons.star : Icons.star_border,
+          color: Colors.amber,
+          size: 18,
+        );
+      }),
+    );
+  }
+
+  Future<void> _submitReview(OrderModel order) async {
+    if (_selectedRating == 0) {
+      Get.snackbar(
+        'Rating required',
+        'Please select a star rating before submitting.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    setState(() => _isSubmittingReview = true);
+    final success = await _ctrl.submitOrderReview(
+      orderId: order.id,
+      rating: _selectedRating,
+      comment: _commentController.text.trim(),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isSubmittingReview = false;
+      if (success) {
+        _order = _ctrl.getOrderById(order.id); // pulls in the saved review
+        _commentController.clear();
+        _selectedRating = 0;
+      }
+    });
+  }
+ 
+ 
   // ── Price details card ───────────────────────────────────────────────────
   Widget _buildPriceDetails(BuildContext context, OrderModel order) {
     return _sectionCard(

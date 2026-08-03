@@ -108,6 +108,7 @@ class ProductDetailController extends GetxController {
   Future<void> _loadOffers() async {
     isLoadingOffers.value = true;
     try {
+      
       final coupons = await ApiService.getMyCoupons();
       offers.assignAll(coupons.where((c) => c.isValid));
     } catch (e) {

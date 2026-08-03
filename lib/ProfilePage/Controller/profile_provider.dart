@@ -11,7 +11,6 @@ import 'package:brikle/ProfilePage/Model/order_model.dart';
 import 'package:brikle/ProfilePage/Model/profile_model.dart';
 // Import CouponModel from address_model.dart
 import 'package:brikle/AddtoCart/Model/address_model.dart'; // <-- ADD THIS
-import 'package:brikle/ProfilePage/Model/review_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -31,11 +30,9 @@ class ProfileController extends GetxController {
   final RxList<DeliveryAddressModel> addresses = <DeliveryAddressModel>[].obs;
   final RxBool isAddressesLoading = false.obs;
   final RxBool isAddressSaving = false.obs;
+  final RxBool isSubmittingReview = false.obs;
 
-  // Reviews - NEW
-  final RxList<ReviewModel> reviews = <ReviewModel>[].obs;
-  final RxBool isReviewsLoading = false.obs;
-  final RxBool isReviewSubmitting = false.obs;
+
 
   // ── Convenience getters ────────────────────────────────────────────────────
   String get fullName => profile.value.fullName;
@@ -270,6 +267,25 @@ class ProfileController extends GetxController {
       orders.clear();
       orders.addAll(response);
       debugPrint('[ProfileController] Orders Loaded => ${orders.length}');
+
+      // DEBUG — dump every order's parsed items so we can see exactly
+      // what fields OrderItemModel captured (or silently dropped) from
+      // the raw JSON above. This is the key thing to check when reviews
+      // fail with "You can only review products you have actually
+      // purchased" — item.variant is being used as a material id lookup
+      // key, which may not be correct.
+      for (final order in orders) {
+        debugPrint(
+          '[ProfileController] Order #${order.id} status=${order.orderStatus} '
+          'materialId(order-level, likely unused/wrong)=${order.materialId}',
+        );
+        for (final item in order.items) {
+          debugPrint(
+          '[ProfileController]   item.id=${item.id} item.variant=${item.variant} '
+          'materialName="${item.materialName}" qty=${item.quantity}',
+          );
+        }
+      }
     } on ApiException catch (e) {
       debugPrint(
         '[ProfileController] fetchOrders ApiException => ${e.message}',
@@ -291,81 +307,45 @@ class ProfileController extends GetxController {
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // REVIEWS - NEW (Flipkart-style)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  Future<void> fetchReviews(int materialId) async {
-    debugPrint('[ProfileController] fetchReviews($materialId)');
-
-    isReviewsLoading.value = true;
-
-    try {
-      final List<ReviewModel> reviewList = await ApiService.getMaterialReviews(
-        materialId,
-      );
-      reviews.clear();
-      reviews.addAll(reviewList);
-      debugPrint('[ProfileController] Reviews Loaded => ${reviews.length}');
-    } on ApiException catch (e) {
-      debugPrint(
-        '[ProfileController] fetchReviews ApiException => ${e.message}',
-      );
-      Get.snackbar('Error', e.message);
-    } catch (e) {
-      debugPrint('[ProfileController] fetchReviews unexpected => $e');
-      Get.snackbar('Error', 'Failed to load reviews.');
-    } finally {
-      isReviewsLoading.value = false;
-    }
-  }
-
-  Future<bool> submitReview({
-    required int materialId,
+  Future<bool> submitOrderReview({
+    required int orderId,
     required int rating,
     required String comment,
   }) async {
-    debugPrint(
-      '[ProfileController] submitReview(materialId: $materialId, rating: $rating)',
-    );
-
-    isReviewSubmitting.value = true;
-
+    debugPrint('[ProfileController] submitOrderReview($orderId, rating: $rating)');
+    isSubmittingReview.value = true;
     try {
-      final ReviewResponseModel response = await ApiService.postMaterialReview(
-        materialId: materialId,
+      final result = await ApiService.postOrderReview(
+        orderId: orderId,
         rating: rating,
         comment: comment,
       );
 
-      if (response.success) {
-        // Re-fetch from GET /api/materials/{id}/reviews/ so what the user
-        // sees always matches the server, rather than trusting the local
-        // POST response shape.
-        await fetchReviews(materialId);
-        _showStatusSnackbar(response.message);
+      if (result.success && result.review != null) {
+        final index = orders.indexWhere((o) => o.id == orderId);
+        if (index != -1) {
+          orders[index].review = result.review;
+          orders.refresh(); // trigger Obx rebuild on the order list screen
+        }
+        _showStatusSnackbar('Review submitted successfully');
         return true;
       } else {
-        _showStatusSnackbar(response.message, isError: true);
+        _showStatusSnackbar(result.message, isError: true);
         return false;
       }
-    } on ApiException catch (e) {
-      debugPrint(
-        '[ProfileController] submitReview ApiException => ${e.message}',
-      );
-      _showStatusSnackbar(e.message, isError: true);
-      return false;
     } catch (e) {
-      debugPrint('[ProfileController] submitReview unexpected => $e');
+      debugPrint('[ProfileController] submitOrderReview unexpected => $e');
       _showStatusSnackbar(
         'Failed to submit review. Please try again.',
         isError: true,
       );
       return false;
     } finally {
-      isReviewSubmitting.value = false;
+      isSubmittingReview.value = false;
     }
   }
+
+ 
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   Future<bool> _confirm({

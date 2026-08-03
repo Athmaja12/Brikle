@@ -193,12 +193,9 @@ class ApiConfig {
 
   static String get myOrdersUrl => '$baseUrl/api/my-orders/';
 
-  // ==========================================================================
-  // REVIEWS & RATINGS
-  // ==========================================================================
-
-  static String materialReviewsUrl(int materialId) =>
-      '$baseUrl/api/materials/$materialId/reviews/';
+  /// Order-level review & rating (Flipkart-style — one review per order)
+  static String orderReviewUrl(int orderId) =>
+      '$baseUrl/api/orders/$orderId/review/';
 }
 
 /// Custom API Exception

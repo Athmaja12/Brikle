@@ -186,6 +186,30 @@ class _OrderListScreenState extends State<OrderListScreen> {
           ),
           SizedBox(height: Responsive.space(context, 10)),
           ...order.items.map((item) => _buildItemRow(context, order, item)),
+           if (order.hasReview) ...[
+            SizedBox(height: Responsive.space(context, 8)),
+            Row(
+              children: [
+                ...List.generate(5, (index) {
+                  return Icon(
+                    index < order.review!.rating
+                        ? Icons.star
+                        : Icons.star_border,
+                    color: Colors.amber,
+                    size: 14,
+                  );
+                }),
+                const SizedBox(width: 6),
+                Text(
+                  'Your rating',
+                  style: GoogleFonts.manrope(
+                    fontSize: 11,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

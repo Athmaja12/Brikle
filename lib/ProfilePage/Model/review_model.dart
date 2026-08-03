@@ -82,7 +82,7 @@ class ReviewResponseModel {
         review: null,
       );
     }
-    
+
     // Success response (single review object)
     if (json is Map<String, dynamic>) {
       // Check if it has an 'id' field (successful review)
@@ -93,7 +93,7 @@ class ReviewResponseModel {
           review: ReviewModel.fromJson(json),
         );
       }
-      
+
       // Check if it has an error message
       if (json.containsKey('error')) {
         return ReviewResponseModel(
@@ -102,7 +102,7 @@ class ReviewResponseModel {
           review: null,
         );
       }
-      
+
       if (json.containsKey('detail')) {
         return ReviewResponseModel(
           success: false,
@@ -111,7 +111,7 @@ class ReviewResponseModel {
         );
       }
     }
-    
+
     // Unknown response
     return ReviewResponseModel(
       success: false,
