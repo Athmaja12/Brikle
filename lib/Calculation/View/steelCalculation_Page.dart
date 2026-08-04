@@ -4,6 +4,7 @@ import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Calculation/Controller/steelCalculation_provider.dart';
 import 'package:brikle/Calculation/Model/steelCalculation_model.dart';
+import 'package:brikle/Calculation/product_Card.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -80,6 +81,10 @@ class _SteelCalculatorViewState extends State<_SteelCalculatorView> {
                   const SizedBox(height: 16),
                 ],
 
+                if (provider.similarProducts.isNotEmpty) ...[
+                  _RelatedProductsSection(provider: provider),
+                  const SizedBox(height: 16),
+                ],
                 // ─── Error Message ──────────────────────────────────────
                 if (provider.state == SteelLoadState.error &&
                     provider.estimate != null)
@@ -496,6 +501,54 @@ class _EstimateCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+// ─── Related Products Section ───────────────────────────────────────────────
+
+class _RelatedProductsSection extends StatelessWidget {
+  final SteelCalculatorProvider provider;
+  const _RelatedProductsSection({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = provider.similarProducts;
+    debugPrint(
+      '[SteelRelatedProductsSection] rendering ${items.length} card(s)',
+    );
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Similar Products',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 300,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SharedProductCard(
+                title: item.productName,
+                subtitle: item.unitStyle,
+                priceText: item.pricePerUnit,
+                imageUrl: item.imageUrl,
+                isImageLoading: item.imageLoading,
+                variantId: item.variantId,
+                placeholderIcon: Icons.construction,
+                inStock: item.inStock,
+                stockLabel: item.stockStatus,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

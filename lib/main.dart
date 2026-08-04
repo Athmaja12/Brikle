@@ -21,6 +21,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
+import 'package:upgrader/upgrader.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +46,15 @@ class MyApp extends StatelessWidget {
       title: 'Brikle',
       debugShowCheckedModeBanner: false,
       initialRoute: '/splash',
+        builder: (context, child) {
+        return UpgradeAlert(
+          upgrader: Upgrader(
+            durationUntilAlertAgain: const Duration(days: 3),
+            debugLogging: false,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       getPages: [
         // ─── Auth & Onboarding ──────────────────────────────────────────
         GetPage(name: '/splash', page: () => const SplashView()),

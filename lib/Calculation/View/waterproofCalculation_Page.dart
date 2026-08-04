@@ -4,6 +4,7 @@ import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Calculation/Controller/waterproofCalculation_provider.dart';
 import 'package:brikle/Calculation/Model/waterproofCalculation_model.dart';
+import 'package:brikle/Calculation/product_Card.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -624,9 +625,7 @@ class _EstimateCard extends StatelessWidget {
 
 // ─── Products Section ──────────────────────────────────────────────────────
 
-// lib/Calculation/View/waterproofing_calculator_page.dart
-
-// Update the _ProductsSection class:
+// ─── Products Section ──────────────────────────────────────────────────────
 
 class _ProductsSection extends StatelessWidget {
   final WaterproofingCalculatorProvider provider;
@@ -634,10 +633,14 @@ class _ProductsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-   final related = provider.calculationResult?.relatedProducts;
-final products = related == null
-    ? <WaterproofingProduct>[]
-    : [...related.waterproofing, ...related.admixture];
+    final related = provider.calculationResult?.relatedProducts;
+    final products = related == null
+        ? <WaterproofingProduct>[]
+        : [...related.waterproofing, ...related.admixture];
+
+    debugPrint(
+      '[WaterproofingProductsSection] rendering ${products.length} card(s)',
+    );
     if (products.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -649,15 +652,23 @@ final products = related == null
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 260, // Reduced from 280 to fit content
+          height: 300,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: products.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
-              return _ProductVariantCard(
-                product: products[index],
-                provider: provider,
+              final product = products[index];
+              return SharedProductCard(
+                title: product.name,
+                subtitle: product.quantityDisplay,
+                priceText: product.priceDisplay,
+                imageUrl: provider.getProductImage(product.materialId),
+                isImageLoading: provider.isLoadingImages,
+                variantId: product.variantId,
+                placeholderIcon: Icons.water_drop,
+                // No stock field in this API — treat as always available.
+                inStock: true,
               );
             },
           ),
@@ -667,211 +678,211 @@ final products = related == null
   }
 }
 
-// ─── Product Variant Card ──────────────────────────────────────────────────
+// // ─── Product Variant Card ──────────────────────────────────────────────────
 
-// lib/Calculation/View/waterproofing_calculator_page.dart
+// // lib/Calculation/View/waterproofing_calculator_page.dart
 
-// Replace the _ProductVariantCard class with this updated version:
+// // Replace the _ProductVariantCard class with this updated version:
 
-class _ProductVariantCard extends StatelessWidget {
-  final WaterproofingProduct product;
-  final WaterproofingCalculatorProvider provider;
+// class _ProductVariantCard extends StatelessWidget {
+//   final WaterproofingProduct product;
+//   final WaterproofingCalculatorProvider provider;
 
-  static const double _cardWidth = 170;
+//   static const double _cardWidth = 170;
 
-  const _ProductVariantCard({required this.product, required this.provider});
+//   const _ProductVariantCard({required this.product, required this.provider});
 
-  bool get _inStock => true;
+//   bool get _inStock => true;
 
-  Future<void> _handleAddToCart(BuildContext context) async {
-    final success = await provider.addVariantToCart(product.variantId);
-    if (!context.mounted) return;
+//   Future<void> _handleAddToCart(BuildContext context) async {
+//     final success = await provider.addVariantToCart(product.variantId);
+//     if (!context.mounted) return;
 
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not add to cart: ${provider.errorMessage}'),
-        ),
-      );
-      return;
-    }
+//     if (!success) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text('Could not add to cart: ${provider.errorMessage}'),
+//         ),
+//       );
+//       return;
+//     }
 
-    try {
-      final cartController = Get.find<CartController>();
-      await cartController.fetchCart(showLoader: false);
-    } catch (_) {}
+//     try {
+//       final cartController = Get.find<CartController>();
+//       await cartController.fetchCart(showLoader: false);
+//     } catch (_) {}
 
-    Get.snackbar(
-      'Added to cart',
-      '${product.name} added successfully',
-      backgroundColor: const Color(0xFF2E7D32),
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 1),
-    );
+//     Get.snackbar(
+//       'Added to cart',
+//       '${product.name} added successfully',
+//       backgroundColor: const Color(0xFF2E7D32),
+//       colorText: Colors.white,
+//       snackPosition: SnackPosition.BOTTOM,
+//       duration: const Duration(seconds: 1),
+//     );
 
-    if (!context.mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 3)),
-      (route) => false,
-    );
-  }
+//     if (!context.mounted) return;
+//     Navigator.pushAndRemoveUntil(
+//       context,
+//       MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 3)),
+//       (route) => false,
+//     );
+//   }
 
-  Widget _buildThumbnail() {
-    final imageUrl = provider.getProductImage(product.materialId);
+//   Widget _buildThumbnail() {
+//     final imageUrl = provider.getProductImage(product.materialId);
 
-    return Container(
-      width: double.infinity,
-      height: 100, // Fixed height instead of AspectRatio
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFEFEFEF)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: imageUrl != null && imageUrl.isNotEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(8),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(
-                    child: SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.water_drop, size: 32, color: Colors.grey),
-              ),
-            )
-          : provider.isLoadingImages
-          ? const Center(
-              child: SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          : Center(
-              child: Icon(Icons.water_drop, size: 40, color: Colors.grey[400]),
-            ),
-    );
-  }
+//     return Container(
+//       width: double.infinity,
+//       height: 100, // Fixed height instead of AspectRatio
+//       decoration: BoxDecoration(
+//         color: Colors.white,
+//         borderRadius: BorderRadius.circular(10),
+//         border: Border.all(color: const Color(0xFFEFEFEF)),
+//       ),
+//       clipBehavior: Clip.antiAlias,
+//       child: imageUrl != null && imageUrl.isNotEmpty
+//           ? Padding(
+//               padding: const EdgeInsets.all(8),
+//               child: Image.network(
+//                 imageUrl,
+//                 fit: BoxFit.contain,
+//                 loadingBuilder: (context, child, progress) {
+//                   if (progress == null) return child;
+//                   return const Center(
+//                     child: SizedBox(
+//                       height: 20,
+//                       width: 20,
+//                       child: CircularProgressIndicator(strokeWidth: 2),
+//                     ),
+//                   );
+//                 },
+//                 errorBuilder: (context, error, stackTrace) =>
+//                     const Icon(Icons.water_drop, size: 32, color: Colors.grey),
+//               ),
+//             )
+//           : provider.isLoadingImages
+//           ? const Center(
+//               child: SizedBox(
+//                 height: 20,
+//                 width: 20,
+//                 child: CircularProgressIndicator(strokeWidth: 2),
+//               ),
+//             )
+//           : Center(
+//               child: Icon(Icons.water_drop, size: 40, color: Colors.grey[400]),
+//             ),
+//     );
+//   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isAdding = provider.addingToCartVariantIds.contains(
-      product.variantId,
-    );
+//   @override
+//   Widget build(BuildContext context) {
+//     final isAdding = provider.addingToCartVariantIds.contains(
+//       product.variantId,
+//     );
 
-    return Container(
-      width: _cardWidth,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEFEFEF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ─── Product Image ──────────────────────────────────────────
-          _buildThumbnail(),
-          const SizedBox(height: 8),
+//     return Container(
+//       width: _cardWidth,
+//       padding: const EdgeInsets.all(12),
+//       decoration: BoxDecoration(
+//         color: Colors.white,
+//         borderRadius: BorderRadius.circular(14),
+//         border: Border.all(color: const Color(0xFFEFEFEF)),
+//       ),
+//       child: Column(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         mainAxisSize: MainAxisSize.min,
+//         children: [
+//           // ─── Product Image ──────────────────────────────────────────
+//           _buildThumbnail(),
+//           const SizedBox(height: 8),
 
-          // ─── Product Name ───────────────────────────────────────────
-          Text(
-            product.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 2),
+//           // ─── Product Name ───────────────────────────────────────────
+//           Text(
+//             product.name,
+//             maxLines: 2,
+//             overflow: TextOverflow.ellipsis,
+//             style: const TextStyle(
+//               fontSize: 12,
+//               fontWeight: FontWeight.w600,
+//               height: 1.3,
+//             ),
+//           ),
+//           const SizedBox(height: 2),
 
-          // ─── Packs Needed ───────────────────────────────────────────
-          Text(
-            '${product.packsNeeded} needed',
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 4),
+//           // ─── Packs Needed ───────────────────────────────────────────
+//           Text(
+//             '${product.packsNeeded} needed',
+//             style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+//           ),
+//           const SizedBox(height: 4),
 
-          // ─── Price & Packs ──────────────────────────────────────────
-          Row(
-            children: [
-              Text(
-                '₹${product.pricePerPack.toStringAsFixed(0)}/pack',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '${product.rawPacks} packs',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2E7D32),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+//           // ─── Price & Packs ──────────────────────────────────────────
+//           Row(
+//             children: [
+//               Text(
+//                 '₹${product.pricePerPack.toStringAsFixed(0)}/pack',
+//                 style: const TextStyle(
+//                   fontSize: 13,
+//                   fontWeight: FontWeight.bold,
+//                 ),
+//               ),
+//               const SizedBox(width: 4),
+//               Container(
+//                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+//                 decoration: BoxDecoration(
+//                   color: const Color(0xFFE8F5E9),
+//                   borderRadius: BorderRadius.circular(4),
+//                 ),
+//                 child: Text(
+//                   '${product.rawPacks} packs',
+//                   style: const TextStyle(
+//                     fontSize: 9,
+//                     fontWeight: FontWeight.w600,
+//                     color: Color(0xFF2E7D32),
+//                   ),
+//                 ),
+//               ),
+//             ],
+//           ),
+//           const SizedBox(height: 8),
 
-          // ─── Add to Cart Button ────────────────────────────────────
-          SizedBox(
-            width: double.infinity,
-            height: 32,
-            child: ElevatedButton(
-              onPressed: isAdding ? null : () => _handleAddToCart(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey[300],
-                elevation: 0,
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: isAdding
-                  ? const SizedBox(
-                      height: 14,
-                      width: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text(
-                      'Add to Cart',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//           // ─── Add to Cart Button ────────────────────────────────────
+//           SizedBox(
+//             width: double.infinity,
+//             height: 32,
+//             child: ElevatedButton(
+//               onPressed: isAdding ? null : () => _handleAddToCart(context),
+//               style: ElevatedButton.styleFrom(
+//                 backgroundColor: const Color(0xFF2E7D32),
+//                 foregroundColor: Colors.white,
+//                 disabledBackgroundColor: Colors.grey[300],
+//                 elevation: 0,
+//                 padding: EdgeInsets.zero,
+//                 shape: RoundedRectangleBorder(
+//                   borderRadius: BorderRadius.circular(20),
+//                 ),
+//               ),
+//               child: isAdding
+//                   ? const SizedBox(
+//                       height: 14,
+//                       width: 14,
+//                       child: CircularProgressIndicator(
+//                         strokeWidth: 2,
+//                         color: Colors.white,
+//                       ),
+//                     )
+//                   : const Text(
+//                       'Add to Cart',
+//                       style: TextStyle(
+//                         fontSize: 12,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }

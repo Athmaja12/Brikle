@@ -1,8 +1,8 @@
-
 // lib/Calculation/Controller/steel_calculator_provider.dart
 
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/Calculation/Model/steelCalculation_model.dart';
+import 'package:brikle/Product/Model/productdetails_model.dart';
 import 'package:flutter/material.dart';
 
 enum SteelLoadState { idle, ready, calculating, error }
@@ -10,7 +10,7 @@ enum SteelLoadState { idle, ready, calculating, error }
 class SteelCalculatorProvider extends ChangeNotifier {
   SteelLoadState state = SteelLoadState.idle;
   SteelEstimate? estimate;
-  List<dynamic> similarProducts = [];
+  List<SimilarSteelProduct> similarProducts = []; // ← was List<dynamic>
   String errorMessage = '';
 
   // Controllers
@@ -113,11 +113,70 @@ class SteelCalculatorProvider extends ChangeNotifier {
       estimate = result.estimate;
       similarProducts = result.similarProducts;
       state = SteelLoadState.ready;
+
+      // 🔎 DEBUG — confirm similar_products parsed correctly
+      debugPrint(
+        '[SteelCalculator] calculate() success. similarProducts=${similarProducts.length}',
+      );
+      for (final p in similarProducts) {
+        debugPrint(
+          '[SteelCalculator]   product -> materialId=${p.materialId}, '
+          'variantId=${p.variantId}, name="${p.productName}", '
+          'unitStyle=${p.unitStyle}, price=${p.pricePerUnit}, '
+          'stock=${p.stock}, stockStatus="${p.stockStatus}"',
+        );
+      }
     } catch (e) {
       errorMessage = e.toString();
       state = SteelLoadState.error;
+      debugPrint('[SteelCalculator] calculate() FAILED: $e');
     }
     notifyListeners();
+
+    if (state == SteelLoadState.ready) {
+      _loadSimilarProductImages(); // fire-and-forget
+    }
+  }
+
+  // ─── Related Product Images ─────────────────────────────────────────
+
+  Future<void> _loadSimilarProductImages() async {
+    debugPrint(
+      '[SteelCalculator] _loadSimilarProductImages: ${similarProducts.length} item(s) to fetch',
+    );
+    if (similarProducts.isEmpty) return;
+
+    for (final product in similarProducts) {
+      product.imageLoading = true;
+    }
+    notifyListeners();
+
+    for (final product in similarProducts) {
+      try {
+        debugPrint(
+          '[SteelCalculator]   fetching material detail for materialId=${product.materialId} (${product.productName})',
+        );
+        final json = await ApiService.getMaterialDetails(product.materialId);
+        final detail = MaterialDetail.fromJson(json);
+        product.imageUrl = detail.masterImage;
+        debugPrint(
+          '[SteelCalculator]   -> resolved image for materialId=${product.materialId}: "${product.imageUrl}"',
+        );
+        if (product.imageUrl == null || product.imageUrl!.isEmpty) {
+          debugPrint(
+            '[SteelCalculator]   ⚠️ empty master_image for materialId=${product.materialId}',
+          );
+        }
+      } catch (e) {
+        product.imageUrl = null;
+        debugPrint(
+          '[SteelCalculator]   ⚠️ FAILED to fetch material ${product.materialId}: $e',
+        );
+      } finally {
+        product.imageLoading = false;
+        notifyListeners();
+      }
+    }
   }
 
   // ─── Cart Methods ──────────────────────────────────────────────────────

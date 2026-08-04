@@ -1,35 +1,68 @@
 // lib/Calculation/Model/waterproofing_calculator_model.dart
 
 // ─── Product Model ──────────────────────────────────────────────────────────
+// Field names below match the actual terrace-waterproofing response.
+// Other waterproofing types (bathroom/tank/wall/lw) currently return empty
+// related_products arrays, so their exact shape is unconfirmed — every
+// field here is nullable so parsing won't break if a different shape
+// shows up later; add fields as new samples come in.
 
 class WaterproofingProduct {
   final int materialId;
   final int variantId;
   final String name;
-  final String packsNeeded;
-  final double pricePerPack;
-  final int totalCost;
-  final int rawPacks;
+  final double? coveragePerLitreUsed;
+  final String? materialRequiredLitres;
+  final String? bucketsNeeded;
+  final double? pricePerLitre;
+  final double? pricePerBucket;
+  final num? totalCostForEstimatedBuckets;
+
+  // Populated later via a separate materials-detail call — not in the
+  // waterproofing-calculator response itself.
+  String? imageUrl;
+  bool imageLoading;
 
   WaterproofingProduct({
     required this.materialId,
     required this.variantId,
     required this.name,
-    required this.packsNeeded,
-    required this.pricePerPack,
-    required this.totalCost,
-    required this.rawPacks,
+    this.coveragePerLitreUsed,
+    this.materialRequiredLitres,
+    this.bucketsNeeded,
+    this.pricePerLitre,
+    this.pricePerBucket,
+    this.totalCostForEstimatedBuckets,
+    this.imageUrl,
+    this.imageLoading = false,
   });
+
+  /// Best available per-unit price text for the card, since different
+  /// waterproofing types may report price differently (per litre vs
+  /// per bucket vs per pack).
+  String get priceDisplay {
+    if (pricePerBucket != null) {
+      return '₹${pricePerBucket!.toStringAsFixed(0)}/bucket';
+    }
+    if (pricePerLitre != null) {
+      return '₹${pricePerLitre!.toStringAsFixed(2)}/litre';
+    }
+    return 'Price unavailable';
+  }
+
+  String get quantityDisplay => bucketsNeeded ?? materialRequiredLitres ?? '';
 
   factory WaterproofingProduct.fromJson(Map<String, dynamic> json) {
     return WaterproofingProduct(
       materialId: json['material_id'] ?? 0,
       variantId: json['variant_id'] ?? 0,
-      name: json['name'] ?? '',
-      packsNeeded: json['packs_needed'] ?? '',
-      pricePerPack: json['price_per_pack']?.toDouble() ?? 0.0,
-      totalCost: json['total_cost'] ?? 0,
-      rawPacks: json['raw_packs'] ?? 0,
+      name: json['name']?.toString() ?? '',
+      coveragePerLitreUsed: (json['coverage_per_litre_used'] as num?)?.toDouble(),
+      materialRequiredLitres: json['material_required_litres']?.toString(),
+      bucketsNeeded: json['buckets_needed']?.toString(),
+      pricePerLitre: (json['price_per_litre'] as num?)?.toDouble(),
+      pricePerBucket: (json['price_per_bucket'] as num?)?.toDouble(),
+      totalCostForEstimatedBuckets: json['total_cost_for_estimated_buckets'] as num?,
     );
   }
 }

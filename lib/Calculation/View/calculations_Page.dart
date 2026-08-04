@@ -318,9 +318,6 @@ class _EstimateCard extends StatelessWidget {
   }
 }
 
-/// Renders "Available variants in DB" as fixed-width, horizontally
-/// scrollable product cards (170px wide) — this fixes the earlier bug
-/// where a card was stretching to the full screen width.
 class _SuggestedProductsSection extends StatelessWidget {
   final PaintCalculatorProvider provider;
   const _SuggestedProductsSection({required this.provider});
@@ -339,20 +336,24 @@ class _SuggestedProductsSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          // Card content is ~268px tall (144 image + text rows + button) —
-          // plus the card's own 12px top/bottom padding (24px total).
-          // Previous value (268) didn't leave room for that padding, which
-          // is what caused the bottom overflow.
           height: 300,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: variants.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
-              return ProductVariantCard(
-                variant: variants[index],
-                productName: provider.estimate!.product,
-                provider: provider,
+              final v = variants[index];
+              final inStock = v.stockStatus.toLowerCase().contains('in stock');
+              return SharedProductCard(
+                title: provider.estimate!.product,
+                subtitle: v.packSize,
+                priceText: v.price,
+                imageUrl: provider.productImageUrl,
+                isImageLoading: provider.isLoadingImage,
+                variantId: v.variantId,
+                placeholderIcon: Icons.format_paint,
+                inStock: inStock,
+                stockLabel: v.stockStatus,
               );
             },
           ),

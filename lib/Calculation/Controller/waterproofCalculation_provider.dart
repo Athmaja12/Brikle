@@ -2,6 +2,7 @@
 
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/Calculation/Model/waterproofCalculation_model.dart';
+import 'package:brikle/Product/Model/productdetails_model.dart';
 import 'package:flutter/material.dart';
 
 enum WaterproofingType { terrace, bathroom, tank, wall, liquidWaterproofing }
@@ -133,6 +134,21 @@ class WaterproofingCalculatorProvider extends ChangeNotifier {
           break;
       }
       state = WaterproofingLoadState.ready;
+
+      // 🔎 DEBUG — confirm related_products actually parsed
+      final related = calculationResult?.relatedProducts;
+      debugPrint(
+        '[Waterproofing] calculate() success for $currentType. '
+        'waterproofing=${related?.waterproofing.length ?? 0}, '
+        'admixture=${related?.admixture.length ?? 0}',
+      );
+      for (final p in related?.waterproofing ?? []) {
+        debugPrint(
+          '[Waterproofing]   product -> materialId=${p.materialId}, '
+          'variantId=${p.variantId}, name="${p.name}", '
+          'pricePerBucket=${p.pricePerBucket}, pricePerLitre=${p.pricePerLitre}',
+        );
+      }
       notifyListeners();
 
       // Load product images after calculation
@@ -140,6 +156,7 @@ class WaterproofingCalculatorProvider extends ChangeNotifier {
     } catch (e) {
       errorMessage = e.toString();
       state = WaterproofingLoadState.error;
+      debugPrint('[Waterproofing] calculate() FAILED: $e');
       notifyListeners();
     }
   }
@@ -150,6 +167,9 @@ class WaterproofingCalculatorProvider extends ChangeNotifier {
     if (calculationResult == null) return;
 
     final products = _getAllProducts();
+    debugPrint(
+      '[Waterproofing] _loadProductImages: ${products.length} item(s) to fetch',
+    );
     if (products.isEmpty) return;
 
     _loadingImages = true;
@@ -158,13 +178,30 @@ class WaterproofingCalculatorProvider extends ChangeNotifier {
     for (final product in products) {
       if (!_productImages.containsKey(product.materialId)) {
         try {
-          final details = await ApiService.getMaterialDetails(
-            product.materialId,
+          debugPrint(
+            '[Waterproofing]   fetching material detail for materialId=${product.materialId} (${product.name})',
           );
-          _productImages[product.materialId] =
-              details['master_image'] as String?;
-        } catch (_) {
+          final json = await ApiService.getMaterialDetails(product.materialId);
+          // ⚠️ FIX — was reading json['master_image'] directly, which is a
+          // relative path and doesn't render. MaterialDetail.fromJson runs
+          // it through _fullImageUrl() to prepend the base URL, same as
+          // the block and steel calculators do.
+          final detail = MaterialDetail.fromJson(json);
+          _productImages[product.materialId] = detail.masterImage;
+          debugPrint(
+            '[Waterproofing]   -> resolved image for materialId=${product.materialId}: '
+            '"${detail.masterImage}"',
+          );
+          if (detail.masterImage.isEmpty) {
+            debugPrint(
+              '[Waterproofing]   ⚠️ empty master_image for materialId=${product.materialId}',
+            );
+          }
+        } catch (e) {
           _productImages[product.materialId] = null;
+          debugPrint(
+            '[Waterproofing]   ⚠️ FAILED to fetch material ${product.materialId}: $e',
+          );
         }
       }
     }

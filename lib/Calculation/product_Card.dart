@@ -1,71 +1,58 @@
-// Replacement for `_ProductVariantCard` in paint_calculator_screen.dart
+// lib/Calculation/product_Card.dart
 //
-// WHAT CHANGED AND WHY
-// ─────────────────────
-// 1. Bug: "suggested products can't see the increment button"
-//    The old card only ever rendered a static "Add to Cart" / "Out of
-//    Stock" button (or a spinner while adding). There was no branch that
-//    checked whether the variant was already in the cart, so a +/-
-//    stepper could never appear — the UI had no state for it.
+// Single reusable product card used by every calculator's "related /
+// suggested products" row (paint, block, and any future calculator).
 //
-//    Fix: wrap the button area in an Obx that reads CartController
-//    (the same GetX controller SharedProductCard already uses) and
-//    looks up this variant's quantity via `firstWhereOrNull`. If
-//    quantity == 0 -> show "Add to Cart"; if quantity > 0 -> show a
-//    stepper row (-, qty, +), matching the pattern in SharedProductCard.
-//
-// 2. Bug: "click Add to Cart goes directly to cart page"
-//    The old _handleAddToCart() unconditionally called
-//    Navigator.pushAndRemoveUntil(...MainScreen(initialIndex: 3)...)
-//    after every successful add — wiping the nav stack and jumping to
-//    the Cart tab every single time, regardless of what the user
-//    wanted to do next (e.g. add another variant, or bump quantity).
-//
-//    Fix: removed the forced navigation entirely. Adding to cart now
-//    just updates local state (via CartController, which is already
-//    reactive) and shows a snackbar — the user stays on the Calculate
-//    page and can keep adjusting quantity or browsing other variants.
+// Design notes:
+// - Takes plain fields (title, subtitle, priceText, imageUrl, variantId,
+//   inStock) instead of a calculator-specific model, so it has no
+//   knowledge of PaintVariant or RelatedBlockProduct. Each screen maps
+//   its own model to these fields at the call site.
+// - Image loading state is passed in per-card (isImageLoading) rather
+//   than read from a single provider field, because some calculators
+//   (block) show multiple products with independent image loads, while
+//   others (paint) show variants of one product sharing one image.
+// - Cart interaction (Add to Cart / stepper) is self-contained here via
+//   CartController, identical logic for every calculator.
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
-import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
-import 'package:brikle/Calculation/Controller/productCalculation_provider.dart';
-import 'package:brikle/Calculation/Model/productCalculator_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class ProductVariantCard extends StatelessWidget {
-  final PaintVariant variant;
-  final String productName;
-  final PaintCalculatorProvider provider;
+class SharedProductCard extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final String priceText;
+  final String? imageUrl;
+  final bool isImageLoading;
+  final IconData placeholderIcon;
+  final int variantId;
+  final bool inStock;
+  final String? stockLabel;
 
   static const double cardWidth = 170;
 
-  const ProductVariantCard({
+  const SharedProductCard({
     super.key,
-    required this.variant,
-    required this.productName,
-    required this.provider,
+    required this.title,
+    this.subtitle,
+    required this.priceText,
+    required this.imageUrl,
+    required this.isImageLoading,
+    required this.variantId,
+    this.placeholderIcon = Icons.shopping_bag_outlined,
+    this.inStock = true,
+    this.stockLabel,
   });
 
-  bool get _inStock => variant.stockStatus.toLowerCase().contains('in stock');
-
-  // Adds the item to cart. No navigation here anymore — the card's own
-  // Obx (driven by CartController.cartItems) will flip from the button
-  // to the stepper automatically once the cart updates.
   Future<void> _handleAddToCart(BuildContext context) async {
     final cartController = Get.find<CartController>();
-    await cartController.addToCart(
-      variantId: variant.variantId,
-      quantity: 1,
-    );
-    // addToCart() already calls fetchCart() internally and shows its own
-    // "Added to Cart" snackbar (see addtocart_provider.dart), so nothing
-    // else is needed here — the Obx below reacts to cartItems changing.
+    await cartController.addToCart(variantId: variantId, quantity: 1);
+    // addToCart() calls fetchCart() and shows its own snackbar
+    // (see addtocart_provider.dart) — the Obx below reacts automatically.
   }
 
   Widget _buildThumbnail() {
-    final imageUrl = provider.productImageUrl;
-
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
@@ -76,11 +63,11 @@ class ProductVariantCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFEFEFEF)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: imageUrl != null && imageUrl.isNotEmpty
+        child: (imageUrl != null && imageUrl!.isNotEmpty)
             ? Padding(
                 padding: const EdgeInsets.all(8),
                 child: Image.network(
-                  imageUrl,
+                  imageUrl!,
                   fit: BoxFit.contain,
                   loadingBuilder: (context, child, progress) {
                     if (progress == null) return child;
@@ -92,24 +79,25 @@ class ProductVariantCard extends StatelessWidget {
                       ),
                     );
                   },
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.format_paint,
-                    size: 32,
-                    color: Colors.grey,
+                  errorBuilder: (context, error, stackTrace) {
+                    debugPrint(
+                      '[SharedProductCard] ⚠️ Image.network failed: $imageUrl',
+                    );
+                    return Icon(placeholderIcon, size: 32, color: Colors.grey);
+                  },
+                ),
+              )
+            : isImageLoading
+                ? const Center(
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : Center(
+                    child: Icon(placeholderIcon, size: 32, color: Colors.grey),
                   ),
-                ),
-              )
-            : provider.isLoadingImage
-            ? const Center(
-                child: SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : const Center(
-                child: Icon(Icons.format_paint, size: 32, color: Colors.grey),
-              ),
       ),
     );
   }
@@ -133,7 +121,7 @@ class ProductVariantCard extends StatelessWidget {
           _buildThumbnail(),
           const SizedBox(height: 8),
           Text(
-            productName,
+            title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -142,35 +130,34 @@ class ProductVariantCard extends StatelessWidget {
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            variant.packSize,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          ),
+          if (subtitle != null && subtitle!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ],
           const SizedBox(height: 4),
           Row(
             children: [
               Text(
-                variant.price,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                priceText,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  variant.stockStatus,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _inStock
-                        ? const Color(0xFF2E7D32)
-                        : Colors.orange[800],
+              if (stockLabel != null) ...[
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    stockLabel!,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: inStock ? const Color(0xFF2E7D32) : Colors.orange[800],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -178,7 +165,7 @@ class ProductVariantCard extends StatelessWidget {
           // ── Add to Cart button OR +/- stepper, driven by cart state ──
           Obx(() {
             final cartItem = cartController.cartItems.firstWhereOrNull(
-              (i) => i.variantId == variant.variantId,
+              (i) => i.variantId == variantId,
             );
             final quantity = cartItem?.quantity ?? 0;
 
@@ -187,9 +174,7 @@ class ProductVariantCard extends StatelessWidget {
                 width: double.infinity,
                 height: 34,
                 child: ElevatedButton(
-                  onPressed: !_inStock
-                      ? null
-                      : () => _handleAddToCart(context),
+                  onPressed: !inStock ? null : () => _handleAddToCart(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
                     foregroundColor: Colors.white,
@@ -201,17 +186,13 @@ class ProductVariantCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    _inStock ? 'Add to Cart' : 'Out of Stock',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    inStock ? 'Add to Cart' : 'Out of Stock',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
               );
             }
 
-            // In cart — show stepper instead of the button.
             return Container(
               width: double.infinity,
               height: 34,

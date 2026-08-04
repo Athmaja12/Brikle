@@ -679,7 +679,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _commentController.clear();
         _selectedRating = 0;
       }
-    });
+    }); 
   }
  
  

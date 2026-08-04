@@ -1,11 +1,8 @@
 // lib/Calculation/View/block_calculator_page.dart
-
-import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
-import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Calculation/Controller/blockCalculation_provider.dart';
 import 'package:brikle/Calculation/Model/blockCalculation_model.dart';
+import 'package:brikle/Calculation/product_Card.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 class BlockCalculatorPage extends StatelessWidget {
@@ -60,6 +57,14 @@ class _BlockCalculatorView extends StatelessWidget {
             );
           }
 
+          // 🔎 DEBUG — confirms, on every rebuild, whether the provider
+          // actually has related products to show at all.
+          final related = provider.calculationResult?.relatedProducts;
+          debugPrint(
+            '[BlockCalculatorPage] build() — hasResult=${provider.calculationResult != null}, '
+            'blocks=${related?.blocks.length ?? 0}, adhesives=${related?.adhesives.length ?? 0}',
+          );
+
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             child: Column(
@@ -72,6 +77,17 @@ class _BlockCalculatorView extends StatelessWidget {
                 // ─── Estimate Card ──────────────────────────────────────
                 if (provider.calculationResult != null) ...[
                   _EstimateCard(provider: provider),
+                  const SizedBox(height: 16),
+                ],
+
+                // ─── Related Products Section ────────────────────────────
+                // ⚠️ THIS WAS MISSING — the widget existed but was never
+                // added to the tree, so nothing rendered no matter what
+                // the provider fetched.
+                if (provider.calculationResult != null &&
+                    ((related?.blocks.isNotEmpty ?? false) ||
+                        (related?.adhesives.isNotEmpty ?? false))) ...[
+                  _RelatedProductsSection(provider: provider),
                   const SizedBox(height: 16),
                 ],
 
@@ -132,14 +148,18 @@ class _FormCard extends StatelessWidget {
             value: provider.selectedBlockSize,
             isExpanded: true,
             decoration: _fieldDecoration(),
-            items: provider.dropdownData?.blockSizeOptions
-                .map(
-                  (option) => DropdownMenuItem(
-                    value: option,
-                    child: Text(option.displayName, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList() ??
+            items:
+                provider.dropdownData?.blockSizeOptions
+                    .map(
+                      (option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option.displayName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList() ??
                 [],
             onChanged: (value) {
               if (value != null) provider.selectBlockSize(value);
@@ -157,14 +177,18 @@ class _FormCard extends StatelessWidget {
             value: provider.selectedWastage,
             isExpanded: true,
             decoration: _fieldDecoration(),
-            items: provider.dropdownData?.wastageOptions
-                .map(
-                  (option) => DropdownMenuItem(
-                    value: option,
-                    child: Text(option.label, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList() ??
+            items:
+                provider.dropdownData?.wastageOptions
+                    .map(
+                      (option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList() ??
                 [],
             onChanged: (value) {
               if (value != null) provider.selectWastage(value);
@@ -245,10 +269,7 @@ class _NumberField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
 
-  const _NumberField({
-    required this.label,
-    required this.controller,
-  });
+  const _NumberField({required this.label, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -368,7 +389,11 @@ class _EstimateCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.lightbulb_outline, color: Colors.orange[700], size: 18),
+                Icon(
+                  Icons.lightbulb_outline,
+                  color: Colors.orange[700],
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -401,6 +426,54 @@ class _EstimateCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Related Products Section ───────────────────────────────────────────────
+
+class _RelatedProductsSection extends StatelessWidget {
+  final BlockCalculatorProvider provider;
+  const _RelatedProductsSection({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final related = provider.calculationResult!.relatedProducts;
+    final items = [...related.blocks, ...related.adhesives];
+
+    debugPrint('[RelatedProductsSection] rendering ${items.length} card(s)');
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Related Products',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 300,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SharedProductCard(
+                title: item.name,
+                priceText: '₹${item.pricePerUnit.toStringAsFixed(2)} / unit',
+                imageUrl: item.imageUrl,
+                isImageLoading: item.imageLoading,
+                variantId: item.variantId,
+                placeholderIcon: Icons.grid_view_rounded,
+                // Block API has no stock field — treat as always available.
+                inStock: true,
+              );
+            },
+          ),
+        ), 
+      ],
     );
   }
 }

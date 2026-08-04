@@ -70,10 +70,57 @@ class SteelEstimate {
   }
 }
 
+// ─── NEW: typed similar-product model (was List<dynamic>) ────────────────
+
+class SimilarSteelProduct {
+  final int materialId;
+  final int variantId;
+  final String productName;
+  final String unitStyle;
+  final String pricePerUnit;
+  final String totalCostForRequiredWeight;
+  final int stock;
+  final String stockStatus;
+
+  // Populated later via a separate materials-detail call — not present
+  // in the steel-calculator response itself.
+  String? imageUrl;
+  bool imageLoading;
+
+  SimilarSteelProduct({
+    required this.materialId,
+    required this.variantId,
+    required this.productName,
+    required this.unitStyle,
+    required this.pricePerUnit,
+    required this.totalCostForRequiredWeight,
+    required this.stock,
+    required this.stockStatus,
+    this.imageUrl,
+    this.imageLoading = false,
+  });
+
+  bool get inStock => stock > 0;
+
+  factory SimilarSteelProduct.fromJson(Map<String, dynamic> json) {
+    return SimilarSteelProduct(
+      materialId: json['material_id'] ?? 0,
+      variantId: json['variant_id'] ?? 0,
+      productName: json['product_name']?.toString() ?? '',
+      unitStyle: json['unit_style']?.toString() ?? '',
+      pricePerUnit: json['price_per_unit']?.toString() ?? '',
+      totalCostForRequiredWeight:
+          json['total_cost_for_required_weight']?.toString() ?? '',
+      stock: json['stock'] ?? 0,
+      stockStatus: json['stock_status']?.toString() ?? '',
+    );
+  }
+}
+
 class SteelCalculatorResponse {
   final String status;
   final SteelEstimate estimate;
-  final List<dynamic> similarProducts;
+  final List<SimilarSteelProduct> similarProducts; // ← was List<dynamic>
 
   SteelCalculatorResponse({
     required this.status,
@@ -85,7 +132,9 @@ class SteelCalculatorResponse {
     return SteelCalculatorResponse(
       status: json['status'] ?? '',
       estimate: SteelEstimate.fromJson(json['estimate'] ?? {}),
-      similarProducts: json['similar_products'] ?? [],
+      similarProducts: (json['similar_products'] as List? ?? [])
+          .map((e) => SimilarSteelProduct.fromJson(e))
+          .toList(),
     );
   }
 }
