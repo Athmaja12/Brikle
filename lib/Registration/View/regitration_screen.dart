@@ -13,7 +13,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class SignupView extends GetView<SignupController> {
-  const SignupView({super.key});
+  /// Propagated from LoginView so the resulting OtpView knows whether
+  /// to pop(true) back up to AuthGate on success.
+  final bool isModal;
+
+  const SignupView({super.key, this.isModal = false});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +30,7 @@ class SignupView extends GetView<SignupController> {
       if (!success) return;
       if (!context.mounted) return;
 
-      Navigator.push(
+      final otpResult = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => OtpView(
@@ -34,9 +38,16 @@ class SignupView extends GetView<SignupController> {
             countryCode: controller.model.countryCode,
             flow: OtpFlow.signup,
             prefillOtp: controller.lastOtp,
+            isModal: isModal,
           ),
         ),
       );
+
+      if (!context.mounted) return;
+
+      if (isModal && otpResult == true) {
+        Navigator.pop(context, true);
+      }
     }
 
     return Scaffold(
@@ -51,7 +62,6 @@ class SignupView extends GetView<SignupController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Top bar: back button, left-aligned ────────────
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: Responsive.space(context, 24),
@@ -63,7 +73,10 @@ class SignupView extends GetView<SignupController> {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const LoginView(),
+                              builder: (_) => LoginView(
+                                checkoutReason:
+                                    isModal ? 'Please log in to continue' : null,
+                              ),
                             ),
                           );
                         },
@@ -73,7 +86,6 @@ class SignupView extends GetView<SignupController> {
 
                   SizedBox(height: Responsive.space(context, 16)),
 
-                  // ── Logo panel — identical to Login ───────────────
                   Center(
                     child: RichText(
                       text: TextSpan(
@@ -92,7 +104,6 @@ class SignupView extends GetView<SignupController> {
                   ),
                   SizedBox(height: Responsive.space(context, 32)),
 
-                  // ── Content ────────────────────────────────────────
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: Responsive.space(context, 24),
@@ -113,7 +124,6 @@ class SignupView extends GetView<SignupController> {
                         ),
                         SizedBox(height: Responsive.space(context, 28)),
 
-                        // ── Customer type selector — 5 options ──────
                         Text(
                           'Account Type',
                           style: AppTextStyles.fieldLabel(context),
@@ -139,12 +149,9 @@ class SignupView extends GetView<SignupController> {
                                   Icons.arrow_drop_down,
                                   color: AppColors.textDark,
                                 ),
-                                dropdownColor: AppColors
-                                    .background, // Use your app's background color
-                                borderRadius: BorderRadius.circular(
-                                  12,
-                                ), // Rounded corners for dropdown
-                                elevation: 8, // Shadow elevation
+                                dropdownColor: AppColors.background,
+                                borderRadius: BorderRadius.circular(12),
+                                elevation: 8,
                                 items: CustomerType.values.map((type) {
                                   final icon = _getIconForType(type);
                                   return DropdownMenuItem<CustomerType>(
@@ -255,7 +262,6 @@ class SignupView extends GetView<SignupController> {
                           ),
                         ),
 
-                        // ── GST — only shown for Contractor ─────────
                         Obx(() {
                           if (!controller.isGstRequired) {
                             return const SizedBox.shrink();
@@ -296,7 +302,10 @@ class SignupView extends GetView<SignupController> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => const LoginView(),
+                                    builder: (_) =>
+                                        LoginView(checkoutReason: isModal
+                                            ? 'Please log in to continue'
+                                            : null),
                                   ),
                                 );
                               },
@@ -336,8 +345,6 @@ class SignupView extends GetView<SignupController> {
   }
 }
 
-/// Label + field wrapped together with consistent spacing — keeps every
-/// field block identical without repeating the same 3 SizedBoxes each time.
 class _FieldBlock extends StatelessWidget {
   final String label;
   final Widget child;
@@ -359,147 +366,6 @@ class _FieldBlock extends StatelessWidget {
         child,
         SizedBox(height: Responsive.space(context, bottomSpacing)),
       ],
-    );
-  }
-}
-
-/// Vertical list of selectable account-type cards — icon + label +
-/// one-line description + a check indicator when selected. Reads far
-/// better than equal-width chips once there are more than 2–3 options,
-/// since labels of very different lengths ("Individual" vs "Applicator")
-/// no longer have to fight for the same fixed-width box.
-class _CustomerTypeSelector extends StatelessWidget {
-  final CustomerType selected;
-  final ValueChanged<CustomerType> onSelect;
-
-  const _CustomerTypeSelector({required this.selected, required this.onSelect});
-
-  static const _meta = <CustomerType, (IconData, String)>{
-    CustomerType.individual: (
-      Icons.person_outline_rounded,
-      'Buying for personal or home use',
-    ),
-    CustomerType.contractor: (
-      Icons.engineering_outlined,
-      'Construction or renovation professional',
-    ),
-    CustomerType.reseller: (
-      Icons.storefront_outlined,
-      'Buying materials to resell',
-    ),
-    CustomerType.applicator: (
-      Icons.design_services_outlined,
-      'Applies or installs materials on-site',
-    ),
-    CustomerType.seller: (
-      Icons.sell_outlined,
-      'Sells materials on the platform',
-    ),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: CustomerType.values.map((type) {
-        final isSelected = selected == type;
-        final (icon, description) = _meta[type]!;
-        final isLast = type == CustomerType.values.last;
-
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: isLast ? 0 : Responsive.space(context, 10),
-          ),
-          child: GestureDetector(
-            onTap: () => onSelect(type),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: EdgeInsets.symmetric(
-                horizontal: Responsive.space(context, 14),
-                vertical: Responsive.space(context, 12),
-              ),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primaryGreen.withOpacity(0.08)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.primaryGreen
-                      : AppColors.inputBorder,
-                  width: isSelected ? 1.4 : 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: Responsive.space(context, 38),
-                    height: Responsive.space(context, 38),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primaryGreen
-                          : const Color(0xFFF3F4F6),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      icon,
-                      size: Responsive.space(context, 19),
-                      color: isSelected ? Colors.white : AppColors.textDark,
-                    ),
-                  ),
-                  SizedBox(width: Responsive.space(context, 12)),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          type.label,
-                          style: AppTextStyles.buttonText(context).copyWith(
-                            color: AppColors.textDark,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: Responsive.space(context, 2)),
-                        Text(
-                          description,
-                          style: AppTextStyles.termsText(
-                            context,
-                          ).copyWith(fontSize: Responsive.font(context, 11.5)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: Responsive.space(context, 8)),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: Responsive.space(context, 22),
-                    height: Responsive.space(context, 22),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected
-                          ? AppColors.primaryGreen
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primaryGreen
-                            : AppColors.inputBorder,
-                        width: 1.4,
-                      ),
-                    ),
-                    child: isSelected
-                        ? Icon(
-                            Icons.check,
-                            size: Responsive.space(context, 14),
-                            color: Colors.white,
-                          )
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }

@@ -1,6 +1,4 @@
 // lib/AddtoCart/View/addtocart_view.dart
-// Only _ProceedToCheckoutButton and _showOrderSuccessPopup are changed.
-// All other classes are identical to what you already have.
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/AddtoCart/View/addresschange_modal.dart';
@@ -8,6 +6,7 @@ import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AddtoCart/View/ordersuccess_screen.dart'
     show OrderSuccessScreen;
+import 'package:brikle/ApiConfiguration/auth_gate.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
@@ -26,16 +25,12 @@ class CartScreen extends GetView<CartController> {
       backgroundColor: const Color(0xFFF6F7F6),
       body: SafeArea(
         child: Obx(() {
-          // Show full screen loader while placing order
           if (controller.isCheckingOut.value) {
             return const Center(child: CircularProgressIndicator());
           }
-
-          // Initial cart loading
           if (controller.isLoading.value) {
             return const Center(child: CircularProgressIndicator());
           }
-
           return _CartBody();
         }),
       ),
@@ -51,7 +46,6 @@ class _CartBody extends GetView<CartController> {
     return Column(
       children: [
         _TopBar(controller: controller),
-
         Expanded(
           child: RefreshIndicator(
             color: AppColors.primaryGreen,
@@ -139,8 +133,7 @@ class _TopBar extends StatelessWidget {
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          const MainScreen(initialIndex: 1), // Category tab
+                      builder: (_) => const MainScreen(initialIndex: 1),
                     ),
                     (route) => false,
                   );
@@ -165,8 +158,6 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// lib/AddtoCart/View/addtocart_view.dart
-
 class _EmptyCart extends StatelessWidget {
   const _EmptyCart();
 
@@ -176,7 +167,6 @@ class _EmptyCart extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Animated empty cart illustration
           Container(
             width: 140,
             height: 250,
@@ -219,7 +209,6 @@ class _EmptyCart extends StatelessWidget {
             ).copyWith(fontSize: 13, color: AppColors.textGray),
           ),
           const SizedBox(height: 32),
-          // Browse Products Button
           SizedBox(
             width: 220,
             height: 48,
@@ -262,8 +251,6 @@ class _EmptyCart extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-
-          // Featured categories chips
         ],
       ),
     );
@@ -321,11 +308,6 @@ class _CartItemRow extends StatelessWidget {
         builder: (_) => ProductDetailScreen(
           product: CategoryProductItem(
             variantId: item.variantId,
-            // NOTE: assumes CartItem exposes materialId. If your
-            // CartItem model uses a different field name for this,
-            // swap it in here — variantId alone isn't a safe stand-in
-            // since ProductDetailScreen uses materialId to fetch
-            // suggestions/details for the right product.
             materialId: item.variantId,
             name: item.materialName,
             imageUrl: item.imageUrl,
@@ -466,19 +448,11 @@ class _CartItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ── Figma layout ──────────────────────────────────────────────────
-    // [image]  [name + wholesale link  ...........]  [price]
-    //                                                 [stepper]
-    // No delete button — decrementing to 0 removes the item, same as
-    // before (handled inside _QuantityStepper's onTap for '-').
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Tappable region: image + name → opens the product's
-          // detail page. Kept separate from the wholesale-price link
-          // and the quantity stepper so those still work independently.
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -508,8 +482,6 @@ class _CartItemRow extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: Responsive.space(context, 12)),
-
-                  // ── name + wholesale link ────────────────────────────
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -544,10 +516,7 @@ class _CartItemRow extends StatelessWidget {
               ),
             ),
           ),
-
           SizedBox(width: Responsive.space(context, 8)),
-
-          // ── Right column: price on top, stepper below ────────────────
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -626,12 +595,6 @@ class _StepperButton extends StatelessWidget {
   }
 }
 
-// lib/AddtoCart/View/addtocart_view.dart
-// Replace only the _CouponCard class with this code
-
-// ═══════════════════════════════════════════════════════════════════════════
-// _CouponCard - Dropdown-style coupon selector (collapsed by default)
-// ═══════════════════════════════════════════════════════════════════════════
 class _CouponCard extends StatefulWidget {
   final CartController controller;
   const _CouponCard({required this.controller});
@@ -662,7 +625,6 @@ class _CouponCardState extends State<_CouponCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header row (always visible) ─────────────────────────────
             Row(
               children: [
                 const Icon(
@@ -715,8 +677,6 @@ class _CouponCardState extends State<_CouponCard> {
               ],
             ),
             const SizedBox(height: 10),
-
-            // ── Selected coupon chip (shown collapsed or expanded) ──────
             if (selectedCoupon != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -784,7 +744,6 @@ class _CouponCardState extends State<_CouponCard> {
                   ],
                 ),
               )
-            // ── Loading state ────────────────────────────────────────────
             else if (isLoading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
@@ -796,7 +755,6 @@ class _CouponCardState extends State<_CouponCard> {
                   ),
                 ),
               )
-            // ── No coupons available ─────────────────────────────────────
             else if (validCoupons.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -818,7 +776,6 @@ class _CouponCardState extends State<_CouponCard> {
                   ],
                 ),
               )
-            // ── Dropdown trigger + expandable list ───────────────────────
             else ...[
               InkWell(
                 borderRadius: BorderRadius.circular(10),
@@ -895,7 +852,6 @@ class _CouponCardState extends State<_CouponCard> {
   }
 }
 
-// ── Coupon Item Widget ──────────────────────────────────────
 class _CouponDropdownItem extends StatelessWidget {
   final CouponModel coupon;
   final VoidCallback onTap;
@@ -904,6 +860,7 @@ class _CouponDropdownItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final daysRemaining = coupon.expiryDate.difference(DateTime.now()).inDays;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -947,13 +904,15 @@ class _CouponDropdownItem extends StatelessWidget {
                       color: AppColors.textGray,
                     ),
                   ),
+
                   Text(
                     coupon.formattedExpiryDate,
                     style: TextStyle(
                       fontSize: 11,
-                      color:
-                          coupon.expiryDate.difference(DateTime.now()).inDays <
-                              3
+                      fontWeight: FontWeight.w500,
+                      color: daysRemaining < 0
+                          ? Colors.red
+                          : daysRemaining <= 3
                           ? Colors.orange
                           : Colors.grey.shade400,
                     ),
@@ -1050,17 +1009,8 @@ class _GstinCardState extends State<_GstinCard> {
                 ),
               ],
             ),
-            // SizedBox(height: Responsive.space(context, 4)),
-            // Text(
-            //   hasGstin
-            //       ? 'Claiming GST input credit on this order'
-            //       : 'Claim GST input credit on your order — not required',
-            //   style: AppTextStyles.termsText(context),
-            // ),
             SizedBox(height: Responsive.space(context, 10)),
             if (hasGstin)
-              // Already saved — show it plainly with a Remove action,
-              // no dialog needed.
               Row(
                 children: [
                   Expanded(
@@ -1102,7 +1052,6 @@ class _GstinCardState extends State<_GstinCard> {
                 ],
               )
             else
-              // Inline textbox + Add button — no bottom sheet/dialog.
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -1170,80 +1119,6 @@ class _GstinCardState extends State<_GstinCard> {
   }
 }
 
-// class _DeliveryDateCard extends StatelessWidget {
-//   final CartController controller;
-//   const _DeliveryDateCard({required this.controller});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(14),
-//       ),
-//       padding: const EdgeInsets.all(16),
-//       child: Row(
-//         children: [
-//           const Icon(
-//             Icons.calendar_today_outlined,
-//             color: AppColors.primaryGreen,
-//           ),
-//           SizedBox(width: Responsive.space(context, 12)),
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 const Text(
-//                   'Delivery Date',
-//                   style: TextStyle(fontWeight: FontWeight.w600),
-//                 ),
-//                 Obx(() {
-//                   final date = controller.selectedDeliveryDate.value;
-//                   return Text(
-//                     date != null ? 'Scheduled: $date' : 'Select delivery date',
-//                     style: TextStyle(
-//                       fontSize: 13,
-//                       color: date != null
-//                           ? AppColors.textDark
-//                           : AppColors.textGray,
-//                     ),
-//                   );
-//                 }),
-//               ],
-//             ),
-//           ),
-//           Obx(() {
-//             final date = controller.selectedDeliveryDate.value;
-//             return IconButton(
-//               onPressed: () => _showDatePicker(context, controller),
-//               icon: Icon(
-//                 date != null ? Icons.edit : Icons.add,
-//                 color: AppColors.primaryGreen,
-//                 size: 20,
-//               ),
-//             );
-//           }),
-//         ],
-//       ),
-//     );
-//   }
-
-//   void _showDatePicker(BuildContext context, CartController controller) async {
-//     final DateTime? picked = await showDatePicker(
-//       context: context,
-//       initialDate: DateTime.now().add(const Duration(days: 1)),
-//       firstDate: DateTime.now().add(const Duration(days: 1)),
-//       lastDate: DateTime.now().add(const Duration(days: 30)),
-//     );
-//     if (picked != null) {
-//       controller.selectedDeliveryDate.value = picked
-//           .toIso8601String()
-//           .split('T')
-//           .first;
-//     }
-//   }
-// }
-
 class _BillDetailsCard extends StatelessWidget {
   final CartController controller;
   const _BillDetailsCard({required this.controller});
@@ -1259,8 +1134,6 @@ class _BillDetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // FIX: header now actually toggles the card — previously the
-          // chevron was purely decorative with no onTap wired to it.
           InkWell(
             onTap: controller.toggleBillDetails,
             child: Row(
@@ -1299,11 +1172,6 @@ class _BillDetailsCard extends StatelessWidget {
                   value: '₹${CartController.staticDiscount.toStringAsFixed(0)}',
                 ),
                 Obx(() {
-                  // FIX: this now actually reflects the real, distance-based
-                  // delivery charge — checkoutResponse is populated as soon
-                  // as address + delivery date + delivery time are all set
-                  // (see CartController._maybeRefreshCheckout), instead of
-                  // staying null and always falling back to FREE/0.
                   final checkout = controller.checkoutResponse.value;
                   final deliveryCharge =
                       checkout?.paymentSummary.deliveryCharge ?? 0;
@@ -1342,8 +1210,6 @@ class _BillDetailsCard extends StatelessWidget {
   }
 }
 
-// ── Cancellation Policy — now its own standalone card, not nested
-// inside Bill Details.
 class _CancellationPolicyCard extends StatelessWidget {
   final CartController controller;
   const _CancellationPolicyCard({required this.controller});
@@ -1493,8 +1359,6 @@ class _PaymentMethodSelector extends StatelessWidget {
           }),
           const SizedBox(height: 8),
           Obx(() {
-            // CHANGED: was comparing/selecting 'Online' — the backend
-            // only understands 'COD' or 'RAZORPAY'.
             final isSelected =
                 controller.hasSelectedPaymentMethod.value &&
                 controller.selectedPaymentMethod.value == 'RAZORPAY';
@@ -1611,6 +1475,10 @@ class _PaymentMethodTile extends StatelessWidget {
   }
 }
 
+/// ═══════════════════════════════════════════════════════════════════════
+/// CHANGED: gated behind AuthGate — guests hit this before they have
+/// any address, so this is the natural first checkout gate.
+/// ═══════════════════════════════════════════════════════════════════════
 class _AddAddressButton extends StatelessWidget {
   final CartController controller;
   const _AddAddressButton({required this.controller});
@@ -1620,7 +1488,7 @@ class _AddAddressButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () => _showAddressModal(context),
+        onPressed: () => _requestAddressModal(context),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryGreen,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1643,6 +1511,18 @@ class _AddAddressButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _requestAddressModal(BuildContext context) async {
+    await AuthGate.requireAuth<void>(
+      context,
+      reason: 'Log in to add a delivery address',
+      onAuthenticated: () async {
+        await Get.find<CartController>().mergeGuestCartAfterLogin();
+        if (!context.mounted) return;
+        _showAddressModal(context);
+      },
     );
   }
 
@@ -1697,13 +1577,11 @@ class _SelectPaymentPrompt extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FIXED: _ProceedToCheckoutButton
-// BUG: After showModalBottomSheet resolves and placeOrder() awaits,
-//      the original BuildContext is stale (StatelessWidget has no `mounted`).
-//      Calling showDialog(context: staleContext) crashes or silently fails.
-// FIX: Use Get.dialog() which uses GetX's internal context — always valid.
-// ═══════════════════════════════════════════════════════════════════════════
+/// ═══════════════════════════════════════════════════════════════════════
+/// CHANGED: second checkout gate (belt-and-suspenders — a logged-in-only
+/// address means most guests never reach here, but this covers any path
+/// where a session expired between adding the address and checking out).
+/// ═══════════════════════════════════════════════════════════════════════
 class _ProceedToCheckoutButton extends StatelessWidget {
   final CartController controller;
   const _ProceedToCheckoutButton({required this.controller});
@@ -1715,7 +1593,7 @@ class _ProceedToCheckoutButton extends StatelessWidget {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: isProcessing ? null : () => _proceedToCheckout(context),
+          onPressed: isProcessing ? null : () => _requestCheckout(context),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primaryGreen,
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1753,10 +1631,22 @@ class _ProceedToCheckoutButton extends StatelessWidget {
     });
   }
 
+  Future<void> _requestCheckout(BuildContext context) async {
+    await AuthGate.requireAuth<void>(
+      context,
+      reason: 'Log in to place your order',
+      onAuthenticated: () async {
+        await controller.mergeGuestCartAfterLogin();
+        if (!context.mounted) return;
+        await _proceedToCheckout(context);
+      },
+    );
+  }
+
   Future<void> _proceedToCheckout(BuildContext context) async {
     final address = controller.selectedAddress.value;
     final deliveryDate = controller.selectedDeliveryDate.value;
-    final deliveryTime = controller.selectedDeliveryTime.value; // NEW
+    final deliveryTime = controller.selectedDeliveryTime.value;
 
     if (address == null || deliveryDate == null || deliveryTime == null) {
       Get.snackbar(
@@ -1783,7 +1673,7 @@ class _ProceedToCheckoutButton extends StatelessWidget {
       shippingAddress: address.address,
       pincode: address.pincode,
       deliveryDate: deliveryDate,
-      deliveryTime: deliveryTime, // NEW
+      deliveryTime: deliveryTime,
     );
 
     if (orderResult != null) {
@@ -1792,180 +1682,6 @@ class _ProceedToCheckoutButton extends StatelessWidget {
     }
 
     controller.isCheckingOut.value = false;
-  }
-
-  void _showOrderSuccessDialog(OrderPlacedResponse order) {
-    // FIX: Get.dialog() instead of showDialog(context: context, ...).
-    // After two awaits (showModalBottomSheet + placeOrder), the original
-    // context from build() is stale. Get.dialog uses GetX's navigator key
-    // internally so it always works regardless of widget lifecycle.
-    Get.dialog(
-      barrierDismissible: false,
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        contentPadding: const EdgeInsets.all(24),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Success icon
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check_circle,
-                  color: Colors.green.shade700,
-                  size: 64,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Order Placed Successfully! 🎉',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Order #${order.orderDetails.id}',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                order.message,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 20),
-
-              // Order details card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    _OrderDetailRow(
-                      'Payment Method',
-                      order.orderDetails.paymentMethod,
-                      icon: Icons.payments_outlined,
-                    ),
-                    const Divider(height: 16),
-                    _OrderDetailRow(
-                      'Payment Status',
-                      order.orderDetails.paymentStatus,
-                      icon: Icons.check_circle_outline,
-                      valueColor: Colors.green,
-                    ),
-                    const Divider(height: 16),
-                    _OrderDetailRow(
-                      'Order Status',
-                      order.orderDetails.orderStatus,
-                      icon: Icons.receipt_long_outlined,
-                      valueColor: Colors.orange,
-                    ),
-                    const Divider(height: 16),
-                    _OrderDetailRow(
-                      'Total Amount',
-                      '₹${order.orderDetails.grandTotal}',
-                      icon: Icons.currency_rupee,
-                      isBold: true,
-                    ),
-                    const Divider(height: 16),
-                    _OrderDetailRow(
-                      'Delivery Date',
-                      order.orderDetails.requestedDeliveryDate,
-                      icon: Icons.calendar_today_outlined,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Shipping address
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.location_on, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Shipping Address',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blue,
-                            ),
-                          ),
-                          Text(
-                            order.orderDetails.shippingAddress,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Continue Shopping button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // FIX: Get.back() closes the dialog cleanly,
-                    // then offAllNamed navigates to home removing all routes.
-                    Get.back();
-                    Get.offAllNamed('/home');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGreen,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Continue Shopping',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -2008,7 +1724,6 @@ class _OrderDetailRow extends StatelessWidget {
   }
 }
 
-// ── Checkout Confirmation Modal ────────────────────────────────────────────
 class _CheckoutConfirmationModal extends StatelessWidget {
   final CartController controller;
   const _CheckoutConfirmationModal({required this.controller});

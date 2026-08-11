@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,19 +9,18 @@ class SplashController extends GetxController {
   }
 
   Future<void> _decideRoute() async {
-    // Keep the splash visible briefly regardless of how fast the checks run
     final minDelay = Future.delayed(const Duration(seconds: 2));
 
-    final loggedIn = await SessionManager.isLoggedIn();
     final prefs = await SharedPreferences.getInstance();
     final seenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
     await minDelay;
 
-    if (loggedIn) {
+    // Guests always land on /home now — login/registration is deferred
+    // to checkout via AuthGate, so there's no need to branch on session
+    // state here.
+    if (seenOnboarding) {
       Get.offAllNamed('/home');
-    } else if (seenOnboarding) {
-      Get.offAllNamed('/login');
     } else {
       Get.offAllNamed('/onboarding');
     }

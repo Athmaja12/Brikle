@@ -2,10 +2,12 @@
 
 import 'dart:async';
 
+import 'package:brikle/AddtoCart/Controller/guest_cart.dart';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AddtoCart/Model/addtocart_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
+import 'package:brikle/ApiConfiguration/auth_gate.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:flutter/material.dart';
@@ -38,8 +40,6 @@ class CartController extends GetxController {
   bool isGstValid(String gst) => _gstRegex.hasMatch(gst.trim().toUpperCase());
 
   // ── Payment Method State ──────────────────────────────
-  // NOTE: values here must match what the backend expects, i.e.
-  // "COD" or "RAZORPAY" — not "Online". See _PaymentMethodSelector.
   final RxString selectedPaymentMethod = 'COD'.obs;
   final RxBool hasSelectedPaymentMethod = false.obs;
   final RxBool showPaymentMethodSelector = false.obs;
@@ -78,19 +78,19 @@ class CartController extends GetxController {
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     fetchCart();
-    fetchMyCoupons();
+    _fetchMyCouponsIfLoggedIn();
 
-    // FIX: processCheckout() was never being called anywhere in the
-    // checkout flow, so checkoutResponse stayed null and Bill Details'
-    // delivery charge always showed the static FREE/0 fallback instead
-    // of the real, distance-based charge. Now it recalculates any time
-    // address, delivery date/time, coupon, or cart contents change —
-    // as soon as all three required fields (address, date, time) exist.
     ever(selectedAddress, (_) => _maybeRefreshCheckout());
     ever(selectedDeliveryDate, (_) => _maybeRefreshCheckout());
     ever(selectedDeliveryTime, (_) => _maybeRefreshCheckout());
     ever(selectedCoupon, (_) => _maybeRefreshCheckout());
     ever(cartItems, (_) => _maybeRefreshCheckout());
+  }
+
+  Future<void> _fetchMyCouponsIfLoggedIn() async {
+    if (await AuthGate.isLoggedIn()) {
+      await fetchMyCoupons();
+    }
   }
 
   void _maybeRefreshCheckout() {
@@ -150,17 +150,24 @@ class CartController extends GetxController {
   }
 
   // ── END Coupon Methods ──────────────────────────────
+
   Future<void> fetchCart({bool showLoader = true}) async {
     debugPrint('$_tag fetchCart(showLoader: $showLoader) called');
     if (showLoader) {
       isLoading.value = true;
     }
     try {
-      final response = await ApiService.getCart();
-      debugPrint('$_tag fetchCart response: $response');
-      final parsed = CartResponse.fromJson(response);
-      cartItems.value = parsed.items;
-      grandTotal.value = parsed.grandTotalWithGst;
+      if (await AuthGate.isLoggedIn()) {
+        final response = await ApiService.getCart();
+        debugPrint('$_tag fetchCart response: $response');
+        final parsed = CartResponse.fromJson(response);
+        cartItems.value = parsed.items;
+        grandTotal.value = parsed.grandTotalWithGst;
+      } else {
+        final items = await GuestCartService.load();
+        cartItems.value = items;
+        _recalculateGrandTotal();
+      }
       debugPrint(
         '$_tag fetchCart success — ${cartItems.length} items, '
         'grandTotal=${grandTotal.value}',
@@ -181,6 +188,7 @@ class CartController extends GetxController {
     }
   }
 
+  /// Logged-in add-to-cart (variant id only — server hydrates the rest).
   Future<void> addToCart({required int variantId, int quantity = 1}) async {
     debugPrint('$_tag addToCart(variantId: $variantId, quantity: $quantity)');
     try {
@@ -195,6 +203,51 @@ class CartController extends GetxController {
       debugPrint('$_tag addToCart unexpected error: $e');
       debugPrint('$_tag addToCart stack: $st');
     }
+  }
+
+  /// Guest add-to-cart — caller (product card / product detail) must
+  /// build a fully-populated CartItem since there's no server to
+  /// hydrate name/image/price from. Use this whenever
+  /// `!await AuthGate.isLoggedIn()`.
+  Future<void> addToCartGuest(CartItem item) async {
+    debugPrint('$_tag addToCartGuest(variantId: ${item.variantId})');
+    final idx = cartItems.indexWhere((i) => i.variantId == item.variantId);
+    if (idx != -1) {
+      final newQty = cartItems[idx].quantity + item.quantity;
+      cartItems[idx] = cartItems[idx].copyWith(
+        quantity: newQty,
+        totalPriceWithGst: cartItems[idx].unitPriceWithGst * newQty,
+      );
+    } else {
+      cartItems.add(item);
+    }
+    cartItems.refresh();
+    _recalculateGrandTotal();
+    await GuestCartService.save(cartItems);
+    Get.snackbar('Added to Cart', 'Item added successfully');
+  }
+
+  /// Call immediately after a successful login/registration (from
+  /// OtpController), before resuming whatever the user was doing.
+  Future<void> mergeGuestCartAfterLogin() async {
+    final guestItems = await GuestCartService.load();
+    if (guestItems.isEmpty) {
+      await fetchCart();
+      return;
+    }
+    debugPrint('$_tag mergeGuestCartAfterLogin — merging ${guestItems.length} items');
+    for (final item in guestItems) {
+      try {
+        await ApiService.addToCart(
+          variantId: item.variantId,
+          quantity: item.quantity,
+        );
+      } catch (e) {
+        debugPrint('$_tag merge failed for variant ${item.variantId}: $e');
+      }
+    }
+    await GuestCartService.clear();
+    await fetchCart();
   }
 
   Future<void> updateQuantity(CartItem item, int newQuantity) async {
@@ -225,6 +278,12 @@ class CartController extends GetxController {
         '$_tag updateQuantity WARNING — variantId ${item.variantId} not '
         'found in local cartItems, skipping optimistic update',
       );
+    }
+
+    final loggedIn = await AuthGate.isLoggedIn();
+    if (!loggedIn) {
+      await GuestCartService.save(cartItems);
+      return;
     }
 
     try {
@@ -266,6 +325,12 @@ class CartController extends GetxController {
       '$_tag removeItem — locally removed, new grandTotal=${grandTotal.value}',
     );
 
+    final loggedIn = await AuthGate.isLoggedIn();
+    if (!loggedIn) {
+      await GuestCartService.save(cartItems);
+      return;
+    }
+
     try {
       await ApiService.removeCartItem(variantId: removed.variantId);
       debugPrint('$_tag removeItem API call succeeded');
@@ -282,6 +347,16 @@ class CartController extends GetxController {
 
   Future<void> clearCart() async {
     debugPrint('$_tag clearCart called — removing ${cartItems.length} items');
+    final loggedIn = await AuthGate.isLoggedIn();
+
+    if (!loggedIn) {
+      cartItems.clear();
+      grandTotal.value = 0;
+      await GuestCartService.clear();
+      debugPrint('$_tag clearCart finished (guest)');
+      return;
+    }
+
     final items = List<CartItem>.from(cartItems);
     cartItems.clear();
     grandTotal.value = 0;
@@ -315,9 +390,6 @@ class CartController extends GetxController {
     Get.snackbar('Coupon', 'Coupon feature coming soon');
   }
 
-  /// Saves the GSTIN locally for this order. Entirely OPTIONAL — passing
-  /// an empty string is valid and just clears it; no checkout flow ever
-  /// blocks on this field being filled.
   void saveGstin(String value) {
     final trimmed = value.trim().toUpperCase();
     debugPrint('$_tag saveGstin("$trimmed")');
@@ -512,7 +584,7 @@ class CartController extends GetxController {
   Future<CheckoutResponse?> processCheckout({
     required String pincode,
     required String deliveryDate,
-    required String deliveryTime, // NEW
+    required String deliveryTime,
     int? couponId,
   }) async {
     debugPrint(
@@ -557,23 +629,11 @@ class CartController extends GetxController {
     }
   }
 
-  // ── placeOrder method ──────────────────────────────
-  //
-  // For COD, behaviour is unchanged: place order -> success.
-  //
-  // For RAZORPAY, the backend places the order in PENDING state and
-  // hands back razorpay_data. We then open the native Razorpay checkout
-  // sheet and WAIT for the result before treating the order as placed —
-  // clearing the cart / burning the coupon / navigating to the success
-  // screen only happens after /api/verify-payment/ confirms the
-  // signature server-side. If the user cancels or the payment fails,
-  // placeOrder() returns null (same contract as any other failure) and
-  // the order sits server-side as PENDING for a retry.
   Future<OrderPlacedResponse?> placeOrder({
     required String shippingAddress,
     required String pincode,
     required String deliveryDate,
-    String? deliveryTime, // NEW
+    String? deliveryTime,
   }) async {
     debugPrint(
       '$_tag placeOrder(shippingAddress: "$shippingAddress", pincode: '
@@ -589,13 +649,12 @@ class CartController extends GetxController {
         pincode: pincode,
         requestedDeliveryDate: deliveryDate,
         requestedDeliveryTime: deliveryTime,
-        couponId: selectedCoupon.value?.id, // NEW — was never sent
+        couponId: selectedCoupon.value?.id,
       );
       debugPrint('$_tag placeOrder response: $response');
 
       final result = OrderPlacedResponse.fromJson(response);
 
-      // ── RAZORPAY branch: open checkout sheet and wait for verification.
       if (result.orderDetails.paymentMethod == 'RAZORPAY' &&
           result.razorpayData != null) {
         debugPrint(
@@ -629,9 +688,6 @@ class CartController extends GetxController {
         '${result.orderDetails.grandTotal}',
       );
 
-      // The coupon that was just spent is no longer valid to reuse —
-      // clear it locally so a fresh cart session doesn't show a "spent"
-      // coupon as still applied.
       selectedCoupon.value = null;
       couponCode.value = '';
 
@@ -639,12 +695,6 @@ class CartController extends GetxController {
       await clearCart();
       await fetchMyCoupons();
 
-      // FIX: ProfileController.coupons (rendered by the Coupon listing
-      // page) is a completely separate RxList from this controller's
-      // myCoupons — the line above only refreshes CartController's own
-      // copy. Without this, a coupon just marked "used" server-side
-      // stays showing as "Active" on the Coupon listing screen until the
-      // user manually pull-to-refreshes it.
       if (Get.isRegistered<ProfileController>()) {
         await Get.find<ProfileController>().fetchCoupons();
       }
@@ -670,11 +720,6 @@ class CartController extends GetxController {
 
   // ── Razorpay Checkout ──────────────────────────────────────
 
-  /// Opens the native Razorpay checkout sheet for the just-created order
-  /// and suspends until either:
-  ///  - payment succeeds AND server-side signature verification passes
-  ///    -> resolves true
-  ///  - payment fails, is cancelled, or verification fails -> resolves false
   Future<bool> _openRazorpayCheckout(OrderPlacedResponse order) async {
     final data = order.razorpayData!;
     _pendingRazorpayOrderId = order.orderDetails.id;
@@ -684,8 +729,6 @@ class CartController extends GetxController {
 
     final options = {
       'key': data.razorpayKeyId,
-      // Razorpay expects amount in the smallest currency unit (paise for INR).
-      // data.amount from the backend is already the grand total in rupees.
       'amount': (data.amount * 100).round(),
       'currency': data.currency,
       'name': 'Brikle',
@@ -808,9 +851,6 @@ class CartController extends GetxController {
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
-    // Fired when the user picks a wallet outside Razorpay's own flow
-    // (e.g. Paytm). This does not by itself mean success or failure —
-    // EVENT_PAYMENT_SUCCESS/EVENT_PAYMENT_ERROR still fire afterward.
     debugPrint('$_tag _handleExternalWallet — wallet: ${response.walletName}');
     Get.snackbar(
       'External Wallet Selected',

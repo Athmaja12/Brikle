@@ -18,6 +18,11 @@ class PriceTier {
     minQty: (json['min_qty'] as num?)?.toInt() ?? 0,
     price: (json['price'] as num?)?.toDouble() ?? 0,
   );
+
+  Map<String, dynamic> toJson() => {
+    'min_qty': minQty,
+    'price': price,
+  };
 }
 
 class CartItem {
@@ -30,13 +35,8 @@ class CartItem {
   final double unitPriceWithGst;
   final double totalPriceWithGst;
 
-  // FIX: stored as nullable internally so ANY runtime null (from JSON
-  // dynamic values slipping through the type system) is caught by the
-  // getter instead of crashing the widget tree.
   final List<PriceTier>? _priceTiers;
 
-  // Public getter always returns a non-null list — the widget never
-  // needs to handle null, and the stored field being null is safe.
   List<PriceTier> get priceTiers => _priceTiers ?? const <PriceTier>[];
 
   const CartItem({
@@ -48,11 +48,9 @@ class CartItem {
     required this.quantity,
     required this.unitPriceWithGst,
     required this.totalPriceWithGst,
-    List<PriceTier>?
-    priceTiers, // nullable param — null and [] are both "no tiers"
+    List<PriceTier>? priceTiers,
   }) : _priceTiers = priceTiers;
 
-  // Derived helpers
   bool get hasTiers => priceTiers.isNotEmpty;
 
   double get bestTierPrice =>
@@ -61,14 +59,13 @@ class CartItem {
   int get bestTierMinQty => priceTiers.isEmpty ? 1 : priceTiers.last.minQty;
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
-    // Build tier list defensively — handles null, wrong type, and empty
     final raw = json['price_tiers'];
     final List<PriceTier> tiers;
     if (raw == null || raw is! List || raw.isEmpty) {
-      tiers = const <PriceTier>[]; // FIX: explicit type param, not const []
+      tiers = const <PriceTier>[];
     } else {
       tiers = raw
-          .whereType<Map<String, dynamic>>() // skip any malformed elements
+          .whereType<Map<String, dynamic>>()
           .map(PriceTier.fromJson)
           .toList();
     }
@@ -87,6 +84,23 @@ class CartItem {
     );
   }
 
+  /// Used for guest-cart local persistence (GuestCartService) and for
+  /// pushing a guest item to the server cart. `master_image` is stored
+  /// as the already-resolved absolute URL — safe to round-trip through
+  /// fromJson since _fullImageUrl() passes through anything starting
+  /// with "http" unchanged.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'variant': variantId,
+    'material_name': materialName,
+    'size_dimension': sizeDimension,
+    'master_image': imageUrl,
+    'quantity': quantity,
+    'unit_price_with_gst': unitPriceWithGst,
+    'total_price_with_gst': totalPriceWithGst,
+    'price_tiers': priceTiers.map((t) => t.toJson()).toList(),
+  };
+
   CartItem copyWith({
     int? quantity,
     double? unitPriceWithGst,
@@ -101,8 +115,6 @@ class CartItem {
     quantity: quantity ?? this.quantity,
     unitPriceWithGst: unitPriceWithGst ?? this.unitPriceWithGst,
     totalPriceWithGst: totalPriceWithGst ?? this.totalPriceWithGst,
-    // preserve existing tiers through qty updates — priceTiers param
-    // is nullable so passing null here uses _priceTiers fallback in getter
     priceTiers: priceTiers ?? this.priceTiers,
   );
 }

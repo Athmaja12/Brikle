@@ -13,6 +13,7 @@ class OtpView extends StatefulWidget {
   final String countryCode;
   final OtpFlow flow;
   final String? prefillOtp;
+   final bool isModal;
 
   const OtpView({
     super.key,
@@ -20,6 +21,7 @@ class OtpView extends StatefulWidget {
     required this.flow,
     this.countryCode = '+91',
     this.prefillOtp,
+    this.isModal = false,
   });
 
   @override

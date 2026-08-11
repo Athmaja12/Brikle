@@ -1,3 +1,4 @@
+import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
@@ -9,7 +10,17 @@ enum OtpFlow { signup, login }
 
 class OtpController extends GetxController {
   late final OtpModel model;
-  final OtpFlow flow;
+
+  /// Rx so the signup flow can transition itself into a login flow
+  /// in-place after registration verifies, instead of pushing a
+  /// second OtpView.
+  late final Rx<OtpFlow> flow;
+
+  /// When true, on final (login) success this pops(true) back to
+  /// whoever pushed this screen (AuthGate → LoginView/SignupView chain)
+  /// instead of navigating to /home directly.
+  final bool isModal;
+
   final String? prefillOtp;
 
   final List<TextEditingController> digitControllers = List.generate(
@@ -22,34 +33,47 @@ class OtpController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxInt resendCooldown = 0.obs;
 
+  /// True while silently swapping the just-verified registration OTP
+  /// screen into a login OTP screen. The view shows a brief interstitial
+  /// during this window.
+  final RxBool isTransitioningToLogin = false.obs;
+
   OtpController({
     required String phoneNumber,
     String countryCode = '+91',
-    this.flow = OtpFlow.signup,
+    OtpFlow flow = OtpFlow.signup,
     this.prefillOtp,
+    this.isModal = false,
   }) {
     model = OtpModel(phoneNumber: phoneNumber, countryCode: countryCode);
+    this.flow = flow.obs;
   }
+
   @override
   void onInit() {
     super.onInit();
     debugPrint(
-      '[OtpController] onInit — flow: $flow, phone: ${model.phoneNumber}',
+      '[OtpController] onInit — flow: ${flow.value}, phone: ${model.phoneNumber}, isModal: $isModal',
     );
+    _maybeAutoFill(prefillOtp);
+  }
 
-    if (prefillOtp != null && prefillOtp!.length == 4) {
-      debugPrint('[OtpController] scheduling auto-fill: $prefillOtp');
-      // Defer to next frame so digit TextFields are mounted first
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        for (int i = 0; i < 4; i++) {
-          digitControllers[i].text = prefillOtp![i];
-        }
-        _syncOtpCode();
-        debugPrint(
-          '[OtpController] auto-fill done — otpCode: "${model.otpCode}"',
-        );
-      });
+  void _maybeAutoFill(String? otp) {
+    if (otp == null || otp.length != 4) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (int i = 0; i < 4; i++) {
+        digitControllers[i].text = otp[i];
+      }
+      _syncOtpCode();
+      debugPrint('[OtpController] auto-fill done — otpCode: "${model.otpCode}"');
+    });
+  }
+
+  void _clearDigits() {
+    for (final c in digitControllers) {
+      c.clear();
     }
+    model.otpCode = '';
   }
 
   void onDigitChanged(int index, String value) {
@@ -73,7 +97,7 @@ class OtpController extends GetxController {
   Future<void> verifyOtp() async {
     _syncOtpCode();
     debugPrint(
-      '[OtpController] verifyOtp() called — otpCode: "${model.otpCode}", flow: $flow',
+      '[OtpController] verifyOtp() called — otpCode: "${model.otpCode}", flow: ${flow.value}',
     );
 
     if (!model.isOtpComplete) {
@@ -86,64 +110,10 @@ class OtpController extends GetxController {
     debugPrint('[OtpController] calling verify API...');
 
     try {
-      final Map<String, dynamic> response;
-      int? customerId;
-
-      if (flow == OtpFlow.signup) {
-        debugPrint('[OtpController] hitting /customer-verify-otp/');
-        response = await ApiService.verifyRegisterOtp(
-          phoneNumber: model.phoneNumber,
-          otp: model.otpCode,
-        );
+      if (flow.value == OtpFlow.signup) {
+        await _verifySignupOtp();
       } else {
-        debugPrint('[OtpController] hitting /customer-login-verify/');
-        response = await ApiService.verifyLoginOtp(
-          phoneNumber: model.phoneNumber,
-          otp: model.otpCode,
-        );
-        customerId = response['customer_id'] as int?;
-        debugPrint('[OtpController] customer_id: $customerId');
-      }
-
-      debugPrint(
-        '[OtpController] verify SUCCESS — message: ${response['message']}',
-      );
-      isLoading.value = false;
-
-      Get.snackbar(
-        'Verified',
-        response['message']?.toString() ?? 'Verified successfully!',
-      );
-
-      if (flow == OtpFlow.signup) {
-        debugPrint('[OtpController] signup flow — saving session + going Home');
-        // verifyRegisterOtp already returns access + refresh tokens
-
-        debugPrint("===== VERIFY RESPONSE =====");
-        debugPrint(response.toString());
-        debugPrint("ACCESS  : ${response['access']}");
-        debugPrint("REFRESH : ${response['refresh']}");
-        debugPrint("===========================");
-
-        await SessionManager.saveSession(
-          accessToken: response['access'] as String,
-          refreshToken: response['refresh'] as String,
-          phoneNumber: model.phoneNumber,
-        );
-        debugPrint('[OtpController] signup session saved — going to /home');
-        Get.offAllNamed('/home'); // ← skips login entirely
-      } else {
-        debugPrint(
-          '[OtpController] login flow — saving session + navigating Home',
-        );
-        await SessionManager.saveSession(
-          accessToken: response['access'] as String,
-          refreshToken: response['refresh'] as String,
-          customerId: customerId,
-          phoneNumber: model.phoneNumber,
-        );
-        debugPrint('[OtpController] session saved — going to /home');
-        Get.offAllNamed('/home');
+        await _verifyLoginOtp();
       }
     } on ApiException catch (e) {
       debugPrint(
@@ -163,6 +133,92 @@ class OtpController extends GetxController {
     }
   }
 
+  /// Registration OTP no longer returns tokens — it just confirms the
+  /// account exists. Per the updated backend contract, immediately log
+  /// the user in via the normal phone-login OTP flow, reusing this same
+  /// controller/screen instead of pushing a second OtpView.
+  Future<void> _verifySignupOtp() async {
+    debugPrint('[OtpController] hitting /customer-verify-otp/');
+    final response = await ApiService.verifyRegisterOtp(
+      phoneNumber: model.phoneNumber,
+      otp: model.otpCode,
+    );
+    debugPrint('[OtpController] signup verify SUCCESS — ${response['message']}');
+
+    Get.snackbar(
+      'Account Created',
+      response['message']?.toString() ?? 'Now logging you in...',
+    );
+
+    isTransitioningToLogin.value = true;
+    _clearDigits();
+
+    debugPrint('[OtpController] signup verified — kicking off login OTP');
+    final loginResponse = await ApiService.login(phoneNumber: model.phoneNumber);
+    final loginOtp = loginResponse['otp']?.toString();
+
+    debugPrint('┌─────────────────────────────────┐');
+    debugPrint('│  POST-SIGNUP LOGIN OTP: $loginOtp');
+    debugPrint('└─────────────────────────────────┘');
+
+    isTransitioningToLogin.value = false;
+    isLoading.value = false;
+    flow.value = OtpFlow.login;
+    resendCooldown.value = 0;
+
+    if (loginOtp != null && loginOtp.length == 4) {
+      _maybeAutoFill(loginOtp);
+    }
+
+    Get.snackbar(
+      'OTP Sent',
+      'Enter the code to finish logging in',
+      backgroundColor: const Color(0xFF12914C),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 6),
+      snackPosition: SnackPosition.TOP,
+    );
+    // User now sees the same screen in login mode and taps Verify again.
+  }
+
+  Future<void> _verifyLoginOtp() async {
+    debugPrint('[OtpController] hitting /customer-login-verify/');
+    final response = await ApiService.verifyLoginOtp(
+      phoneNumber: model.phoneNumber,
+      otp: model.otpCode,
+    );
+    final customerId = response['customer_id'] as int?;
+    debugPrint('[OtpController] login verify SUCCESS — customer_id: $customerId');
+
+    await SessionManager.saveSession(
+      accessToken: response['access'] as String,
+      refreshToken: response['refresh'] as String,
+      customerId: customerId,
+      phoneNumber: model.phoneNumber,
+    );
+
+    isLoading.value = false;
+    Get.snackbar(
+      'Verified',
+      response['message']?.toString() ?? 'Logged in successfully!',
+    );
+
+    // Fold any guest-cart items into the now-authenticated server cart
+    // before handing control back, so checkout continues with the same
+    // items the guest had rather than an empty server cart.
+    if (Get.isRegistered<CartController>()) {
+      await Get.find<CartController>().mergeGuestCartAfterLogin();
+    }
+
+    if (isModal) {
+      debugPrint('[OtpController] modal flow — popping true to caller');
+      Get.back(result: true);
+    } else {
+      debugPrint('[OtpController] non-modal flow — navigating to /home');
+      Get.offAllNamed('/home');
+    }
+  }
+
   Future<void> resendOtp() async {
     debugPrint(
       '[OtpController] resendOtp() called — cooldown: ${resendCooldown.value}',
@@ -170,7 +226,7 @@ class OtpController extends GetxController {
     if (resendCooldown.value > 0) return;
 
     try {
-      if (flow == OtpFlow.signup) {
+      if (flow.value == OtpFlow.signup) {
         debugPrint(
           '[OtpController] resend for signup — calling /customer-resend-otp/',
         );
@@ -185,15 +241,8 @@ class OtpController extends GetxController {
 
         debugPrint('[OtpController] resend-otp response message: $message');
 
-        // Auto-fill only if backend actually returns the otp (dev/test mode)
         if (otp != null && otp.length == 4) {
-          for (int i = 0; i < 4; i++) {
-            digitControllers[i].text = otp[i];
-          }
-          _syncOtpCode();
-          debugPrint(
-            '[OtpController] resend auto-fill done — otpCode: "${model.otpCode}"',
-          );
+          _maybeAutoFill(otp);
         }
 
         Get.snackbar(
@@ -216,10 +265,7 @@ class OtpController extends GetxController {
         debugPrint('└─────────────────────────────────┘');
 
         if (otp.length == 4) {
-          for (int i = 0; i < 4; i++) {
-            digitControllers[i].text = otp[i];
-          }
-          _syncOtpCode();
+          _maybeAutoFill(otp);
         }
 
         Get.snackbar(
@@ -243,7 +289,6 @@ class OtpController extends GetxController {
     }
   }
 
-  /// mm:ss for the countdown display, e.g. "00:30"
   String get formattedCooldown {
     final minutes = (resendCooldown.value ~/ 60).toString().padLeft(2, '0');
     final seconds = (resendCooldown.value % 60).toString().padLeft(2, '0');
@@ -261,7 +306,7 @@ class OtpController extends GetxController {
 
   @override
   void onClose() {
-    debugPrint('[OtpController] onClose — flow: $flow');
+    debugPrint('[OtpController] onClose — flow: ${flow.value}');
     for (final c in digitControllers) c.dispose();
     for (final f in digitFocusNodes) f.dispose();
     super.onClose();

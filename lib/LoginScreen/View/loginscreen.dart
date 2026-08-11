@@ -15,7 +15,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class LoginView extends GetView<LoginController> {
-  const LoginView({super.key});
+  /// Non-null when pushed from AuthGate (checkout-triggered). Controls
+  /// both the copy shown and whether success pops `true` back to the
+  /// caller instead of navigating into MainScreen.
+  final String? checkoutReason;
+
+  const LoginView({super.key, this.checkoutReason});
+
+  bool get _isModal => checkoutReason != null;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +41,7 @@ class LoginView extends GetView<LoginController> {
       if (!success) return;
       if (!context.mounted) return;
 
-      Navigator.push(
+      final otpResult = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => OtpView(
@@ -42,9 +49,18 @@ class LoginView extends GetView<LoginController> {
             countryCode: controller.model.countryCode,
             flow: OtpFlow.login,
             prefillOtp: controller.lastOtp,
+            isModal: _isModal,
           ),
         ),
       );
+
+      if (!context.mounted) return;
+
+      if (_isModal && otpResult == true) {
+        Navigator.pop(context, true);
+      }
+      // Non-modal flow: OtpController itself does Get.offAllNamed('/home')
+      // on success, so there's nothing further to do here.
     }
 
     Future<void> handleGoogleSignIn() async {
@@ -76,12 +92,17 @@ class LoginView extends GetView<LoginController> {
           return;
         }
 
-        debugPrint('[LoginView] Step 3: navigating to MainScreen');
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
-          (route) => false,
-        );
+        if (_isModal) {
+          debugPrint('[LoginView] Step 3 (modal) — popping true to AuthGate');
+          Navigator.pop(context, true);
+        } else {
+          debugPrint('[LoginView] Step 3: navigating to MainScreen');
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const MainScreen()),
+            (route) => false,
+          );
+        }
         debugPrint('[LoginView] ── Google Sign-In flow COMPLETE ──');
       } catch (e, stack) {
         debugPrint('[LoginView] ❌ Google Sign-In error: $e');
@@ -96,17 +117,6 @@ class LoginView extends GetView<LoginController> {
       }
     }
 
-    void handleContinueAsGuest() {
-      // TODO: confirm destination — MainScreen with a "guest" flag on
-      // HomeController? Or a limited-access route? Tell me and I'll wire it.
-      debugPrint('[LoginView] Continue as Guest tapped');
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-        (route) => false,
-      );
-    }
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -119,7 +129,6 @@ class LoginView extends GetView<LoginController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Logo panel ──────────────────────────────────
                   SizedBox(height: Responsive.space(context, 48)),
                   Center(
                     child: RichText(
@@ -138,8 +147,6 @@ class LoginView extends GetView<LoginController> {
                     ),
                   ),
                   SizedBox(height: Responsive.space(context, 32)),
-
-                  // ── Content ─────────────────────────────────────
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: Responsive.space(context, 24),
@@ -148,38 +155,20 @@ class LoginView extends GetView<LoginController> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          'Welcome Back',
+                          checkoutReason ?? 'Welcome Back',
                           textAlign: TextAlign.center,
                           style: AppTextStyles.welcomeBackTitle(context),
                         ),
                         SizedBox(height: Responsive.space(context, 6)),
                         Text(
-                          'Sign in to manage your construction materials.',
+                          _isModal
+                              ? "You're almost there — just log in to continue."
+                              : 'Sign in to manage your construction materials.',
                           textAlign: TextAlign.center,
                           style: AppTextStyles.loginSubtitleCentered(context),
                         ),
                         SizedBox(height: Responsive.space(context, 32)),
 
-                        // Phone field — outer decoration matches spec;
-                        // remove this Container's decoration if
-                        // CustomPhoneField already draws its own.
-                        // Container(
-                        //   height: Responsive.space(context, 48),
-                        //   decoration: BoxDecoration(
-                        //     color: Colors.white,
-                        //     borderRadius: BorderRadius.circular(12),
-                        //     border: Border.all(color: AppColors.inputBorder),
-                        //     boxShadow: [
-                        //       BoxShadow(
-                        //         color: Colors.black.withOpacity(0.04),
-                        //         blurRadius: 12,
-                        //         offset: const Offset(0, 4),
-                        //       ),
-                        //     ],
-                        //   ),
-                        //   child: CustomPhoneField(controller: controller),
-                        // ),
-                        // NEW
                         CustomPhoneField(controller: controller),
 
                         SizedBox(height: Responsive.space(context, 24)),
@@ -245,14 +234,6 @@ class LoginView extends GetView<LoginController> {
                         ),
 
                         SizedBox(height: Responsive.space(context, 16)),
-
-                        // GestureDetector(
-                        //   onTap: handleContinueAsGuest,
-                        //   child: Text(
-                        //     'Continue as Guest',
-                        //     style: AppTextStyles.authPromptLink(context),
-                        //   ),
-                        // ),
                         SizedBox(height: Responsive.space(context, 24)),
 
                         Row(
@@ -267,7 +248,8 @@ class LoginView extends GetView<LoginController> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => const SignupView(),
+                                    builder: (_) =>
+                                        SignupView(isModal: _isModal),
                                   ),
                                 );
                               },
@@ -293,7 +275,6 @@ class LoginView extends GetView<LoginController> {
   }
 }
 
-// ── Google logo painter — unchanged from your original ──────────────────────
 class _GoogleLogo extends StatelessWidget {
   final double size;
   const _GoogleLogo({required this.size});
