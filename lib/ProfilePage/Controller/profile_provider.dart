@@ -32,8 +32,6 @@ class ProfileController extends GetxController {
   final RxBool isAddressSaving = false.obs;
   final RxBool isSubmittingReview = false.obs;
 
-
-
   // ── Convenience getters ────────────────────────────────────────────────────
   String get fullName => profile.value.fullName;
   String get phoneNumber => profile.value.phoneNumber;
@@ -63,11 +61,48 @@ class ProfileController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+
     debugPrint('[ProfileController] onInit');
-    fetchProfile();
-    fetchCoupons();
-    fetchOrders();
-    fetchAddresses();
+
+    _loadUserDataIfLoggedIn();
+  }
+
+  Future<void> _loadUserDataIfLoggedIn() async {
+    final loggedIn = await SessionManager.isLoggedIn();
+
+    debugPrint(
+      '[ProfileController] Session status => '
+      '${loggedIn ? "LOGGED IN" : "GUEST"}',
+    );
+
+    if (!loggedIn) {
+      debugPrint(
+        '[ProfileController] Guest user detected -> '
+        'skipping profile, coupons, orders and addresses',
+      );
+      return;
+    }
+
+    await loadUserDataAfterLogin();
+  }
+
+  Future<void> loadUserDataAfterLogin() async {
+    try {
+      debugPrint('[ProfileController] Loading authenticated user data...');
+
+      await Future.wait([
+        fetchProfile(),
+        fetchCoupons(),
+        fetchOrders(),
+        fetchAddresses(),
+      ]);
+
+      debugPrint(
+        '[ProfileController] Authenticated user data loaded successfully',
+      );
+    } catch (e) {
+      debugPrint('[ProfileController] loadUserDataAfterLogin error => $e');
+    }
   }
 
   Future<void> refreshOnProfileOpen() async {
@@ -281,8 +316,8 @@ class ProfileController extends GetxController {
         );
         for (final item in order.items) {
           debugPrint(
-          '[ProfileController]   item.id=${item.id} item.variant=${item.variant} '
-          'materialName="${item.materialName}" qty=${item.quantity}',
+            '[ProfileController]   item.id=${item.id} item.variant=${item.variant} '
+            'materialName="${item.materialName}" qty=${item.quantity}',
           );
         }
       }
@@ -312,7 +347,9 @@ class ProfileController extends GetxController {
     required int rating,
     required String comment,
   }) async {
-    debugPrint('[ProfileController] submitOrderReview($orderId, rating: $rating)');
+    debugPrint(
+      '[ProfileController] submitOrderReview($orderId, rating: $rating)',
+    );
     isSubmittingReview.value = true;
     try {
       final result = await ApiService.postOrderReview(
@@ -344,8 +381,6 @@ class ProfileController extends GetxController {
       isSubmittingReview.value = false;
     }
   }
-
- 
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   Future<bool> _confirm({

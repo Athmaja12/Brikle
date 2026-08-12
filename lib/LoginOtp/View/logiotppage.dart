@@ -13,7 +13,7 @@ class OtpView extends StatefulWidget {
   final String countryCode;
   final OtpFlow flow;
   final String? prefillOtp;
-   final bool isModal;
+  final bool isModal;
 
   const OtpView({
     super.key,
@@ -43,14 +43,19 @@ class _OtpViewState extends State<OtpView> {
         countryCode: widget.countryCode,
         flow: widget.flow,
         prefillOtp: widget.prefillOtp,
+        isModal: widget.isModal,
       ),
       tag: widget.phoneNumber,
     );
   }
 
+  // @override
+  // void dispose() {
+  //   Get.delete<OtpController>(tag: widget.phoneNumber, force: true);
+  //   super.dispose();
+  // }
   @override
   void dispose() {
-    Get.delete<OtpController>(tag: widget.phoneNumber, force: true);
     super.dispose();
   }
 

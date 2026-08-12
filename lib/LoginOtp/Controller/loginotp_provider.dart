@@ -1,8 +1,10 @@
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:brikle/LoginOtp/Model/otp_model.dart';
+import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -10,18 +12,15 @@ enum OtpFlow { signup, login }
 
 class OtpController extends GetxController {
   late final OtpModel model;
-
-  /// Rx so the signup flow can transition itself into a login flow
-  /// in-place after registration verifies, instead of pushing a
-  /// second OtpView.
   late final Rx<OtpFlow> flow;
-
-  /// When true, on final (login) success this pops(true) back to
-  /// whoever pushed this screen (AuthGate → LoginView/SignupView chain)
-  /// instead of navigating to /home directly.
   final bool isModal;
-
   final String? prefillOtp;
+
+  /// Captured at construction — true only for a brand-new signup.
+  /// `flow` itself gets mutated to OtpFlow.login mid-way through
+  /// _verifySignupOtp(), so we can't use flow.value later to tell
+  /// registration and plain login apart.
+  final bool _isNewRegistration;
 
   final List<TextEditingController> digitControllers = List.generate(
     4,
@@ -37,6 +36,8 @@ class OtpController extends GetxController {
   /// screen into a login OTP screen. The view shows a brief interstitial
   /// during this window.
   final RxBool isTransitioningToLogin = false.obs;
+  bool _verificationInProgress = false;
+  bool _verificationCompleted = false;
 
   OtpController({
     required String phoneNumber,
@@ -44,7 +45,7 @@ class OtpController extends GetxController {
     OtpFlow flow = OtpFlow.signup,
     this.prefillOtp,
     this.isModal = false,
-  }) {
+  }) : _isNewRegistration = flow == OtpFlow.signup {
     model = OtpModel(phoneNumber: phoneNumber, countryCode: countryCode);
     this.flow = flow.obs;
   }
@@ -65,7 +66,9 @@ class OtpController extends GetxController {
         digitControllers[i].text = otp[i];
       }
       _syncOtpCode();
-      debugPrint('[OtpController] auto-fill done — otpCode: "${model.otpCode}"');
+      debugPrint(
+        '[OtpController] auto-fill done — otpCode: "${model.otpCode}"',
+      );
     });
   }
 
@@ -95,19 +98,44 @@ class OtpController extends GetxController {
   }
 
   Future<void> verifyOtp() async {
+    // ------------------------------------------------------------
+    // HARD GUARDS
+    // ------------------------------------------------------------
+
+    // Already verified successfully.
+    if (_verificationCompleted) {
+      debugPrint('[OtpController] verifyOtp ignored — OTP already verified');
+      return;
+    }
+
+    // A verification request is already running.
+    if (_verificationInProgress) {
+      debugPrint(
+        '[OtpController] verifyOtp ignored — verification already in progress',
+      );
+      return;
+    }
+
     _syncOtpCode();
+
     debugPrint(
-      '[OtpController] verifyOtp() called — otpCode: "${model.otpCode}", flow: ${flow.value}',
+      '[OtpController] verifyOtp() called — '
+      'otpCode: "${model.otpCode}", '
+      'flow: ${flow.value}',
     );
 
     if (!model.isOtpComplete) {
       debugPrint('[OtpController] OTP incomplete — showing error');
+
       isOtpValid.value = false;
       return;
     }
 
+    // Lock immediately BEFORE making API request.
+    _verificationInProgress = true;
     isLoading.value = true;
-    debugPrint('[OtpController] calling verify API...');
+
+    debugPrint('[OtpController] verification locked');
 
     try {
       if (flow.value == OtpFlow.signup) {
@@ -117,15 +145,26 @@ class OtpController extends GetxController {
       }
     } on ApiException catch (e) {
       debugPrint(
-        '[OtpController] ApiException → ${e.message} (status: ${e.statusCode})',
+        '[OtpController] ApiException → '
+        '${e.message} '
+        '(status: ${e.statusCode})',
       );
+
+      // Only unlock if verification actually failed.
+      _verificationInProgress = false;
+
       isLoading.value = false;
       isOtpValid.value = false;
+
       Get.snackbar('Verification Failed', e.message);
     } catch (e) {
       debugPrint('[OtpController] unexpected error → $e');
+
+      _verificationInProgress = false;
+
       isLoading.value = false;
       isOtpValid.value = false;
+
       Get.snackbar(
         'Verification Failed',
         'Something went wrong. Please try again.',
@@ -139,11 +178,16 @@ class OtpController extends GetxController {
   /// controller/screen instead of pushing a second OtpView.
   Future<void> _verifySignupOtp() async {
     debugPrint('[OtpController] hitting /customer-verify-otp/');
+
     final response = await ApiService.verifyRegisterOtp(
       phoneNumber: model.phoneNumber,
       otp: model.otpCode,
     );
-    debugPrint('[OtpController] signup verify SUCCESS — ${response['message']}');
+
+    debugPrint(
+      '[OtpController] signup verify SUCCESS — '
+      '${response['message']}',
+    );
 
     Get.snackbar(
       'Account Created',
@@ -151,20 +195,33 @@ class OtpController extends GetxController {
     );
 
     isTransitioningToLogin.value = true;
+
+    // Clear the signup OTP.
     _clearDigits();
 
     debugPrint('[OtpController] signup verified — kicking off login OTP');
-    final loginResponse = await ApiService.login(phoneNumber: model.phoneNumber);
+
+    final loginResponse = await ApiService.login(
+      phoneNumber: model.phoneNumber,
+    );
+
     final loginOtp = loginResponse['otp']?.toString();
 
-    debugPrint('┌─────────────────────────────────┐');
-    debugPrint('│  POST-SIGNUP LOGIN OTP: $loginOtp');
-    debugPrint('└─────────────────────────────────┘');
+    debugPrint('POST-SIGNUP LOGIN OTP received');
+
+    // ------------------------------------------------------------
+    // NEW LOGIN OTP = NEW VERIFICATION CYCLE
+    // ------------------------------------------------------------
+
+    flow.value = OtpFlow.login;
+
+    _verificationCompleted = false;
+    _verificationInProgress = false;
+
+    resendCooldown.value = 0;
 
     isTransitioningToLogin.value = false;
     isLoading.value = false;
-    flow.value = OtpFlow.login;
-    resendCooldown.value = 0;
 
     if (loginOtp != null && loginOtp.length == 4) {
       _maybeAutoFill(loginOtp);
@@ -178,7 +235,8 @@ class OtpController extends GetxController {
       duration: const Duration(seconds: 6),
       snackPosition: SnackPosition.TOP,
     );
-    // User now sees the same screen in login mode and taps Verify again.
+
+    debugPrint('[OtpController] switched to LOGIN OTP mode');
   }
 
   Future<void> _verifyLoginOtp() async {
@@ -188,7 +246,9 @@ class OtpController extends GetxController {
       otp: model.otpCode,
     );
     final customerId = response['customer_id'] as int?;
-    debugPrint('[OtpController] login verify SUCCESS — customer_id: $customerId');
+    debugPrint(
+      '[OtpController] login verify SUCCESS — customer_id: $customerId',
+    );
 
     await SessionManager.saveSession(
       accessToken: response['access'] as String,
@@ -197,20 +257,48 @@ class OtpController extends GetxController {
       phoneNumber: model.phoneNumber,
     );
 
+    _verificationCompleted = true;
+    _verificationInProgress = false;
     isLoading.value = false;
+
+    if (Get.isRegistered<ProfileController>()) {
+      await Get.find<ProfileController>().loadUserDataAfterLogin();
+    }
+
     Get.snackbar(
       'Verified',
       response['message']?.toString() ?? 'Logged in successfully!',
     );
 
-    // Fold any guest-cart items into the now-authenticated server cart
-    // before handing control back, so checkout continues with the same
-    // items the guest had rather than an empty server cart.
+    // ------------------------------------------------------------
+    // MERGE GUEST CART & ADDRESS — must run BEFORE any other
+    // authenticated fetchCart() call, while cartItems still holds
+    // the device-based guest cart in memory.
+    // ------------------------------------------------------------
     if (Get.isRegistered<CartController>()) {
-      await Get.find<CartController>().mergeGuestCartAfterLogin();
+      final cart = Get.find<CartController>();
+      await cart.mergeGuestCartAfterLogin();
+      if (Get.isRegistered<CartController>()) {
+        // only if you've added mergeGuestAddressAfterLogin from earlier
+        // await cart.mergeGuestAddressAfterLogin();
+      }
     }
 
-    if (isModal) {
+    // ------------------------------------------------------------
+    // NAVIGATION — exactly one call, no fallthrough to any other path.
+    // ------------------------------------------------------------
+    if (_isNewRegistration) {
+      // Flipkart-style: guest who just registered lands on Cart with
+      // their merged items, not Home. Get.offAll() replaces the whole
+      // GetX-managed stack directly — it does NOT depend on
+      // Navigator.pop()/Get.back() correctly targeting whatever nested
+      // Navigator OtpView happened to live in (that mismatch is what
+      // caused the OTP screen to appear stuck/duplicated before).
+      debugPrint(
+        '[OtpController] new registration verified — navigating to Cart',
+      );
+      Get.offAll(() => const CartScreen());
+    } else if (isModal) {
       debugPrint('[OtpController] modal flow — popping true to caller');
       Get.back(result: true);
     } else {

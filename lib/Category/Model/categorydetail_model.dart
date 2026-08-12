@@ -1,5 +1,20 @@
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 
+class OfferTag {
+  final double discountPercentage;
+  final int dealId;
+
+  const OfferTag({required this.discountPercentage, required this.dealId});
+
+  factory OfferTag.fromJson(Map<String, dynamic> json) => OfferTag(
+    discountPercentage: (json['discount_percentage'] as num?)?.toDouble() ?? 0,
+    dealId: (json['deal_id'] as num?)?.toInt() ?? 0,
+  );
+
+  /// e.g. "10% Off"
+  String get label => '${discountPercentage.toInt()}% Off';
+}
+
 String _fullImageUrl(String? path) {
   if (path == null || path.isEmpty) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -45,7 +60,8 @@ class CategoryProductItem {
   final int? brandId;
   final String? type; // thickness_or_spec
   final String? quantity; // size_dimension
-  final double price; // retail_price_with_gst — base unit price (qty 1)
+  final double price;
+  final OfferTag? offer;  // retail_price_with_gst — base unit price (qty 1)
 
   final bool hasTiers;
   final List<PriceTier> priceTiers; // sorted ascending by minQty
@@ -67,6 +83,7 @@ class CategoryProductItem {
     this.priceTiers = const [],
     this.isAssured = false, // NEW
     this.assuredCertificate,
+    this.offer,
   });
 
   /// Effective unit price for a given quantity — picks the highest tier
@@ -128,6 +145,9 @@ class CategoryProductItem {
         variantMaterial['assured_certificate'] ??
             fallbackMaterial['assured_certificate'],
       ),
+      offer: variant['offer'] != null
+          ? OfferTag.fromJson(variant['offer'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

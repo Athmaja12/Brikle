@@ -307,18 +307,122 @@ class ApiService {
   // CART
   // ══════════════════════════════════════════════════════════════════════════
 
-  static Future<Map<String, dynamic>> getCart() async {
-    return _get(ApiConfig.cartUrl, headers: await _authHeaders());
+  /// Headers used for the guest cart.
+  ///
+  /// Backend identifies a guest cart using:
+  ///
+  /// X-Device-ID: <device_id>
+  ///
+  /// If the user is logged in, Authorization is also included.
+  static Future<Map<String, String>> _cartHeaders() async {
+    final token = await SessionManager.getAccessToken();
+    final deviceId = await SessionManager.getGuestDeviceId();
+
+    final headers = <String, String>{'Content-Type': 'application/json'};
+
+    // Logged-in user
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    // Guest cart / device cart
+    if (deviceId != null && deviceId.isNotEmpty) {
+      headers['X-Device-ID'] = deviceId;
+
+      debugPrint('[ApiService] 🛒 X-Device-ID => $deviceId');
+    } else {
+      debugPrint('[ApiService] 🛒 No guest device ID saved yet');
+    }
+
+    return headers;
   }
 
+  /// GET guest/customer cart.
+  ///
+  /// IMPORTANT:
+  /// The same X-Device-ID returned by POST /api/cart/add/
+  /// must be sent here.
+  static Future<Map<String, dynamic>> getCart() async {
+    final headers = await _cartHeaders();
+
+    debugPrint('[ApiService] 🛒 GET CART');
+
+    debugPrint('[ApiService] 🛒 URL => ${ApiConfig.cartUrl}');
+
+    debugPrint('[ApiService] 🛒 Headers => $headers');
+
+    final response = await _get(ApiConfig.cartUrl, headers: headers);
+
+    // Backend returns the device_id.
+    final deviceId = response['device_id']?.toString();
+
+    if (deviceId != null && deviceId.isNotEmpty) {
+      await SessionManager.saveGuestDeviceId(deviceId);
+
+      debugPrint('[ApiService] 🛒 Saved device ID from GET => $deviceId');
+    }
+
+    debugPrint('[ApiService] 🛒 Cart response => $response');
+
+    return response;
+  }
+
+  /// Add product to cart.
+  ///
+  /// Backend contract:
+  ///
+  /// POST /api/cart/add/
+  ///
+  /// {
+  ///   "variant": 1,
+  ///   "quantity": 1
+  /// }
+  ///
+  /// Backend returns:
+  ///
+  /// {
+  ///   "message": "Add to the cart!",
+  ///   "device_id": "..."
+  /// }
   static Future<Map<String, dynamic>> addToCart({
     required int variantId,
     required int quantity,
   }) async {
-    return _post(ApiConfig.cartUrl, {
+    final headers = await _cartHeaders();
+
+    debugPrint('[ApiService] 🛒 ADD CART');
+
+    debugPrint('[ApiService] 🛒 URL => ${ApiConfig.cartUrl}');
+
+    debugPrint('[ApiService] 🛒 Headers => $headers');
+
+    debugPrint(
+      '[ApiService] 🛒 Body => '
+      '{variant: $variantId, quantity: $quantity}',
+    );
+
+    final response = await _post(ApiConfig.cartUrl, {
       'variant': variantId,
       'quantity': quantity,
-    }, headers: await _authHeaders());
+    }, headers: headers);
+
+    // ⭐ CRITICAL
+    //
+    // Backend creates/returns the guest device ID when the
+    // first product is added.
+    final deviceId = response['device_id']?.toString();
+
+    if (deviceId != null && deviceId.isNotEmpty) {
+      await SessionManager.saveGuestDeviceId(deviceId);
+
+      debugPrint('[ApiService] 🛒 Guest device ID SAVED => $deviceId');
+    } else {
+      debugPrint('[ApiService] ⚠️ Add cart response did not contain device_id');
+    }
+
+    debugPrint('[ApiService] 🛒 ADD CART response => $response');
+
+    return response;
   }
 
   static Future<Map<String, dynamic>> updateCartItem({
@@ -630,7 +734,7 @@ class ApiService {
     } catch (e) {
       debugPrint('[Search] parse error: $e');
       return [];
-    } 
+    }
   }
 
   static Future<List<dynamic>> getProducts() async {
@@ -876,7 +980,7 @@ class ApiService {
   // REVIEWS & RATINGS
   // ══════════════════════════════════════════════════════════════════════════
 
-/// Submit a review & rating for a whole ORDER (Flipkart-style).
+  /// Submit a review & rating for a whole ORDER (Flipkart-style).
   /// POST /api/orders/{orderId}/review/
   static Future<OrderReviewResponse> postOrderReview({
     required int orderId,

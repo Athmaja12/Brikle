@@ -1,5 +1,6 @@
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
+import 'package:brikle/ApiConfiguration/auth_gate.dart';
 import 'package:brikle/HomePage/Model/home_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -108,100 +109,166 @@ class HomeController extends GetxController {
 
   Future<void> refresh() async {
     isLoading.value = true;
+
     debugPrint('[HomeController] refresh() started');
+
     try {
       debugPrint(
-        '[HomeController] → calling getCarousel, getCategories, getProfile, getDealsOfWeek',
+        '[HomeController] Loading public APIs: '
+        'carousel, categories, deals',
       );
 
-      final results = await Future.wait([
-        ApiService.getCarousel()
-            .then((r) {
-              debugPrint(
-                '[HomeController] ✅ getCarousel OK — ${(r as List).length} items',
-              );
-              return r;
-            })
-            .catchError((e) {
-              debugPrint('[HomeController] ❌ getCarousel FAILED: $e');
-              throw e;
-            }),
-        ApiService.getCategories()
-            .then((r) {
-              debugPrint(
-                '[HomeController] ✅ getCategories OK — ${(r as List).length} items',
-              );
-              return r;
-            })
-            .catchError((e) {
-              debugPrint('[HomeController] ❌ getCategories FAILED: $e');
-              throw e;
-            }),
-        ApiService.getProfile()
-            .then((r) {
-              debugPrint('[HomeController] ✅ getProfile OK — $r');
-              return r;
-            })
-            .catchError((e) {
-              debugPrint('[HomeController] ❌ getProfile FAILED: $e');
-              throw e;
-            }),
-        ApiService.getDealsOfWeek()
-            .then((r) {
-              debugPrint(
-                '[HomeController] ✅ getDealsOfWeek OK — ${(r as List).length} items',
-              );
-              return r;
-            })
-            .catchError((e) {
-              debugPrint('[HomeController] ❌ getDealsOfWeek FAILED: $e');
-              throw e;
-            }),
-      ]);
+      // -----------------------------------------------------------------------
+      // CAROUSEL
+      // -----------------------------------------------------------------------
+      try {
+        final carouselResponse = await ApiService.getCarousel();
 
-      carousels.value = (results[0] as List)
-          .map((e) => CarouselItem.fromJson(e as Map<String, dynamic>))
-          .toList();
+        carousels.value = carouselResponse
+            .map((e) => CarouselItem.fromJson(e as Map<String, dynamic>))
+            .toList();
 
-      categories.value = (results[1] as List)
-          .map((e) => CategoryItem.fromJson(e as Map<String, dynamic>))
-          .toList();
-      debugPrint(
-        '[HomeController] parsed categories: ${categories.map((c) => "${c.id}:${c.name}").toList()}',
-      );
+        debugPrint(
+          '[HomeController] ✅ getCarousel OK — '
+          '${carousels.length} items',
+        );
+      } on ApiException catch (e) {
+        debugPrint('[HomeController] ❌ getCarousel FAILED: ${e.message}');
 
-      final profile = results[2] as Map<String, dynamic>;
-      deliverToPincode.value = profile['pincode']?.toString() ?? '—';
-      customerName.value = profile['full_name']?.toString() ?? '';
+        carousels.clear();
+      } catch (e) {
+        debugPrint('[HomeController] ❌ getCarousel unexpected error: $e');
 
-      topDeals.value = (results[3] as List)
-          .map((e) => DealItem.fromJson(e as Map<String, dynamic>))
-          .toList();
-      // ← NEW: auto-check serviceability for the profile's pincode
-      if (deliverToPincode.value != '—') {
-        checkPincode(deliverToPincode.value);
+        carousels.clear();
       }
 
-      if (categories.isNotEmpty) {
+      // -----------------------------------------------------------------------
+      // CATEGORIES
+      // -----------------------------------------------------------------------
+      try {
+        final categoryResponse = await ApiService.getCategories();
+
+        categories.value = categoryResponse
+            .map((e) => CategoryItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+
         debugPrint(
-          '[HomeController] loading bestselling for default category id=${categories[selectedCategoryIndex.value].id}',
+          '[HomeController] ✅ getCategories OK — '
+          '${categories.length} items',
         );
-        await _loadBestselling(categories[selectedCategoryIndex.value].id);
+
+        debugPrint(
+          '[HomeController] parsed categories: '
+          '${categories.map((c) => '${c.id}:${c.name}').toList()}',
+        );
+      } on ApiException catch (e) {
+        debugPrint('[HomeController] ❌ getCategories FAILED: ${e.message}');
+
+        categories.clear();
+      } catch (e) {
+        debugPrint('[HomeController] ❌ getCategories unexpected error: $e');
+
+        categories.clear();
+      }
+
+      // -----------------------------------------------------------------------
+      // DEALS OF THE WEEK
+      // -----------------------------------------------------------------------
+      try {
+        final dealsResponse = await ApiService.getDealsOfWeek();
+
+        topDeals.value = dealsResponse
+            .map((e) => DealItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+
+        debugPrint(
+          '[HomeController] ✅ getDealsOfWeek OK — '
+          '${topDeals.length} items',
+        );
+      } on ApiException catch (e) {
+        debugPrint('[HomeController] ❌ getDealsOfWeek FAILED: ${e.message}');
+
+        topDeals.clear();
+      } catch (e) {
+        debugPrint('[HomeController] ❌ getDealsOfWeek unexpected error: $e');
+
+        topDeals.clear();
+      }
+
+      // -----------------------------------------------------------------------
+      // PROFILE
+      // -----------------------------------------------------------------------
+      // Profile is authenticated only.
+      //
+      // Guest:
+      //   Do NOT call /api/customer-profile/
+      //
+      // Logged-in:
+      //   Load profile and pincode.
+      // -----------------------------------------------------------------------
+      await _fetchProfileIfLoggedIn();
+
+      // -----------------------------------------------------------------------
+      // BEST SELLING
+      // -----------------------------------------------------------------------
+      if (categories.isNotEmpty &&
+          selectedCategoryIndex.value < categories.length) {
+        final categoryId = categories[selectedCategoryIndex.value].id;
+
+        debugPrint(
+          '[HomeController] Loading bestselling for '
+          'category id=$categoryId',
+        );
+
+        await _loadBestselling(categoryId);
       } else {
         debugPrint(
-          '[HomeController] categories list is EMPTY — skipping bestselling load',
+          '[HomeController] Categories unavailable — '
+          'skipping bestselling load',
         );
+
+        bestselling.clear();
       }
-    } on ApiException catch (e) {
-      debugPrint('[HomeController] ❌ refresh() ApiException: ${e.message}');
-      debugPrint('[HomeController] full exception object: $e');
-      Get.snackbar('Could not load Home', e.message);
     } catch (e, stack) {
+      // This should almost never be reached because each API above
+      // handles its own exception.
       debugPrint('[HomeController] ❌ refresh() unexpected error: $e');
+
       debugPrint('[HomeController] stack: $stack');
     } finally {
       isLoading.value = false;
+
       debugPrint('[HomeController] refresh() finished — isLoading=false');
+    }
+  }
+
+  /// Profile is only fetched for logged-in users. For guests this is a
+  /// silent no-op — deliverToPincode/customerName simply stay at their
+  /// defaults, and no pincode-serviceability check runs since there's
+  /// no saved pincode to check yet.
+  Future<void> _fetchProfileIfLoggedIn() async {
+    if (!await AuthGate.isLoggedIn()) {
+      debugPrint('[HomeController] skipping getProfile — guest session');
+      return;
+    }
+
+    try {
+      final profile = await ApiService.getProfile();
+      debugPrint('[HomeController] ✅ getProfile OK — $profile');
+
+      deliverToPincode.value = profile['pincode']?.toString() ?? '—';
+      customerName.value = profile['full_name']?.toString() ?? '';
+
+      if (deliverToPincode.value != '—') {
+        checkPincode(deliverToPincode.value);
+      }
+    } on ApiException catch (e) {
+      debugPrint('[HomeController] ❌ getProfile FAILED: ${e.message}');
+      // Non-fatal — logged-in profile fetch failing (expired token mid-
+      // session, etc.) shouldn't block the rest of Home from rendering.
+    } catch (e, stack) {
+      debugPrint('[HomeController] ❌ getProfile unexpected error: $e');
+      debugPrint('[HomeController] stack: $stack');
     }
   }
 

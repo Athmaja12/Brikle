@@ -150,41 +150,72 @@ class CartController extends GetxController {
   }
 
   // ── END Coupon Methods ──────────────────────────────
-
   Future<void> fetchCart({bool showLoader = true}) async {
     debugPrint('$_tag fetchCart(showLoader: $showLoader) called');
+
     if (showLoader) {
       isLoading.value = true;
     }
+
     try {
-      if (await AuthGate.isLoggedIn()) {
-        final response = await ApiService.getCart();
-        debugPrint('$_tag fetchCart response: $response');
-        final parsed = CartResponse.fromJson(response);
-        cartItems.value = parsed.items;
-        grandTotal.value = parsed.grandTotalWithGst;
-      } else {
-        final items = await GuestCartService.load();
-        cartItems.value = items;
-        _recalculateGrandTotal();
+      // ============================================================
+      // IMPORTANT:
+      // Guest cart is ALSO stored on the backend now.
+      //
+      // ApiService.getCart() automatically sends:
+      //
+      // X-Device-ID: <saved guest device id>
+      //
+      // for guest users.
+      //
+      // Therefore DO NOT use GuestCartService here.
+      // ============================================================
+
+      final response = await ApiService.getCart();
+
+      debugPrint('$_tag fetchCart response: $response');
+
+      final parsed = CartResponse.fromJson(response);
+
+      cartItems.value = parsed.items;
+
+      grandTotal.value = parsed.grandTotalWithGst;
+
+      debugPrint('$_tag SERVER CART loaded successfully');
+
+      debugPrint('$_tag items=${cartItems.length}');
+
+      debugPrint('$_tag grandTotal=${grandTotal.value}');
+
+      for (final item in cartItems) {
+        debugPrint(
+          '$_tag cart item -> '
+          'variantId=${item.variantId}, '
+          'quantity=${item.quantity}, '
+          'unitPrice=${item.unitPriceWithGst}, '
+          'total=${item.totalPriceWithGst}',
+        );
       }
-      debugPrint(
-        '$_tag fetchCart success — ${cartItems.length} items, '
-        'grandTotal=${grandTotal.value}',
-      );
     } on ApiException catch (e) {
       debugPrint(
-        '$_tag fetchCart failed: ${e.message} (status ${e.statusCode})',
+        '$_tag fetchCart failed: ${e.message} '
+        '(status ${e.statusCode})',
       );
+
       Get.snackbar('Could not load cart', e.message);
     } catch (e, st) {
       debugPrint('$_tag fetchCart unexpected error: $e');
+
       debugPrint('$_tag fetchCart stack: $st');
     } finally {
       if (showLoader) {
         isLoading.value = false;
       }
-      debugPrint('$_tag fetchCart finished, isLoading=${isLoading.value}');
+
+      debugPrint(
+        '$_tag fetchCart finished, '
+        'isLoading=${isLoading.value}',
+      );
     }
   }
 
@@ -227,27 +258,66 @@ class CartController extends GetxController {
     Get.snackbar('Added to Cart', 'Item added successfully');
   }
 
-  /// Call immediately after a successful login/registration (from
-  /// OtpController), before resuming whatever the user was doing.
+  bool _isMergingGuestCart = false;
+
+  /// Call immediately after a successful login/registration, BEFORE any
+  /// other fetchCart() runs with the new auth token.
+  ///
+  /// Guest items are added via the normal ApiService.addToCart(), which
+  /// the backend ties to X-Device-ID for unauthenticated requests — so
+  /// they were NEVER written to GuestCartService. They're only sitting
+  /// in this controller's in-memory `cartItems` (from the last
+  /// device-based fetchCart()). Once a request carries the auth token,
+  /// the backend switches to returning the new user's (empty) cart, so
+  /// we must snapshot `cartItems` right now, before that happens.
   Future<void> mergeGuestCartAfterLogin() async {
-    final guestItems = await GuestCartService.load();
-    if (guestItems.isEmpty) {
-      await fetchCart();
+    if (_isMergingGuestCart) {
+      debugPrint('$_tag mergeGuestCartAfterLogin — already running, skip');
       return;
     }
-    debugPrint('$_tag mergeGuestCartAfterLogin — merging ${guestItems.length} items');
-    for (final item in guestItems) {
-      try {
-        await ApiService.addToCart(
-          variantId: item.variantId,
-          quantity: item.quantity,
-        );
-      } catch (e) {
-        debugPrint('$_tag merge failed for variant ${item.variantId}: $e');
+    _isMergingGuestCart = true;
+
+    try {
+      final preLoginSnapshot = List<CartItem>.from(cartItems);
+      final localGuestItems = await GuestCartService.load();
+
+      // local (GuestCartService) entries win if both exist, since they
+      // reflect the latest quantity edits made while still a guest.
+      final Map<int, CartItem> merged = {
+        for (final item in preLoginSnapshot) item.variantId: item,
+      };
+      for (final item in localGuestItems) {
+        merged[item.variantId] = item;
       }
+
+      if (merged.isEmpty) {
+        debugPrint('$_tag mergeGuestCartAfterLogin — nothing to merge');
+        await GuestCartService.clear();
+        await fetchCart();
+        return;
+      }
+
+      debugPrint(
+        '$_tag mergeGuestCartAfterLogin — merging ${merged.length} items '
+        '(captured before auth headers switched)',
+      );
+
+      for (final item in merged.values) {
+        try {
+          await ApiService.addToCart(
+            variantId: item.variantId,
+            quantity: item.quantity,
+          );
+        } catch (e) {
+          debugPrint('$_tag merge failed for variant ${item.variantId}: $e');
+        }
+      }
+
+      await GuestCartService.clear();
+      await fetchCart(); // now authenticated — pulls back the merged cart
+    } finally {
+      _isMergingGuestCart = false;
     }
-    await GuestCartService.clear();
-    await fetchCart();
   }
 
   Future<void> updateQuantity(CartItem item, int newQuantity) async {

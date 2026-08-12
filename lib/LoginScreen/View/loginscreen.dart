@@ -245,6 +245,7 @@ class LoginView extends GetView<LoginController> {
                             ),
                             GestureDetector(
                               onTap: () {
+
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -252,6 +253,7 @@ class LoginView extends GetView<LoginController> {
                                         SignupView(isModal: _isModal),
                                   ),
                                 );
+                                
                               },
                               child: Text(
                                 'Register',

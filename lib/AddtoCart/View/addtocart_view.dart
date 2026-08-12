@@ -13,6 +13,7 @@ import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
+import 'package:brikle/Registration/View/regitration_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -1475,12 +1476,42 @@ class _PaymentMethodTile extends StatelessWidget {
   }
 }
 
+Future<bool> _requireRegistrationForGuest(BuildContext context) async {
+  // Already authenticated
+  if (await AuthGate.isLoggedIn()) {
+    debugPrint('[CartScreen] User already logged in');
+    return true;
+  }
+
+  debugPrint('[CartScreen] Guest user detected → opening SignupView');
+
+  final result = await Navigator.push<bool>(
+    context,
+    MaterialPageRoute(builder: (_) => const SignupView(isModal: true)),
+  );
+
+  if (!context.mounted) {
+    return false;
+  }
+
+  debugPrint('[CartScreen] SignupView returned: $result');
+
+  // Do not rely only on Navigator result.
+  // Check the actual authentication session.
+  final loggedIn = await AuthGate.isLoggedIn();
+
+  debugPrint('[CartScreen] Authentication after registration: $loggedIn');
+
+  return loggedIn;
+}
+
 /// ═══════════════════════════════════════════════════════════════════════
 /// CHANGED: gated behind AuthGate — guests hit this before they have
 /// any address, so this is the natural first checkout gate.
 /// ═══════════════════════════════════════════════════════════════════════
 class _AddAddressButton extends StatelessWidget {
   final CartController controller;
+
   const _AddAddressButton({required this.controller});
 
   @override
@@ -1488,7 +1519,7 @@ class _AddAddressButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () => _requestAddressModal(context),
+        onPressed: () => _requestAddress(context),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryGreen,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1514,16 +1545,27 @@ class _AddAddressButton extends StatelessWidget {
     );
   }
 
-  Future<void> _requestAddressModal(BuildContext context) async {
-    await AuthGate.requireAuth<void>(
-      context,
-      reason: 'Log in to add a delivery address',
-      onAuthenticated: () async {
-        await Get.find<CartController>().mergeGuestCartAfterLogin();
-        if (!context.mounted) return;
-        _showAddressModal(context);
-      },
-    );
+  Future<void> _requestAddress(BuildContext context) async {
+    debugPrint('[CartScreen] Add Address tapped');
+
+    final authenticated = await _requireRegistrationForGuest(context);
+
+    if (!authenticated) {
+      debugPrint(
+        '[CartScreen] Registration cancelled/failed → staying on cart',
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    debugPrint('[CartScreen] Authentication successful → refreshing cart');
+
+    await controller.fetchCart(showLoader: false);
+
+    if (!context.mounted) return;
+
+    _showAddressModal(context);
   }
 
   void _showAddressModal(BuildContext context) {
@@ -1584,12 +1626,14 @@ class _SelectPaymentPrompt extends StatelessWidget {
 /// ═══════════════════════════════════════════════════════════════════════
 class _ProceedToCheckoutButton extends StatelessWidget {
   final CartController controller;
+
   const _ProceedToCheckoutButton({required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final isProcessing = controller.isCheckingOut.value;
+
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton(
@@ -1632,15 +1676,48 @@ class _ProceedToCheckoutButton extends StatelessWidget {
   }
 
   Future<void> _requestCheckout(BuildContext context) async {
-    await AuthGate.requireAuth<void>(
-      context,
-      reason: 'Log in to place your order',
-      onAuthenticated: () async {
-        await controller.mergeGuestCartAfterLogin();
-        if (!context.mounted) return;
-        await _proceedToCheckout(context);
-      },
-    );
+    debugPrint('[CartScreen] Proceed to Checkout tapped');
+
+    final wasLoggedIn = await AuthGate.isLoggedIn();
+
+    // ------------------------------------------------------------
+    // GUEST USER
+    // ------------------------------------------------------------
+    if (!wasLoggedIn) {
+      debugPrint('[CartScreen] Guest user → opening registration');
+
+      final registered = await _requireRegistrationForGuest(context);
+
+      if (!registered) {
+        debugPrint(
+          '[CartScreen] Registration cancelled/failed → staying on cart',
+        );
+        return;
+      }
+
+      if (!context.mounted) return;
+
+      // Guest just registered: OtpController already navigated to a
+      // brand-new CartScreen via Get.offAll(). This old widget instance
+      // is on its way out — don't act further on it.
+      debugPrint(
+        '[CartScreen] Registration successful — new CartScreen took over',
+      );
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // ALREADY LOGGED IN — proceed straight to checkout
+    // ------------------------------------------------------------
+    if (!context.mounted) return;
+
+    debugPrint('[CartScreen] Already authenticated → proceeding to checkout');
+
+    await controller.fetchCart(showLoader: false);
+
+    if (!context.mounted) return;
+
+    await _proceedToCheckout(context);
   }
 
   Future<void> _proceedToCheckout(BuildContext context) async {
@@ -1665,7 +1742,9 @@ class _ProceedToCheckoutButton extends StatelessWidget {
       builder: (_) => _CheckoutConfirmationModal(controller: controller),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      return;
+    }
 
     controller.isCheckingOut.value = true;
 

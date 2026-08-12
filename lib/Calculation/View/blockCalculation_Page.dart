@@ -472,7 +472,7 @@ class _RelatedProductsSection extends StatelessWidget {
               );
             },
           ),
-        ), 
+        ),
       ],
     );
   }

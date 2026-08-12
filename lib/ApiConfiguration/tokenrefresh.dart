@@ -1,9 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persists auth tokens + customer id across app restarts.
-///
-/// Add to pubspec.yaml if not already present:
-///   shared_preferences: ^2.2.0
+/// Persists auth tokens + customer id + guest device id across app restarts.
 class SessionManager {
   SessionManager._();
 
@@ -12,6 +9,13 @@ class SessionManager {
   static const _keyCustomerId = 'customer_id';
   static const _keyPhoneNumber = 'phone_number';
 
+  // Guest cart device ID
+  static const _keyGuestDeviceId = 'guest_device_id';
+
+  // ─────────────────────────────────────────────────────────────
+  // AUTH SESSION
+  // ─────────────────────────────────────────────────────────────
+
   static Future<void> saveSession({
     required String accessToken,
     required String refreshToken,
@@ -19,13 +23,29 @@ class SessionManager {
     String? phoneNumber,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyAccessToken, accessToken);
-    await prefs.setString(_keyRefreshToken, refreshToken);
+
+    await prefs.setString(
+      _keyAccessToken,
+      accessToken,
+    );
+
+    await prefs.setString(
+      _keyRefreshToken,
+      refreshToken,
+    );
+
     if (customerId != null) {
-      await prefs.setInt(_keyCustomerId, customerId);
+      await prefs.setInt(
+        _keyCustomerId,
+        customerId,
+      );
     }
+
     if (phoneNumber != null) {
-      await prefs.setString(_keyPhoneNumber, phoneNumber);
+      await prefs.setString(
+        _keyPhoneNumber,
+        phoneNumber,
+      );
     }
   }
 
@@ -44,16 +64,69 @@ class SessionManager {
     return prefs.getInt(_keyCustomerId);
   }
 
+  static Future<String?> getPhoneNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyPhoneNumber);
+  }
+
   static Future<bool> isLoggedIn() async {
     final token = await getAccessToken();
+
     return token != null && token.isNotEmpty;
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // GUEST CART DEVICE ID
+  // ─────────────────────────────────────────────────────────────
+
+  static Future<void> saveGuestDeviceId(
+    String deviceId,
+  ) async {
+    if (deviceId.trim().isEmpty) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      _keyGuestDeviceId,
+      deviceId.trim(),
+    );
+  }
+
+  static Future<String?> getGuestDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(
+      _keyGuestDeviceId,
+    );
+  }
+
+  static Future<void> clearGuestDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove(
+      _keyGuestDeviceId,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // LOGOUT
+  // ─────────────────────────────────────────────────────────────
+
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.remove(_keyAccessToken);
     await prefs.remove(_keyRefreshToken);
     await prefs.remove(_keyCustomerId);
-    // phone number is left in place so the login screen can prefill it
+
+    // Keep phone number so login can prefill it.
+    //
+    // IMPORTANT:
+    // Do NOT clear guest_device_id here automatically.
+    //
+    // The guest device ID may still be needed when returning
+    // to guest mode.
   }
 }

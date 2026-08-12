@@ -420,60 +420,73 @@ class _BulkPricingCard extends StatefulWidget {
 }
 
 class _BulkPricingCardState extends State<_BulkPricingCard> {
-  // One key per tier row so the burst anchors to whichever "Apply" button
-  // was actually tapped, not the whole card.
-  late final List<GlobalKey> _tierKeys = List.generate(
-    widget.product.priceTiers.length,
-    (_) => GlobalKey(),
-  );
   OverlayEntry? _burstOverlay;
 
   @override
   void dispose() {
     _burstOverlay?.remove();
+    _burstOverlay = null;
     super.dispose();
   }
 
-  void _showBurst(int tierIndex, double price) {
+  void _showBurst(BuildContext rowContext, double price) {
+    // Remove an existing popup first.
     _burstOverlay?.remove();
     _burstOverlay = null;
 
-    final renderBox =
-        _tierKeys[tierIndex].currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.attached) return;
+    final renderObject = rowContext.findRenderObject();
 
-    final position = renderBox.localToGlobal(Offset.zero);
-    final rowWidth = renderBox.size.width;
-    final rowHeight = renderBox.size.height;
+    if (renderObject is! RenderBox) {
+      return;
+    }
+
+    if (!renderObject.hasSize) {
+      return;
+    }
+
+    final position = renderObject.localToGlobal(Offset.zero);
+
+    final rowWidth = renderObject.size.width;
+    final rowHeight = renderObject.size.height;
+
     final centerX = position.dx + (rowWidth / 2);
+
     final centerY = position.dy + (rowHeight / 2);
+
     const boxSize = 200.0;
     const popupWidth = 190.0;
 
     final overlayState = Overlay.of(context);
+
     late final OverlayEntry entry;
+
     entry = OverlayEntry(
-      builder: (_) => Positioned(
-        left: centerX - (boxSize / 2),
-        top: centerY - (boxSize / 2),
-        width: boxSize,
-        height: boxSize,
-        child: IgnorePointer(
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              const _CelebrationBurst(),
-              SizedBox(
-                width: popupWidth,
-                child: _UnlockPill(price: price),
-              ),
-            ],
+      builder: (_) {
+        return Positioned(
+          left: centerX - (boxSize / 2),
+          top: centerY - (boxSize / 2),
+          width: boxSize,
+          height: boxSize,
+          child: IgnorePointer(
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                const _CelebrationBurst(),
+
+                SizedBox(
+                  width: popupWidth,
+                  child: _UnlockPill(price: price),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
+
     _burstOverlay = entry;
+
     overlayState.insert(entry);
 
     Future.delayed(const Duration(milliseconds: 1700), () {
@@ -514,68 +527,86 @@ class _BulkPricingCardState extends State<_BulkPricingCard> {
               ),
             ],
           ),
+
           const SizedBox(height: 8),
+
           ...widget.product.priceTiers.asMap().entries.map((entry) {
             final index = entry.key;
             final tier = entry.value;
-            return InkWell(
-              key: _tierKeys[index],
-              borderRadius: BorderRadius.circular(8),
-              onTap: () {
-                widget.controller.applyBulkTier(tier.minQty);
-                _showBurst(index, tier.price);
-                Get.snackbar(
-                  'Bulk Price Applied',
-                  'Qty set to ${tier.minQty} at ₹${tier.price.toStringAsFixed(0)}/unit',
-                  backgroundColor: AppColors.primaryGreen,
-                  colorText: Colors.white,
-                  snackPosition: SnackPosition.BOTTOM,
+
+            return Builder(
+              builder: (rowContext) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+
+                  onTap: () async {
+                    await widget.controller.applyBulkTier(tier.minQty);
+
+                    if (!mounted) {
+                      return;
+                    }
+
+                    _showBurst(rowContext, tier.price);
+
+                    Get.snackbar(
+                      'Bulk Price Applied',
+                      'Qty set to ${tier.minQty} '
+                          'at ₹${tier.price.toStringAsFixed(0)}/unit',
+                      backgroundColor: AppColors.primaryGreen,
+                      colorText: Colors.white,
+                      snackPosition: SnackPosition.BOTTOM,
+                    );
+                  },
+
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Buy ${tier.minQty}+ units',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+
+                        Text(
+                          '₹${tier.price.toStringAsFixed(0)}/unit',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryGreen,
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryGreen,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Apply',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Buy ${tier.minQty}+ units',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '₹${tier.price.toStringAsFixed(0)}/unit',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryGreen,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryGreen,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Apply',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             );
           }),
         ],
