@@ -1,3 +1,5 @@
+// lib/Product/Model/productdetails_model.dart
+
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 
 String _fullImageUrl(String? path) {
@@ -46,6 +48,24 @@ class SmartSuggestion {
   }
 }
 
+// NEW: Offer model
+class ProductOffer {
+  final double discountPercentage;
+  final int dealId;
+
+  const ProductOffer({
+    required this.discountPercentage,
+    required this.dealId,
+  });
+
+  factory ProductOffer.fromJson(Map<String, dynamic> json) => ProductOffer(
+    discountPercentage: (json['discount_percentage'] as num?)?.toDouble() ?? 0,
+    dealId: (json['deal_id'] as num?)?.toInt() ?? 0,
+  );
+
+  String get label => '${discountPercentage.toInt()}% Off';
+}
+
 /// Full material details — /api/superadmin/materials/{id}/
 class MaterialDetail {
   final int id;
@@ -56,10 +76,10 @@ class MaterialDetail {
   final List<String> galleryImages;
   final List<MaterialFaq> faqs;
   final String? brandName;
-  final int?
-  categoryId; // NEW — needed to fetch pricing via category-details API
+  final int? categoryId;
   final String? categoryName;
   final String? subcategoryName;
+  final ProductOffer? offer; // NEW: Add offer
 
   const MaterialDetail({
     required this.id,
@@ -70,9 +90,10 @@ class MaterialDetail {
     required this.galleryImages,
     required this.faqs,
     this.brandName,
-    this.categoryId, // NEW
+    this.categoryId,
     this.categoryName,
     this.subcategoryName,
+    this.offer, // NEW
   });
 
   factory MaterialDetail.fromJson(Map<String, dynamic> json) {
@@ -81,6 +102,7 @@ class MaterialDetail {
     final brand = json['brand'] as Map<String, dynamic>?;
     final images = json['images'] as List? ?? [];
     final faqs = json['faqs'] as List? ?? [];
+    final offerJson = json['offer'] as Map<String, dynamic>?;
 
     return MaterialDetail(
       id: json['id'] as int,
@@ -99,9 +121,10 @@ class MaterialDetail {
           .map((e) => MaterialFaq.fromJson(e as Map<String, dynamic>))
           .toList(),
       brandName: brand?['name']?.toString(),
-      categoryId: category?['id'] as int?, // NEW
+      categoryId: category?['id'] as int?,
       categoryName: category?['name']?.toString(),
       subcategoryName: subcategory?['name']?.toString(),
+      offer: offerJson != null ? ProductOffer.fromJson(offerJson) : null, // NEW
     );
   }
 }

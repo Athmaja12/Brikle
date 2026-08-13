@@ -1,3 +1,5 @@
+// lib/Product/Controller/productdetails_controller.dart
+
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
@@ -10,11 +12,6 @@ import 'package:get/get.dart';
 
 class ProductDetailController extends GetxController {
   final CategoryProductItem product;
-  // Optional — only ever populated when navigation originates from a
-  // deal/bestseller card that actually carries discount pricing.
-  // CategoryProductItem itself has no discount fields (confirmed against
-  // categorydetail_model.dart), so plain category/search navigation will
-  // correctly show no strike-through at all — that's expected, not a bug.
   final double? originalPrice;
   final int? discountPercent;
 
@@ -32,6 +29,9 @@ class ProductDetailController extends GetxController {
   final RxList<CouponModel> offers = <CouponModel>[].obs;
   final RxBool isLoadingOffers = false.obs;
 
+  // NEW: Product offer from API
+  final Rx<ProductOffer?> productOffer = Rx<ProductOffer?>(null);
+
   final RxInt selectedImageIndex = 0.obs;
   final RxBool isWishlisted = false.obs;
   final RxInt cartQuantity = 0.obs;
@@ -42,6 +42,30 @@ class ProductDetailController extends GetxController {
   final RxBool returnsExpanded = false.obs;
 
   final RxList<SmartSuggestion> suggestedProducts = <SmartSuggestion>[].obs;
+
+  // NEW: Computed price with offer
+  double get discountedPrice {
+    final offer = productOffer.value;
+    if (offer == null) return product.price;
+    return product.price * (1 - offer.discountPercentage / 100);
+  }
+
+  // NEW: Original price (MRP) for strike-through
+  double get originalPriceValue {
+    final offer = productOffer.value;
+    if (offer == null) return product.price;
+    return product.price; // The price from product is the retail price
+  }
+
+  // NEW: Discount percentage
+  int get discountPercentageValue {
+    final offer = productOffer.value;
+    if (offer == null) return 0;
+    return offer.discountPercentage.toInt();
+  }
+
+  // NEW: Check if offer is available
+  bool get hasOffer => productOffer.value != null;
 
   List<String> get galleryImages {
     final d = detail.value;
@@ -59,22 +83,21 @@ class ProductDetailController extends GetxController {
     refresh();
   }
 
-  /// Public refresh() — used on init AND by RefreshIndicator (pull to
-  /// refresh) on the product detail page. Renamed from the old private
-  /// _load() so the view can call it directly.
   Future<void> refresh() async {
     isLoading.value = true;
     try {
       final response = await ApiService.getMaterialDetails(product.materialId);
-      detail.value = MaterialDetail.fromJson(response);
+      final materialDetail = MaterialDetail.fromJson(response);
+      detail.value = materialDetail;
+      
+      // NEW: Set product offer from API
+      productOffer.value = materialDetail.offer;
+      
       suggestedProducts.assignAll(
         await ApiService.getMaterialSuggestions(product.materialId),
       );
       _loadOffers();
 
-      // Placeholder from a "Suggested for you" tap has no real variant —
-      // resolve it into a full priced product now, under this screen's
-      // own loading state.
       if (activeProduct.value.variantId == 0) {
         final resolved = await ApiService.getSuggestedProductDetail(
           product.materialId,
@@ -84,8 +107,6 @@ class ProductDetailController extends GetxController {
         }
       }
 
-      // Re-sync cart quantity in case it changed elsewhere (e.g. user
-      // adjusted quantity on the Cart screen, then pulled to refresh here).
       final cart = Get.find<CartController>();
       final item = cart.cartItems.firstWhereOrNull(
         (i) => i.variantId == activeProduct.value.variantId,
@@ -101,14 +122,9 @@ class ProductDetailController extends GetxController {
     }
   }
 
-  /// Loads the user's available coupons for the Offers preview card.
-  /// Reuses the exact same source as Cart's coupon list — no new backend
-  /// endpoint needed. Shown here purely as a preview; applying a coupon
-  /// still happens in Cart, same as before.
   Future<void> _loadOffers() async {
     isLoadingOffers.value = true;
     try {
-      
       final coupons = await ApiService.getMyCoupons();
       offers.assignAll(coupons.where((c) => c.isValid));
     } catch (e) {
@@ -118,10 +134,6 @@ class ProductDetailController extends GetxController {
     }
   }
 
-  /// Tapping a bulk-pricing tier sets the cart quantity directly to that
-
-  /// Tapping a bulk-pricing tier sets the cart quantity directly to that
-  /// tier's minQty — same UX as the Cart page's bulk-pricing sheet.
   Future<void> applyBulkTier(int minQty) async {
     final cart = Get.find<CartController>();
     final variantId = activeProduct.value.variantId;
@@ -147,11 +159,8 @@ class ProductDetailController extends GetxController {
 
   void selectImage(int index) => selectedImageIndex.value = index;
   void toggleWishlist() => isWishlisted.value = !isWishlisted.value;
-
-  void toggleHighlights() =>
-      highlightsExpanded.value = !highlightsExpanded.value;
-  void toggleDescription() =>
-      descriptionExpanded.value = !descriptionExpanded.value;
+  void toggleHighlights() => highlightsExpanded.value = !highlightsExpanded.value;
+  void toggleDescription() => descriptionExpanded.value = !descriptionExpanded.value;
   void toggleFaqs() => faqsExpanded.value = !faqsExpanded.value;
   void toggleReturns() => returnsExpanded.value = !returnsExpanded.value;
 
@@ -197,10 +206,6 @@ class ProductDetailController extends GetxController {
     }
   }
 
-  /// Called when the user taps a "Suggested for you" card. Navigates
-  /// immediately using a placeholder built from the suggestion (no
-  /// price/variant yet); the new screen's own loading state resolves the
-  /// real priced product via refresh().
   void openSuggestion(BuildContext context, SmartSuggestion suggestion) {
     final placeholder = CategoryProductItem(
       variantId: 0,

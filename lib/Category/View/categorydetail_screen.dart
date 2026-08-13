@@ -103,13 +103,6 @@ class _TopBar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Logo centering: a plain Row with Spacer()/Spacer() only
-          // centers the logo within whatever space is *left over* after
-          // the "Deliver To" block and the icon cluster — since those
-          // two are different widths, the logo drifted off-center.
-          // Stacking a full-width Row (left content + icons, pinned to
-          // the edges) underneath a separately centered logo guarantees
-          // the logo sits at the true midpoint of the header.
           Stack(
             alignment: Alignment.center,
             children: [
@@ -193,11 +186,8 @@ class _TopBar extends StatelessWidget {
                       );
                     }),
                   ),
-                  // Notification icon removed per request.
                 ],
               ),
-              // Sits on top, centered on the Stack itself — not affected
-              // by how wide the Row's children are.
               IgnorePointer(
                 child: RichText(
                   text: TextSpan(
@@ -251,7 +241,7 @@ class _Banner extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: AspectRatio(
-            aspectRatio: 16 / 9, // matches the Figma banner card proportions
+            aspectRatio: 16 / 9,
             child: Image.asset(
               'assets/images/banner.png',
               width: double.infinity,
@@ -269,11 +259,23 @@ class _ProductCountHeader extends StatelessWidget {
   final CategoryProductsController controller;
   const _ProductCountHeader({required this.controller});
 
+  String _getSortLabel() {
+    switch (controller.selectedSort.value) {
+      case 'price_low_to_high':
+        return ' (Price: Low → High)';
+      case 'price_high_to_low':
+        return ' (Price: High → Low)';
+      default:
+        return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final cat = controller.category.value;
       final count = controller.filteredProducts.length;
+      final sortLabel = _getSortLabel();
       return Padding(
         padding: EdgeInsets.symmetric(
           horizontal: Responsive.space(context, 16),
@@ -287,7 +289,10 @@ class _ProductCountHeader extends StatelessWidget {
                 context,
               ).copyWith(fontSize: 20),
             ),
-            Text('$count products', style: AppTextStyles.termsText(context)),
+            Text(
+              '$count products$sortLabel',
+              style: AppTextStyles.termsText(context),
+            ),
           ],
         ),
       );
@@ -295,8 +300,7 @@ class _ProductCountHeader extends StatelessWidget {
   }
 }
 
-// ── Filter row: Category / Brand / Type / Pack — instant-apply chips ────
-// ── Filter row: Category / Brand / Type / Pack — instant-apply chips ────
+// ── Filter row: Category / Brand / Type / Pack / Sort ────────────────────
 class _FilterRow extends StatelessWidget {
   final CategoryProductsController controller;
   const _FilterRow({required this.controller});
@@ -304,7 +308,8 @@ class _FilterRow extends StatelessWidget {
   bool _anyFilterActive() {
     return controller.selectedBrandId.value != null ||
         controller.selectedType.value.isNotEmpty ||
-        controller.selectedQuantity.value.isNotEmpty;
+        controller.selectedQuantity.value.isNotEmpty ||
+        controller.selectedSort.value != 'default';
   }
 
   @override
@@ -379,13 +384,17 @@ class _FilterRow extends StatelessWidget {
                     ? () => controller.setQuantityFilter('')
                     : null,
               ),
+              // NEW: Sort Chip
+              SizedBox(width: Responsive.space(context, 8)),
+              _SortDropdownChip(
+                selectedSort: controller.selectedSort.value,
+                onTap: () => _showSortPicker(context),
+              ),
               if (anyActive) ...[
                 SizedBox(width: Responsive.space(context, 8)),
                 GestureDetector(
                   onTap: () {
-                    controller.setBrandFilter(null);
-                    controller.setTypeFilter('');
-                    controller.setQuantityFilter('');
+                    controller.clearFilters();
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -428,7 +437,7 @@ class _FilterRow extends StatelessWidget {
     );
   }
 
-  // ── Shared picker sheet used by Category, Type, and Pack ─────────────
+  // ── Option Picker ──────────────────────────────────────────────────────
   void _showOptionPicker(
     BuildContext context, {
     required String title,
@@ -459,6 +468,7 @@ class _FilterRow extends StatelessWidget {
     );
   }
 
+  // ── Category Picker ────────────────────────────────────────────────────
   void _showCategoryPicker(
     BuildContext context,
     CategoryFilterOptions options,
@@ -483,6 +493,7 @@ class _FilterRow extends StatelessWidget {
     );
   }
 
+  // ── Brand Picker ──────────────────────────────────────────────────────
   void _showBrandPicker(BuildContext context, CategoryFilterOptions options) {
     final selectedId = controller.selectedBrandId.value;
     showModalBottomSheet(
@@ -509,8 +520,137 @@ class _FilterRow extends StatelessWidget {
       ),
     );
   }
+
+  // ── Sort Picker ───────────────────────────────────────────────────────
+  void _showSortPicker(BuildContext context) {
+    final currentSort = controller.selectedSort.value;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => _FilterPickerSheet(
+        title: 'Sort by Price',
+        items: [
+          _PickerItem(label: 'Default', isSelected: currentSort == 'default'),
+          _PickerItem(
+            label: 'Price: Low to High',
+            isSelected: currentSort == 'price_low_to_high',
+          ),
+          _PickerItem(
+            label: 'Price: High to Low',
+            isSelected: currentSort == 'price_high_to_low',
+          ),
+        ],
+        onSelect: (index) {
+          Navigator.pop(sheetCtx);
+          final sortOptions = [
+            'default',
+            'price_low_to_high',
+            'price_high_to_low',
+          ];
+          controller.setSort(sortOptions[index]);
+        },
+      ),
+    );
+  }
 }
 
+// ── Sort Dropdown Chip ──────────────────────────────────────────────────
+class _SortDropdownChip extends StatelessWidget {
+  final String selectedSort;
+  final VoidCallback onTap;
+
+  const _SortDropdownChip({
+    required this.selectedSort,
+    required this.onTap,
+  });
+
+  String _getDisplayLabel() {
+    switch (selectedSort) {
+      case 'price_low_to_high':
+        return 'Price: Low ↑';
+      case 'price_high_to_low':
+        return 'Price: High ↓';
+      default:
+        return 'Sort';
+    }
+  }
+
+  bool get isActive => selectedSort != 'default';
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.only(
+          left: 12,
+          right: isActive ? 6 : 12,
+          top: 8,
+          bottom: 8,
+        ),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primaryGreen : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? AppColors.primaryGreen : AppColors.inputBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.swap_vert_rounded,
+              size: 16,
+              color: isActive ? Colors.white : AppColors.textGray,
+            ),
+            const SizedBox(width: 4),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 100),
+              child: Text(
+                _getDisplayLabel(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? Colors.white : AppColors.textDark,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            if (isActive)
+              GestureDetector(
+                onTap: () {
+                  final controller = Get.find<CategoryProductsController>();
+                  controller.setSort('default');
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(2),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            else
+              Icon(
+                Icons.keyboard_arrow_down,
+                size: 16,
+                color: isActive ? Colors.white : AppColors.textDark,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Filter Dropdown Chip ─────────────────────────────────────────────────
 class _FilterDropdownChip extends StatelessWidget {
   final String label;
   final bool active;
@@ -591,9 +731,7 @@ class _PickerItem {
   const _PickerItem({required this.label, required this.isSelected});
 }
 
-// ── Consistent bottom-sheet UI shared by every filter picker: header with
-// title + close, "All" always first, checkmark/tinted row on the current
-// selection, plain radio circle otherwise. Scrolls if the list is long.
+// ── Consistent bottom-sheet UI shared by every filter picker ────────────
 class _FilterPickerSheet extends StatelessWidget {
   final String title;
   final List<_PickerItem> items;
@@ -621,7 +759,7 @@ class _FilterPickerSheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Select $title',
+                      title,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -714,7 +852,6 @@ class _ProductGrid extends StatelessWidget {
           builder: (context, constraints) {
             final width = constraints.maxWidth;
 
-            // Responsive column count based on available width, not device type
             final crossAxisCount = width >= 900
                 ? 4
                 : width >= 600
@@ -725,8 +862,6 @@ class _ProductGrid extends StatelessWidget {
             final cardWidth =
                 (width - spacing * (crossAxisCount - 1)) / crossAxisCount;
 
-            // Card height derived from card width (keeps proportions
-            // consistent across screen sizes) + extra room for text scale.
             final textScale = MediaQuery.of(context).textScaler.scale(1);
             final cardHeight = cardWidth * 1.8 * textScale;
 
@@ -755,6 +890,7 @@ class _ProductGrid extends StatelessWidget {
   }
 }
 
+// ── Product Card ─────────────────────────────────────────────────────────
 class _ProductCard extends StatefulWidget {
   final CategoryProductItem product;
   const _ProductCard({required this.product});
@@ -764,16 +900,14 @@ class _ProductCard extends StatefulWidget {
 }
 
 class _ProductCardState extends State<_ProductCard> {
-  int _quantity = 0; // 0 = "Add to Cart" button shown; ≥1 = stepper shown
+  int _quantity = 0;
 
   double get _unitPrice =>
       widget.product.unitPriceForQuantity(_quantity == 0 ? 1 : _quantity);
   double get _totalPrice => _unitPrice * (_quantity == 0 ? 1 : _quantity);
 
   void _addToCart() => setState(() => _quantity = 1);
-
   void _increment() => setState(() => _quantity++);
-
   void _decrement() {
     setState(() => _quantity = _quantity > 1 ? _quantity - 1 : 0);
   }
@@ -893,8 +1027,6 @@ class _ProductCardState extends State<_ProductCard> {
                   ),
           ),
           const SizedBox(height: 4),
-
-          // Product name — Manrope 400 12px, #212121, matches Figma
           Text(
             product.name,
             maxLines: 2,
@@ -907,18 +1039,15 @@ class _ProductCardState extends State<_ProductCard> {
             ),
           ),
           const SizedBox(height: 4),
-
           Text(
             '₹${_unitPrice.toStringAsFixed(0)}',
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
-
           if (_quantity > 1)
             Text(
               'Total: ₹${_totalPrice.toStringAsFixed(0)}',
               style: const TextStyle(fontSize: 11, color: AppColors.textGray),
             ),
-
           if (product.hasTiers && product.priceTiers.isNotEmpty)
             GestureDetector(
               onTap: _showBulkPricingDialog,
@@ -934,10 +1063,7 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
               ),
             ),
-
           const SizedBox(height: 6),
-
-          // Toggles between "Add to Cart" (qty 0) and green stepper (qty ≥ 1)
           _quantity == 0
               ? GestureDetector(
                   onTap: _addToCart,
@@ -1046,6 +1172,7 @@ class _StepperButton extends StatelessWidget {
   }
 }
 
+// ── Pincode Sheet ─────────────────────────────────────────────────────────
 void _showPincodeSheet(BuildContext context, HomeController controller) {
   final textController = TextEditingController(
     text: controller.deliverToPincode.value,
@@ -1077,7 +1204,6 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Drag handle
             Center(
               child: Container(
                 width: 36,
@@ -1089,8 +1215,6 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Title
             Text(
               'Enter Pincode',
               style: AppTextStyles.welcomeBackTitle(
@@ -1105,8 +1229,6 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
               ).copyWith(fontSize: 13, color: AppColors.textGray),
             ),
             const SizedBox(height: 20),
-
-            // Pincode input
             TextField(
               controller: textController,
               keyboardType: TextInputType.number,
@@ -1151,8 +1273,6 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
               ),
             ),
             const SizedBox(height: 12),
-
-            // Status message
             Obx(() {
               if (controller.pincodeMessage.value.isEmpty)
                 return const SizedBox.shrink();
@@ -1195,10 +1315,7 @@ void _showPincodeSheet(BuildContext context, HomeController controller) {
                 ),
               );
             }),
-
             const SizedBox(height: 16),
-
-            // Action buttons
             Row(
               children: [
                 Expanded(

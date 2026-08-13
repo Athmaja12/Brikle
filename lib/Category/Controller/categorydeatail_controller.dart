@@ -1,3 +1,5 @@
+// lib/Category/Controller/categorydeatil_controller.dart
+
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/auth_gate.dart';
@@ -32,6 +34,9 @@ class CategoryProductsController extends GetxController {
   final RxString selectedType = ''.obs;
 
   final RxString selectedQuantity = ''.obs;
+
+  // NEW: Sorting
+  final RxString selectedSort = 'default'.obs; // default, price_low_to_high, price_high_to_low
 
   // ---------------------------------------------------------------------------
   // DELIVERY / PINCODE
@@ -74,17 +79,6 @@ class CategoryProductsController extends GetxController {
     );
 
     try {
-      // -----------------------------------------------------------------------
-      // PUBLIC APIs
-      //
-      // Guests must be able to:
-      //   - open category
-      //   - see category products
-      //   - see filters
-      //
-      // Therefore profile is NOT included here.
-      // -----------------------------------------------------------------------
-
       try {
         final categoryResponse = await ApiService.getCategoryDetails(
           categoryId,
@@ -107,10 +101,6 @@ class CategoryProductsController extends GetxController {
         rethrow;
       }
 
-      // -----------------------------------------------------------------------
-      // FILTER OPTIONS
-      // -----------------------------------------------------------------------
-
       try {
         final filterResponse = await ApiService.getCategoryFilterOptions(
           categoryId,
@@ -128,7 +118,6 @@ class CategoryProductsController extends GetxController {
           'getCategoryFilterOptions FAILED: ${e.message}',
         );
 
-        // Filter failure should not necessarily destroy the category page.
         filterOptions.value = null;
       } catch (e) {
         debugPrint(
@@ -138,19 +127,6 @@ class CategoryProductsController extends GetxController {
 
         filterOptions.value = null;
       }
-
-      // -----------------------------------------------------------------------
-      // PROFILE
-      // -----------------------------------------------------------------------
-      //
-      // Profile is authenticated only.
-      //
-      // Guest:
-      //   Skip it.
-      //
-      // Logged in:
-      //   Fetch pincode and check serviceability.
-      // -----------------------------------------------------------------------
 
       await _fetchProfileIfLoggedIn();
     } on ApiException catch (e) {
@@ -204,9 +180,6 @@ class CategoryProductsController extends GetxController {
         '[CategoryProductsController] getProfile failed: '
         '${e.message}',
       );
-
-      // Non-fatal.
-      // Products remain visible even if profile fails.
     } catch (e, stack) {
       debugPrint(
         '[CategoryProductsController] getProfile unexpected error: $e',
@@ -260,13 +233,14 @@ class CategoryProductsController extends GetxController {
   }
 
   // ---------------------------------------------------------------------------
-  // FILTERED PRODUCTS
+  // FILTERED PRODUCTS WITH SORTING
   // ---------------------------------------------------------------------------
 
   List<CategoryProductItem> get filteredProducts {
     final all = category.value?.products ?? [];
 
-    return all.where((p) {
+    // Apply filters
+    var filtered = all.where((p) {
       if (selectedBrandId.value != null && p.brandId != selectedBrandId.value) {
         return false;
       }
@@ -282,6 +256,22 @@ class CategoryProductsController extends GetxController {
 
       return true;
     }).toList();
+
+    // Apply sorting
+    switch (selectedSort.value) {
+      case 'price_low_to_high':
+        filtered.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case 'price_high_to_low':
+        filtered.sort((a, b) => b.price.compareTo(a.price));
+        break;
+      case 'default':
+      default:
+        // Keep original order from API
+        break;
+    }
+
+    return filtered;
   }
 
   // ---------------------------------------------------------------------------
@@ -300,10 +290,16 @@ class CategoryProductsController extends GetxController {
     selectedQuantity.value = selectedQuantity.value == qty ? '' : qty;
   }
 
+  // NEW: Set sort option
+  void setSort(String sortOption) {
+    selectedSort.value = sortOption;
+  }
+
   void clearFilters() {
     selectedBrandId.value = null;
     selectedType.value = '';
     selectedQuantity.value = '';
+    selectedSort.value = 'default';
   }
 
   // ---------------------------------------------------------------------------

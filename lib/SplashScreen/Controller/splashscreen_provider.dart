@@ -9,17 +9,19 @@ class SplashController extends GetxController {
   }
 
   Future<void> _decideRoute() async {
-    final minDelay = Future.delayed(const Duration(seconds: 2));
+    final minDelay = Future.delayed(
+      const Duration(seconds: 2),
+    );
 
     final prefs = await SharedPreferences.getInstance();
-    final seenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+
+    final seenOnboarding =
+        prefs.getBool('has_seen_onboarding') ?? false;
 
     await minDelay;
 
-    // Guests always land on /home now — login/registration is deferred
-    // to checkout via AuthGate, so there's no need to branch on session
-    // state here.
     if (seenOnboarding) {
+      // Guest users are allowed to enter Home.
       Get.offAllNamed('/home');
     } else {
       Get.offAllNamed('/onboarding');

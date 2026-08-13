@@ -704,12 +704,14 @@ class CartController extends GetxController {
     required String pincode,
     required String deliveryDate,
     String? deliveryTime,
+    String? alternativePhoneNumber, // NEW
   }) async {
     debugPrint(
       '$_tag placeOrder(shippingAddress: "$shippingAddress", pincode: '
       '"$pincode", deliveryDate: "$deliveryDate", deliveryTime: '
       '"$deliveryTime", paymentMethod: "${selectedPaymentMethod.value}", '
-      'couponId: ${selectedCoupon.value?.id})',
+      'couponId: ${selectedCoupon.value?.id}, '
+      'alternativePhoneNumber: "$alternativePhoneNumber")',
     );
     try {
       isCheckingOut.value = true;
@@ -720,6 +722,7 @@ class CartController extends GetxController {
         requestedDeliveryDate: deliveryDate,
         requestedDeliveryTime: deliveryTime,
         couponId: selectedCoupon.value?.id,
+        alternativePhoneNumber: alternativePhoneNumber, // NEW
       );
       debugPrint('$_tag placeOrder response: $response');
 

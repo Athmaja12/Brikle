@@ -25,6 +25,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _alternativePhoneController = TextEditingController(); // NEW
 
   bool _isPincodeValid = false;
   bool _isCheckingPincode = false;
@@ -53,6 +54,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
       _nameController.text = address.fullName ?? '';
       _phoneController.text = address.phoneNumber ?? '';
       _emailController.text = address.email ?? '';
+      // Alternative phone is not in profile, leave empty
     } catch (e) {
       debugPrint('Error loading address: $e');
     }
@@ -448,7 +450,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
   Future<void> _placeActualOrder(
     AddressModel address,
     String dateString,
-    String timeString, // NEW
+    String timeString,
   ) async {
     Get.dialog(
       barrierDismissible: false,
@@ -470,11 +472,15 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     );
 
     try {
+      // Get the alternative phone number (if entered)
+      final alternativePhone = _alternativePhoneController.text.trim();
+      
       final orderResult = await widget.controller.placeOrder(
         shippingAddress: address.address,
         pincode: address.pincode,
         deliveryDate: dateString,
-        deliveryTime: timeString, // NEW
+        deliveryTime: timeString,
+        alternativePhoneNumber: alternativePhone.isNotEmpty ? alternativePhone : null,
       );
 
       Get.back();
@@ -500,10 +506,6 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     }
   }
 
-  // FIX: was `void`, fired via Get.dialog() without awaiting — so
-  // _placeOrder() below moved straight on to placing the order without
-  // ever waiting for the user to tap "Proceed to Pay". Now returns a
-  // Future<bool> that only resolves once the user picks an action.
   Future<bool> _showDeliveryChargeBreakdown(CheckoutResponse response) async {
     final config = response.deliveryConfig;
 
@@ -866,6 +868,20 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
               ),
               keyboardType: TextInputType.emailAddress,
             ),
+            
+            // NEW: Alternative Phone Number Field
+            SizedBox(height: Responsive.space(context, 12)),
+            TextField(
+              controller: _alternativePhoneController,
+              style: AppTextStyles.inputText(context),
+              decoration: _fieldDecoration(
+                label: 'Alternative Phone Number (Optional)',
+                icon: Icons.phone_android_outlined,
+              ),
+              keyboardType: TextInputType.phone,
+              maxLength: 10,
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+            ),
 
             SizedBox(height: Responsive.space(context, 24)),
             _sectionLabel(
@@ -898,13 +914,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                     ),
                     keyboardType: TextInputType.number,
                     maxLength: 6,
-                    buildCounter:
-                        (
-                          _, {
-                          required currentLength,
-                          required isFocused,
-                          maxLength,
-                        }) => null,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                   ),
                 ),
                 SizedBox(width: Responsive.space(context, 12)),
@@ -956,22 +966,14 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                         : const Color(0xFFFDF0F0),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color:
-                          (_isPincodeValid
-                                  ? AppColors.primaryGreen
-                                  : AppColors.errorRed)
-                              .withOpacity(0.3),
+                      color: (_isPincodeValid ? AppColors.primaryGreen : AppColors.errorRed).withOpacity(0.3),
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        _isPincodeValid
-                            ? Icons.check_circle
-                            : Icons.error_outline,
-                        color: _isPincodeValid
-                            ? AppColors.primaryGreen
-                            : AppColors.errorRed,
+                        _isPincodeValid ? Icons.check_circle : Icons.error_outline,
+                        color: _isPincodeValid ? AppColors.primaryGreen : AppColors.errorRed,
                         size: 18,
                       ),
                       SizedBox(width: Responsive.space(context, 8)),
@@ -979,9 +981,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                         child: Text(
                           _pincodeStatusMessage!,
                           style: TextStyle(
-                            color: _isPincodeValid
-                                ? AppColors.primaryGreen
-                                : AppColors.errorRed,
+                            color: _isPincodeValid ? AppColors.primaryGreen : AppColors.errorRed,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1065,9 +1065,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                           Expanded(
                             child: Text(
                               _selectedDeliveryTime != null
-                                  ? _formatTimeForDisplay(
-                                      _selectedDeliveryTime!,
-                                    )
+                                  ? _formatTimeForDisplay(_selectedDeliveryTime!)
                                   : 'Select Time',
                               style: TextStyle(
                                 color: _selectedDeliveryTime != null
@@ -1095,8 +1093,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
               ),
               ...List.generate(_vehicles.length, (i) {
                 final vehicle = _vehicles[i];
-                final selected =
-                    _selectedVehicle?.vehicleNumber == vehicle.vehicleNumber;
+                final selected = _selectedVehicle?.vehicleNumber == vehicle.vehicleNumber;
                 return Padding(
                   padding: EdgeInsets.only(
                     bottom: Responsive.space(context, 10),
@@ -1107,14 +1104,10 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: selected
-                            ? const Color(0xFFF0F9F1)
-                            : Colors.white,
+                        color: selected ? const Color(0xFFF0F9F1) : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selected
-                              ? AppColors.primaryGreen
-                              : AppColors.inputBorder,
+                          color: selected ? AppColors.primaryGreen : AppColors.inputBorder,
                           width: selected ? 1.5 : 1,
                         ),
                       ),
@@ -1124,17 +1117,13 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: selected
-                                  ? AppColors.primaryGreen
-                                  : const Color(0xFFF3F3F3),
+                              color: selected ? AppColors.primaryGreen : const Color(0xFFF3F3F3),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               Icons.local_shipping_rounded,
                               size: 20,
-                              color: selected
-                                  ? Colors.white
-                                  : AppColors.textGray,
+                              color: selected ? Colors.white : AppColors.textGray,
                             ),
                           ),
                           SizedBox(width: Responsive.space(context, 12)),
@@ -1170,12 +1159,8 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                             ),
                           ),
                           Icon(
-                            selected
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            color: selected
-                                ? AppColors.primaryGreen
-                                : AppColors.inputBorder,
+                            selected ? Icons.check_circle : Icons.circle_outlined,
+                            color: selected ? AppColors.primaryGreen : AppColors.inputBorder,
                             size: 22,
                           ),
                         ],

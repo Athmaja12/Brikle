@@ -197,174 +197,113 @@ class _CouponListCard extends StatelessWidget {
 
   const _CouponListCard({required this.coupon});
 
-  void _showShareSheet(BuildContext context) {
-    final phoneController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
-
+  void _showShareOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 16,
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
-          ),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.inputBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.inputBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                const Icon(
+                  Icons.share_outlined,
+                  color: AppColors.primaryGreen,
+                  size: 24,
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.card_giftcard_outlined,
-                      color: AppColors.primaryGreen,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Share Coupon',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
+                const SizedBox(width: 12),
                 Text(
-                  '${coupon.couponCode} — ${coupon.discountPercentage}% off',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textGray,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Registered-users-only constraint is enforced by the
-                // backend on submit — this note just sets expectations
-                // up front instead of the user finding out after a failed
-                // request.
-                Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'The recipient must already have a Brikle account.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  decoration: InputDecoration(
-                    labelText: 'Recipient\'s Phone Number',
-                    counterText: '',
-                    filled: true,
-                    fillColor: AppColors.fieldFill,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.inputBorder),
-                    ),
-                  ),
-                  validator: (value) {
-                    final v = value?.trim() ?? '';
-                    if (v.length != 10 || int.tryParse(v) == null) {
-                      return 'Enter a valid 10-digit phone number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () async {
-                            if (!formKey.currentState!.validate()) return;
-                            setSheetState(() => isSubmitting = true);
-
-                            final controller = Get.find<ProfileController>();
-                            final result = await controller.shareCoupon(
-                              couponCode: coupon.couponCode,
-                              recipientPhone: phoneController.text.trim(),
-                            );
-
-                            if (!sheetContext.mounted) return;
-                            setSheetState(() => isSubmitting = false);
-
-                            Navigator.pop(sheetContext);
-                            Get.snackbar(
-                              result?.success == true
-                                  ? 'Coupon Shared'
-                                  : 'Could Not Share',
-                              result?.message ??
-                                  'Something went wrong. Please try again.',
-                              backgroundColor: result?.success == true
-                                  ? AppColors.primaryGreen
-                                  : AppColors.errorRed,
-                              colorText: Colors.white,
-                              snackPosition: SnackPosition.BOTTOM,
-                            );
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Send Coupon',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
+                  'Share Coupon',
+                  style: AppTextStyles.welcomeBackTitle(context),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              '${coupon.couponCode} — ${coupon.discountPercentage}% off',
+              style: const TextStyle(fontSize: 14, color: AppColors.textGray),
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // Option 1: Copy WhatsApp link
+            _ShareOptionCard(
+              icon: Icons.copy_outlined,
+              title: 'Copy WhatsApp Link',
+              subtitle: 'Copy share link to clipboard',
+              color: Colors.green,
+              onTap: () async {
+                debugPrint('[CouponScreen] Copy WhatsApp Link tapped');
+                Navigator.pop(sheetContext);
+                final controller = Get.find<ProfileController>();
+                await controller.generateCouponShareLink(
+                  couponCode: coupon.couponCode,
+                  discountPercentage: coupon.discountPercentage.toDouble(),
+                  materialName: coupon.rewardMaterialName,
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Option 2: Open WhatsApp directly
+            _ShareOptionCard(
+              icon: Icons.message,
+              title: 'Open WhatsApp',
+              subtitle: 'Share directly via WhatsApp',
+              color: Colors.green,
+              onTap: () async {
+                debugPrint('[CouponScreen] Open WhatsApp tapped');
+                Navigator.pop(sheetContext);
+                final controller = Get.find<ProfileController>();
+                await controller.shareCouponDirectly(
+                  couponCode: coupon.couponCode,
+                  discountPercentage: coupon.discountPercentage.toDouble(),
+                  materialName: coupon.rewardMaterialName,
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Option 3: Copy coupon code
+            _ShareOptionCard(
+              icon: Icons.code_outlined,
+              title: 'Copy Coupon Code',
+              subtitle: 'Copy coupon code to clipboard',
+              color: Colors.blue,
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: coupon.couponCode));
+                Navigator.pop(sheetContext);
+                Get.snackbar(
+                  'Copied!',
+                  'Coupon code copied to clipboard',
+                  backgroundColor: AppColors.primaryGreen,
+                  colorText: Colors.white,
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
@@ -479,7 +418,7 @@ class _CouponListCard extends StatelessWidget {
             const Divider(height: 20),
             InkWell(
               borderRadius: BorderRadius.circular(8),
-              onTap: () => _showShareSheet(context),
+              onTap: () => _showShareOptions(context),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
@@ -490,18 +429,93 @@ class _CouponListCard extends StatelessWidget {
                   ),
                   SizedBox(width: 6),
                   Text(
-                    'Share with a friend',
+                    'Share coupon',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppColors.primaryGreen,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: AppColors.primaryGreen,
+                  ),
                 ],
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// Helper widget for share options
+class _ShareOptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ShareOptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.2), width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
       ),
     );
   }

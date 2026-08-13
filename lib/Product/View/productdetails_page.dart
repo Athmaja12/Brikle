@@ -19,8 +19,6 @@ import 'package:share_plus/share_plus.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final CategoryProductItem product;
-  // Optional — pass these through when navigating from a deal/bestseller
-  // card so the MRP strike-through has real data to show.
   final double? originalPrice;
   final int? discountPercent;
 
@@ -76,58 +74,114 @@ class ProductDetailScreen extends StatelessWidget {
                       SizedBox(height: Responsive.space(context, 8)),
 
                       // ── Price + MRP strike-through + discount badge ──
-                      // originalPrice/discountPercent are optional — only
-                      // populated when arriving from a deal/bestseller
-                      // card. Plain category/search navigation correctly
-                      // shows just the price, no strike-through.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            '₹${product.price.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
+                      Obx(() {
+                        final hasOffer = controller.hasOffer;
+                        final displayPrice = hasOffer
+                            ? controller.discountedPrice
+                            : controller.product.price;
+                        final originalPriceValue = hasOffer
+                            ? controller.originalPriceValue
+                            : null;
+                        final discountPercentValue = hasOffer
+                            ? controller.discountPercentageValue
+                            : 0;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '₹${displayPrice.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: hasOffer
+                                        ? AppColors.primaryGreen
+                                        : AppColors.textDark,
+                                  ),
+                                ),
+                                if (hasOffer && originalPriceValue != null) ...[
+                                  SizedBox(width: Responsive.space(context, 8)),
+                                  Text(
+                                    '₹${originalPriceValue.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      decoration: TextDecoration.lineThrough,
+                                      color: AppColors.textGray,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                                if (hasOffer && discountPercentValue > 0) ...[
+                                  SizedBox(width: Responsive.space(context, 8)),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDFF5E3),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '$discountPercentValue% Off',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.primaryGreen,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                          ),
-                          if (controller.originalPrice != null &&
-                              controller.originalPrice! > product.price) ...[
-                            SizedBox(width: Responsive.space(context, 8)),
                             Text(
-                              '₹${controller.originalPrice!.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                decoration: TextDecoration.lineThrough,
-                                color: AppColors.textGray,
-                                fontSize: 15,
-                              ),
+                              'per unit',
+                              style: AppTextStyles.termsText(context),
                             ),
-                          ],
-                          if (controller.discountPercent != null &&
-                              controller.discountPercent! > 0) ...[
-                            SizedBox(width: Responsive.space(context, 8)),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDFF5E3),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${controller.discountPercent}% Off',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.primaryGreen,
-                                  fontWeight: FontWeight.w700,
+
+                            // Show "Limited Time Deal" if offer exists
+                            if (hasOffer) ...[
+                              SizedBox(height: Responsive.space(context, 4)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.amber.shade300,
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.local_offer_outlined,
+                                      size: 14,
+                                      color: Colors.amber.shade700,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Limited Time Deal',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.amber.shade800,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
-                      ),
-                      Text('per unit', style: AppTextStyles.termsText(context)),
+                        );
+                      }),
 
                       if (product.hasTiers &&
                           product.priceTiers.isNotEmpty) ...[
@@ -138,10 +192,6 @@ class ProductDetailScreen extends StatelessWidget {
                         ),
                       ],
 
-                      // FIX (#8): this disclaimer previously only showed
-                      // in the no-tiers branch — products WITH bulk tiers
-                      // showed no GST/shipping note at all. Now always
-                      // visible regardless of tiers.
                       SizedBox(height: Responsive.space(context, 4)),
                       Text(
                         'Incl. GST. Shipping calculated at checkout.',
@@ -406,9 +456,7 @@ class ProductDetailScreen extends StatelessWidget {
   }
 }
 
-// ── Bulk Pricing card — same tier list/Apply UI as before, now wrapped in
-// its own State so tapping "Apply" can fire a celebration popper burst
-// (anchored to the exact tier row tapped) alongside the existing snackbar.
+// ── Bulk Pricing card ─────────────────────────────────────────────────────
 class _BulkPricingCard extends StatefulWidget {
   final CategoryProductItem product;
   final ProductDetailController controller;
@@ -430,7 +478,6 @@ class _BulkPricingCardState extends State<_BulkPricingCard> {
   }
 
   void _showBurst(BuildContext rowContext, double price) {
-    // Remove an existing popup first.
     _burstOverlay?.remove();
     _burstOverlay = null;
 
@@ -615,10 +662,7 @@ class _BulkPricingCardState extends State<_BulkPricingCard> {
   }
 }
 
-// ── Offers preview — read-only list of the user's applicable coupons.
-// Reuses CouponModel from CartController's data source. Applying a
-// coupon still happens in Cart; this is just visibility on the product
-// page so users know a discount exists before adding to cart.
+// ── Offers preview ────────────────────────────────────────────────────────
 class _OffersCard extends StatelessWidget {
   final List<CouponModel> offers;
   const _OffersCard({required this.offers});
@@ -714,7 +758,7 @@ class _OffersCard extends StatelessWidget {
   }
 }
 
-// ── Image gallery: main image + thumbnail strip, back + wishlist overlay ──
+// ── Image gallery ─────────────────────────────────────────────────────────
 class _ImageGallery extends StatelessWidget {
   final ProductDetailController controller;
   const _ImageGallery({required this.controller});
@@ -831,9 +875,6 @@ void _shareProduct(ProductDetailController controller) {
       ? controller.detail.value!.name
       : controller.activeProduct.value.name;
   final price = controller.activeProduct.value.price;
-  // NOTE: no public web/deep-link URL system was found in the codebase
-  // for individual products, so this shares a plain text description.
-  // If/when a shareable product URL exists, append it here.
   Share.share('Check out $name for ₹${price.toStringAsFixed(0)} on Brikle!');
 }
 
@@ -859,14 +900,7 @@ class _CircleIconButton extends StatelessWidget {
   }
 }
 
-// ── Suggestion card: image + name + brand only, no price/cart ──────────
-// NOTE (#6/#9): SmartSuggestion (Product/Model/productdetails_model.dart)
-// has no price field — confirmed against /api/materials/{id}/suggestions/.
-// Showing a price here would mean faking data, so this card is designed
-// to be an honest, tap-through browsing card rather than pretending to
-// be a mini product-with-price card. If price becomes genuinely useful
-// here, the backend suggestions endpoint needs to start returning it —
-// that's outside what this file alone can fix.
+// ── Suggested Product Card ──────────────────────────────────────────────
 class _SuggestedProductCard extends StatelessWidget {
   final SmartSuggestion suggestion;
   final VoidCallback onTap;
@@ -974,8 +1008,7 @@ class _SuggestedProductCard extends StatelessWidget {
   }
 }
 
-// ── Collapsible section — chevron flips, content shows/hides ────────────
-// ── Collapsible section — chevron flips, content shows/hides ────────────
+// ── Expandable Section ──────────────────────────────────────────────────
 class _ExpandableSection extends StatelessWidget {
   final String title;
   final RxBool expanded;
@@ -1018,10 +1051,6 @@ class _ExpandableSection extends StatelessWidget {
             ),
           ),
           if (expanded.value)
-            // FIX: width: double.infinity forces the content to span the
-            // full section width instead of shrink-wrapping to its text —
-            // that's what caused the misalignment (Align only positions
-            // a narrower box, it doesn't stretch it).
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: SizedBox(width: double.infinity, child: child),
@@ -1033,7 +1062,7 @@ class _ExpandableSection extends StatelessWidget {
   }
 }
 
-// ── "🎉 You unlocked ₹X!" pill with a small confetti burst behind it.
+// ── Unlock Pill ──────────────────────────────────────────────────────────
 class _UnlockPill extends StatelessWidget {
   final double price;
   const _UnlockPill({required this.price});
@@ -1096,7 +1125,7 @@ class _UnlockPill extends StatelessWidget {
   }
 }
 
-// ── Small confetti burst layered right behind the pill.
+// ── Confetti Burst ──────────────────────────────────────────────────────
 class _ConfettiBurst extends StatelessWidget {
   const _ConfettiBurst();
 
@@ -1145,9 +1174,7 @@ class _ConfettiBurst extends StatelessWidget {
   }
 }
 
-// ── Bigger "win the level" style popper burst — layered behind the pill,
-// 24 mixed dot/square confetti pieces bursting outward with slight
-// gravity drift, exactly like the shared product card version.
+// ── Celebration Burst ───────────────────────────────────────────────────
 class _CelebrationBurst extends StatelessWidget {
   const _CelebrationBurst();
 

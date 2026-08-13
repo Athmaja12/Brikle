@@ -1,6 +1,8 @@
 // lib/ApiConfiguration/apiservice.dart - Complete file with fixes + 401 debug logging
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
@@ -273,8 +275,9 @@ class ApiService {
     required String pincode,
     required String requestedDeliveryDate,
     String? requestedDeliveryTime,
-    int?
-    couponId, // NEW — was missing entirely; selected coupon never reached this call
+    int? couponId,
+    String?
+    alternativePhoneNumber, // NEW — was missing entirely; selected coupon never reached this call
   }) async {
     final body = <String, dynamic>{
       'payment_method': paymentMethod,
@@ -937,29 +940,47 @@ class ApiService {
     final results = response['results'] as List? ?? [];
     return results.map((e) => CouponModel.fromJson(e)).toList();
   }
+  // lib/ApiConfiguration/apiservice.dart
+
+  // Update the shareCoupon method to make recipient_phone optional
+  // lib/ApiConfiguration/apiservice.dart
 
   static Future<ShareCouponResponse> shareCoupon({
     required String couponCode,
-    required String recipientPhone,
+    String? recipientPhone,
   }) async {
-    final response = await _postExpectingBody(ApiConfig.shareCouponUrl, {
-      'coupon_code': couponCode,
-      'recipient_phone': recipientPhone,
-    }, headers: await _authHeaders());
+    debugPrint('[ApiService] shareCoupon called with couponCode: $couponCode');
 
-    // Expected shape (success or failure): {"success": ..., "message": ...}
-    if (response.containsKey('success')) {
-      return ShareCouponResponse.fromJson(response);
+    final body = <String, dynamic>{'coupon_code': couponCode};
+
+    if (recipientPhone != null && recipientPhone.isNotEmpty) {
+      body['recipient_phone'] = recipientPhone;
     }
 
-    // Fallback: if the backend instead returns a raw DRF-style validation
-    // error (e.g. {"recipient_phone": ["This number is not registered."]})
-    // rather than your {success, message} contract, still surface
-    // something meaningful instead of a blank/generic message.
-    final fallbackMessage =
-        _extractErrorMessage(response) ??
-        'This phone number is not registered on Brikle.';
-    return ShareCouponResponse(success: false, message: fallbackMessage);
+    debugPrint('[ApiService] Request body: $body');
+    debugPrint('[ApiService] URL: ${ApiConfig.shareCouponUrl}');
+
+    try {
+      final response = await _postExpectingBody(
+        ApiConfig.shareCouponUrl,
+        body,
+        headers: await _authHeaders(),
+      );
+
+      debugPrint('[ApiService] Response: $response');
+
+      if (response.containsKey('success')) {
+        return ShareCouponResponse.fromJson(response);
+      }
+
+      final fallbackMessage =
+          _extractErrorMessage(response) ??
+          'Failed to share coupon. Please try again.';
+      return ShareCouponResponse(success: false, message: fallbackMessage);
+    } catch (e) {
+      debugPrint('[ApiService] shareCoupon error: $e');
+      rethrow;
+    }
   }
   // ══════════════════════════════════════════════════════════════════════════
   // ORDERS
@@ -1134,6 +1155,9 @@ class ApiService {
   }) async {
     http.Response response;
     try {
+      debugPrint('[ApiService] POST URL => $url');
+      debugPrint('[ApiService] POST BODY => $body');
+
       response = await http
           .post(
             Uri.parse(url),
@@ -1141,10 +1165,29 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 20));
-    } catch (_) {
-      throw ApiException(
-        'Could not reach the server. Check your connection and try again.',
+
+      debugPrint('[ApiService] POST STATUS => ${response.statusCode}');
+
+      debugPrint('[ApiService] POST RESPONSE => ${response.body}');
+    } on TimeoutException catch (e) {
+      debugPrint('[ApiService] POST TIMEOUT => $url');
+      debugPrint('[ApiService] ERROR => $e');
+
+      throw const ApiException('Server request timed out. Please try again.');
+    } on SocketException catch (e) {
+      debugPrint('[ApiService] POST SOCKET ERROR => $url');
+      debugPrint('[ApiService] ERROR => $e');
+
+      throw const ApiException(
+        'Unable to connect to the server. Please check your internet connection.',
       );
+    } catch (e, stack) {
+      debugPrint('[ApiService] POST NETWORK ERROR => $url');
+      debugPrint('[ApiService] ERROR TYPE => ${e.runtimeType}');
+      debugPrint('[ApiService] ERROR => $e');
+      debugPrint('[ApiService] STACK => $stack');
+
+      throw ApiException('Unable to connect to the server. Please try again.');
     }
 
     if (response.statusCode == 401) {

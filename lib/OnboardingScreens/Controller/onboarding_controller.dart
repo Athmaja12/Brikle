@@ -1,4 +1,3 @@
-import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,13 +57,16 @@ class OnboardingController extends GetxController {
 
   void skip() => _goToAuth();
 
-void _goToAuth() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('has_seen_onboarding', true);
+  Future<void> _goToAuth() async {
+    final prefs = await SharedPreferences.getInstance();
 
-  final loggedIn = await SessionManager.isLoggedIn();
-  Get.offAllNamed(loggedIn ? '/home' : '/login');
-}
+    await prefs.setBool('has_seen_onboarding', true);
+
+    // Guests are allowed to enter the Home page.
+    // Login is required only for account-protected actions
+    // such as checkout, placing an order, etc.
+    Get.offAllNamed('/home');
+  }
 
   @override
   void onClose() {

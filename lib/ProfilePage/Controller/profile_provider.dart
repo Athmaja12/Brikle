@@ -12,7 +12,9 @@ import 'package:brikle/ProfilePage/Model/profile_model.dart';
 // Import CouponModel from address_model.dart
 import 'package:brikle/AddtoCart/Model/address_model.dart'; // <-- ADD THIS
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileController extends GetxController {
   // ── State ──────────────────────────────────────────────────────────────────
@@ -439,41 +441,117 @@ class ProfileController extends GetxController {
     }
   }
 
-  Future<ShareCouponResponse> shareCoupon({
-    required String couponCode,
-    required String recipientPhone,
-  }) async {
-    debugPrint(
-      '[ProfileController] shareCoupon($couponCode -> $recipientPhone)',
-    );
-    try {
-      final result = await ApiService.shareCoupon(
-        couponCode: couponCode,
-        recipientPhone: recipientPhone,
-      );
-      if (result.success) {
-        // Remove immediately from the local list so the UI updates the
-        // instant the user sees the success snackbar, instead of waiting
-        // on a full fetchCoupons() round-trip to reflect it.
-        coupons.removeWhere((c) => c.couponCode == couponCode);
+  // Generate coupon share link and copy to clipboard
 
-        // Still resync with the server in the background — covers cases
-        // like server-side side effects (e.g. earning a new coupon back)
-        // that a purely local removal wouldn't know about.
-        unawaited(fetchCoupons());
-      }
-      return result;
-    } on ApiException catch (e) {
-      debugPrint('[ProfileController] shareCoupon failed: ${e.message}');
-      return ShareCouponResponse(success: false, message: e.message);
-    } catch (e) {
-      debugPrint('[ProfileController] shareCoupon unexpected error: $e');
-      return ShareCouponResponse(
-        success: false,
-        message: 'Something went wrong. Please try again.',
+// Replace the generateCouponShareLink method with this:
+Future<void> generateCouponShareLink({
+  required String couponCode,
+  required double discountPercentage,
+  required String materialName,
+}) async {
+  debugPrint('[ProfileController] generateCouponShareLink($couponCode)');
+  
+  try {
+    // Build the WhatsApp message
+    final String message = 
+        "Hey! I'm sharing a $discountPercentage% discount coupon for $materialName on Brickle. "
+        "Use my coupon code $couponCode at checkout!";
+    
+    // Create the WhatsApp link without phone number
+    final String whatsappLink = 
+        "https://wa.me/?text=${Uri.encodeComponent(message)}";
+    
+    debugPrint('[ProfileController] Generated link: $whatsappLink');
+    
+    // Copy to clipboard
+    await Clipboard.setData(ClipboardData(text: whatsappLink));
+    
+    Get.snackbar(
+      'Copied!',
+      'WhatsApp share link copied to clipboard!',
+      backgroundColor: AppColors.primaryGreen,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+    );
+    
+    // Remove the coupon after sharing
+    coupons.removeWhere((c) => c.couponCode == couponCode);
+    unawaited(fetchCoupons());
+    
+  } catch (e) {
+    debugPrint('[ProfileController] generateCouponShareLink error: $e');
+    Get.snackbar(
+      'Error',
+      'Failed to generate share link. Please try again.',
+      backgroundColor: AppColors.errorRed,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+    );
+  }
+}
+
+// Replace the shareCouponDirectly method with this:
+Future<void> shareCouponDirectly({
+  required String couponCode,
+  required double discountPercentage,
+  required String materialName,
+}) async {
+  debugPrint('[ProfileController] shareCouponDirectly($couponCode)');
+  
+  try {
+    // Build the WhatsApp message
+    final String message = 
+        "Hey! I'm sharing a $discountPercentage% discount coupon for $materialName on Brickle. "
+        "Use my coupon code $couponCode at checkout!";
+    
+    // Create the WhatsApp link without phone number
+    final String whatsappLink = 
+        "https://wa.me/?text=${Uri.encodeComponent(message)}";
+    
+    final Uri whatsappUri = Uri.parse(whatsappLink);
+    
+    debugPrint('[ProfileController] Opening: $whatsappLink');
+    
+    if (await canLaunchUrl(whatsappUri)) {
+      await launchUrl(
+        whatsappUri,
+        mode: LaunchMode.externalApplication,
+      );
+      
+      Get.snackbar(
+        'Success',
+        'Opening WhatsApp...',
+        backgroundColor: AppColors.primaryGreen,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      
+      // Remove the coupon after sharing
+      coupons.removeWhere((c) => c.couponCode == couponCode);
+      unawaited(fetchCoupons());
+    } else {
+      // Fallback: Copy to clipboard
+      await Clipboard.setData(ClipboardData(text: whatsappLink));
+      Get.snackbar(
+        'Info',
+        'WhatsApp not installed. Link copied to clipboard.',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
       );
     }
+  } catch (e) {
+    debugPrint('[ProfileController] shareCouponDirectly error: $e');
+    Get.snackbar(
+      'Error',
+      'Failed to share. Please try again.',
+      backgroundColor: AppColors.errorRed,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+    );
   }
+}
 
   // ══════════════════════════════════════════════════════════════════════════
   // ADDRESSES
