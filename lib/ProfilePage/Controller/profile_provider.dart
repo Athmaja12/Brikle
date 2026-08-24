@@ -33,6 +33,9 @@ class ProfileController extends GetxController {
   final RxBool isAddressesLoading = false.obs;
   final RxBool isAddressSaving = false.obs;
   final RxBool isSubmittingReview = false.obs;
+  // Total Saved - NEW
+  final RxDouble totalSaved = 0.0.obs;
+  final RxBool isTotalSavedLoading = false.obs;
 
   // ── Convenience getters ────────────────────────────────────────────────────
   String get fullName => profile.value.fullName;
@@ -97,6 +100,7 @@ class ProfileController extends GetxController {
         fetchCoupons(),
         fetchOrders(),
         fetchAddresses(),
+        fetchTotalSaved(),
       ]);
 
       debugPrint(
@@ -108,6 +112,7 @@ class ProfileController extends GetxController {
   }
 
   Future<void> refreshOnProfileOpen() async {
+    unawaited(fetchTotalSaved());
     if (isManualEntry) {
       await fetchProfile();
     } else {
@@ -172,6 +177,26 @@ class ProfileController extends GetxController {
       Get.snackbar('Error', 'Failed to load profile. Please try again.');
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> fetchTotalSaved() async {
+    debugPrint('[ProfileController] fetchTotalSaved()');
+    isTotalSavedLoading.value = true;
+    try {
+      final saved = await ApiService.getTotalSaved();
+      totalSaved.value = saved;
+      debugPrint('[ProfileController] fetchTotalSaved SUCCESS → $saved');
+    } on ApiException catch (e) {
+      debugPrint(
+        '[ProfileController] fetchTotalSaved ApiException → ${e.message}',
+      );
+      totalSaved.value = 0.0;
+    } catch (e) {
+      debugPrint('[ProfileController] fetchTotalSaved unexpected → $e');
+      totalSaved.value = 0.0;
+    } finally {
+      isTotalSavedLoading.value = false;
     }
   }
 
@@ -706,6 +731,12 @@ Future<void> shareCouponDirectly({
   }
 
   Future<void> refreshAll() async {
-    await Future.wait([fetchProfile(), fetchCoupons()]);
+    await Future.wait([
+      fetchProfile(),
+      fetchCoupons(),
+      fetchOrders(),
+      fetchAddresses(),
+      fetchTotalSaved(),
+    ]);
   }
 }

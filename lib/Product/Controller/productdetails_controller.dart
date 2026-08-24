@@ -87,6 +87,7 @@ class ProductDetailController extends GetxController {
     isLoading.value = true;
     try {
       final response = await ApiService.getMaterialDetails(product.materialId);
+      debugPrint('[MaterialDetail RAW] $response');
       final materialDetail = MaterialDetail.fromJson(response);
       detail.value = materialDetail;
       

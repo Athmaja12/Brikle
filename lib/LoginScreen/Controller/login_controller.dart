@@ -12,12 +12,13 @@ class LoginController extends GetxController {
 
   final RxBool isPhoneValid = true.obs;
   final RxBool isLoading = false.obs;
+  final RxString countryCode = '+91'.obs;
   String lastOtp = '';
 
   @override
   void onInit() {
     super.onInit();
-    debugPrint('[LoginController] onInit'); 
+    debugPrint('[LoginController] onInit');
   }
 
   void onPhoneChanged(String value) {
@@ -26,6 +27,12 @@ class LoginController extends GetxController {
     if (!isPhoneValid.value) {
       isPhoneValid.value = model.isPhoneValid;
     }
+  }
+
+  void onCountryCodeChanged(String code) {
+    countryCode.value = code;
+    model.countryCode = code;
+    debugPrint('[LoginController] country code changed → "$code"');
   }
 
   Future<bool> login() async {

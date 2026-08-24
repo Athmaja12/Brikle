@@ -24,28 +24,16 @@ class SessionManager {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setString(
-      _keyAccessToken,
-      accessToken,
-    );
+    await prefs.setString(_keyAccessToken, accessToken);
 
-    await prefs.setString(
-      _keyRefreshToken,
-      refreshToken,
-    );
+    await prefs.setString(_keyRefreshToken, refreshToken);
 
     if (customerId != null) {
-      await prefs.setInt(
-        _keyCustomerId,
-        customerId,
-      );
+      await prefs.setInt(_keyCustomerId, customerId);
     }
 
     if (phoneNumber != null) {
-      await prefs.setString(
-        _keyPhoneNumber,
-        phoneNumber,
-      );
+      await prefs.setString(_keyPhoneNumber, phoneNumber);
     }
   }
 
@@ -79,35 +67,26 @@ class SessionManager {
   // GUEST CART DEVICE ID
   // ─────────────────────────────────────────────────────────────
 
-  static Future<void> saveGuestDeviceId(
-    String deviceId,
-  ) async {
+  static Future<void> saveGuestDeviceId(String deviceId) async {
     if (deviceId.trim().isEmpty) {
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setString(
-      _keyGuestDeviceId,
-      deviceId.trim(),
-    );
+    await prefs.setString(_keyGuestDeviceId, deviceId.trim());
   }
 
   static Future<String?> getGuestDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
 
-    return prefs.getString(
-      _keyGuestDeviceId,
-    );
+    return prefs.getString(_keyGuestDeviceId);
   }
 
   static Future<void> clearGuestDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.remove(
-      _keyGuestDeviceId,
-    );
+    await prefs.remove(_keyGuestDeviceId);
   }
 
   // ─────────────────────────────────────────────────────────────

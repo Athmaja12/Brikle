@@ -227,6 +227,18 @@ class ApiService {
     await _delete(ApiConfig.deleteAccountUrl, headers: await _authHeaders());
   }
 
+  static Future<double> getTotalSaved() async {
+    final response = await _get(
+      ApiConfig.totalSavedUrl,
+      headers: await _authHeaders(),
+    );
+    print("total saved ${response}");
+    final raw = response['total_saved'];
+    if (raw == null) return 0.0;
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw.toString()) ?? 0.0;
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // PINCODE
   // ══════════════════════════════════════════════════════════════════════════
@@ -908,24 +920,64 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getWishlist() async {
-    final response = await _get(
-      ApiConfig.wishlistUrl,
-      headers: await _authHeaders(),
-    );
-    return response["wishlist_items"] ?? [];
+    final headers =
+        await _cartHeaders(); // same X-Device-ID + Bearer pattern as cart
+    final deviceId = await SessionManager.getGuestDeviceId();
+    final url = ApiConfig.wishlistUrlForDevice(deviceId);
+
+    debugPrint('[ApiService] 💚 GET WISHLIST');
+    debugPrint('[ApiService] 💚 URL => $url');
+    debugPrint('[ApiService] 💚 Headers => $headers');
+
+    final response = await _get(url, headers: headers);
+
+    final newDeviceId = response['device_id']?.toString().trim();
+    if (newDeviceId != null && newDeviceId.isNotEmpty) {
+      await SessionManager.saveGuestDeviceId(newDeviceId);
+      debugPrint(
+        '[ApiService] 💚 Saved device ID from GET wishlist => $newDeviceId',
+      );
+    }
+
+    debugPrint('[ApiService] 💚 Wishlist response => $response');
+    return response['wishlist_items'] as List? ?? [];
   }
 
   static Future<void> addToWishlist({required int variantId}) async {
-    await _post(ApiConfig.wishlistUrl, {
-      "variant": variantId,
-    }, headers: await _authHeaders());
+    final headers = await _cartHeaders();
+
+    debugPrint('[ApiService] 💚 ADD WISHLIST');
+    debugPrint('[ApiService] 💚 URL => ${ApiConfig.wishlistUrl}');
+    debugPrint('[ApiService] 💚 Headers => $headers');
+    debugPrint('[ApiService] 💚 Body => {variant: $variantId}');
+
+    final response = await _post(ApiConfig.wishlistUrl, {
+      'variant': variantId,
+    }, headers: headers);
+
+    final deviceId = response['device_id']?.toString().trim();
+    if (deviceId != null && deviceId.isNotEmpty) {
+      await SessionManager.saveGuestDeviceId(deviceId);
+      debugPrint('[ApiService] 💚 Guest device ID SAVED => $deviceId');
+    } else {
+      debugPrint(
+        '[ApiService] ⚠️ Add wishlist response did not contain device_id',
+      );
+    }
+
+    debugPrint('[ApiService] 💚 ADD WISHLIST response => $response');
   }
 
   static Future<void> removeFromWishlist({required int variantId}) async {
-    await _delete(
-      ApiConfig.wishlistItemUrl(variantId),
-      headers: await _authHeaders(),
-    );
+    final headers = await _cartHeaders();
+    final deviceId = await SessionManager.getGuestDeviceId();
+    final url = ApiConfig.wishlistItemUrl(variantId, deviceId: deviceId);
+
+    debugPrint('[ApiService] 💚 REMOVE WISHLIST variantId=$variantId');
+    debugPrint('[ApiService] 💚 URL => $url');
+    debugPrint('[ApiService] 💚 Headers => $headers');
+
+    await _delete(url, headers: headers);
   }
 
   // ══════════════════════════════════════════════════════════════════════════

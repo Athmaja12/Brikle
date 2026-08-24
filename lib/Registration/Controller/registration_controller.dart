@@ -74,6 +74,14 @@ class SignupController extends GetxController {
     isGstValid.value = model.isGstValid;
   }
 
+  // In SignupController, alongside customerType:
+  final RxString countryCode = '+91'.obs;
+
+  void onCountryCodeChanged(String code) {
+    countryCode.value = code;
+    model.countryCode = code;
+  }
+
   Future<bool> createAccount() async {
     debugPrint('[SignupController] createAccount() called');
 

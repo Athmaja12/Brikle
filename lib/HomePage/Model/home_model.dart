@@ -13,24 +13,45 @@ String? _fullCertUrl(dynamic raw) {
   return _fullImageUrl(path);
 }
 
+int? _toInt(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString());
+}
+
 class CarouselItem {
   final int id;
   final String imageUrl;
   final String title;
   final String description;
+  final int? category;
+  final String? categoryName;
+  final int? material;
+  final String? materialName;
+  final bool isActive;
 
   CarouselItem({
     required this.id,
     required this.imageUrl,
     required this.title,
-    required this.description,
+    this.description = '',
+    this.category,
+    this.categoryName,
+    this.material,
+    this.materialName,
+    this.isActive = true,
   });
 
   factory CarouselItem.fromJson(Map<String, dynamic> json) => CarouselItem(
-    id: json['id'] as int,
-    imageUrl: _fullImageUrl(json['image']),
+    id: _toInt(json['id']) ?? 0,
+    imageUrl: _fullImageUrl(json['image']?.toString()),
     title: json['title']?.toString() ?? '',
     description: json['description']?.toString() ?? '',
+    category: _toInt(json['category']),
+    categoryName: json['category_name']?.toString(),
+    material: _toInt(json['material']),
+    materialName: json['material_name']?.toString(),
+    isActive: json['is_active'] == null ? true : (json['is_active'] == true),
   );
 }
 

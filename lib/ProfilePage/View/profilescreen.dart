@@ -1,4 +1,3 @@
-import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
@@ -48,6 +47,8 @@ class _ProfileViewState extends State<ProfileView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHeader(context),
+                        SizedBox(height: Responsive.space(context, 20)),
+                        _buildTotalSavedCard(context),
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildQuickActions(context),
                         SizedBox(height: Responsive.space(context, 20)),
@@ -195,6 +196,109 @@ class _ProfileViewState extends State<ProfileView> {
           ),
         ),
       ],
+    );
+  }
+
+  String _formatCurrency(double amount) {
+    final formatted = amount.toStringAsFixed(2);
+    final parts = formatted.split('.');
+    final integerPart = parts[0];
+    final decimalPart = parts[1];
+
+    final result = integerPart.replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return '₹$result.$decimalPart';
+  }
+
+  // ── Total Saved Card ────────────────────────────────────────────────────────
+  Widget _buildTotalSavedCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(Responsive.space(context, 16)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.space(context, 12)),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(Responsive.space(context, 12)),
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.savings_outlined,
+              color: AppColors.primaryGreen,
+              size: Responsive.space(context, 26),
+            ),
+          ),
+          SizedBox(width: Responsive.space(context, 14)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Saved',
+                  style: GoogleFonts.manrope(
+                    fontSize: Responsive.font(context, 13),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textGray,
+                  ),
+                ),
+                SizedBox(height: Responsive.space(context, 4)),
+                Obx(() {
+                  if (_ctrl.isTotalSavedLoading.value) {
+                    return SizedBox(
+                      height: Responsive.space(context, 24),
+                      width: Responsive.space(context, 80),
+                      child: const Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primaryGreen,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final amount = _ctrl.totalSaved.value;
+                  return Text(
+                    _formatCurrency(amount),
+                    style: GoogleFonts.manrope(
+                      fontSize: Responsive.font(context, 20),
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryGreen,
+                    ),
+                  );
+                }),
+                SizedBox(height: Responsive.space(context, 2)),
+                Text(
+                  'Money saved on your orders',
+                  style: GoogleFonts.manrope(
+                    fontSize: Responsive.font(context, 12),
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

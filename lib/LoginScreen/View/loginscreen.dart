@@ -1,8 +1,6 @@
-import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/custombutton.dart';
-import 'package:brikle/AppStyle/customtextfield.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/GoogleAuth/googleauthapiservice.dart';
@@ -10,6 +8,7 @@ import 'package:brikle/GoogleAuth/googleauthservice.dart';
 import 'package:brikle/LoginOtp/Controller/loginotp_provider.dart';
 import 'package:brikle/LoginOtp/View/logiotppage.dart';
 import 'package:brikle/LoginScreen/Controller/login_controller.dart';
+import 'package:brikle/LoginScreen/View/country_code.dart';
 import 'package:brikle/Registration/View/regitration_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -169,8 +168,16 @@ class LoginView extends GetView<LoginController> {
                         ),
                         SizedBox(height: Responsive.space(context, 32)),
 
-                        CustomPhoneField(controller: controller),
-
+                        Obx(
+                          () => MergedPhoneField(
+                            selectedCode: controller.countryCode.value,
+                            phoneController: controller.phoneController,
+                            isValid: controller.isPhoneValid.value,
+                            errorText: 'Enter a valid 10-digit phone number',
+                            onCodeChanged: controller.onCountryCodeChanged,
+                            onPhoneChanged: controller.onPhoneChanged,
+                          ),
+                        ),
                         SizedBox(height: Responsive.space(context, 24)),
 
                         Obx(
@@ -245,7 +252,6 @@ class LoginView extends GetView<LoginController> {
                             ),
                             GestureDetector(
                               onTap: () {
-
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -253,7 +259,6 @@ class LoginView extends GetView<LoginController> {
                                         SignupView(isModal: _isModal),
                                   ),
                                 );
-                                
                               },
                               child: Text(
                                 'Register',

@@ -256,6 +256,7 @@ class _CarouselSectionState extends State<_CarouselSection> {
   int _page =
       0; // raw (unbounded) page index — actual item is _page % items.length
   Timer? _autoPlayTimer;
+  DateTime? _lastTapTime;
 
   static const _autoPlayInterval = Duration(seconds: 4);
   static const _autoPlayAnimationDuration = Duration(milliseconds: 450);
@@ -281,7 +282,7 @@ class _CarouselSectionState extends State<_CarouselSection> {
     _autoPlayTimer?.cancel();
     _autoPlayTimer = Timer.periodic(_autoPlayInterval, (_) {
       final items = widget.controller.carousels;
-      if (items.length <= 1 || !_pageController.hasClients) return;
+      if (items.length <= 1 || !_pageController.hasClients || !mounted) return;
 
       // Always move forward by exactly 1 — never wraps, so animateToPage
       // never has to animate backward through the whole list.
@@ -290,6 +291,51 @@ class _CarouselSectionState extends State<_CarouselSection> {
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  void _onBannerTap(CarouselItem item) {
+    final materialId = item.material;
+    final categoryId = item.category;
+
+    // Step 3: If both material and category are null, do nothing (standalone banner)
+    if (materialId == null && categoryId == null) {
+      return;
+    }
+
+    // Debounce rapid taps
+    final now = DateTime.now();
+    if (_lastTapTime != null &&
+        now.difference(_lastTapTime!) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastTapTime = now;
+
+    // Step 1: Material navigation priority
+    if (materialId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProductDetailScreen(
+            product: CategoryProductItem(
+              variantId: 0,
+              materialId: materialId,
+              name: item.materialName ?? item.title,
+              imageUrl: item.imageUrl,
+              price: 0,
+            ),
+          ),
+        ),
+      );
+    }
+    // Step 2: Category navigation priority
+    else if (categoryId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CategoryProductsScreenWrapper(categoryId: categoryId),
+        ),
+      );
+    }
   }
 
   @override
@@ -336,14 +382,18 @@ class _CarouselSectionState extends State<_CarouselSection> {
                   onPageChanged: (i) => setState(() => _page = i),
                   itemBuilder: (context, i) {
                     final actualIndex = i % items.length;
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        items[actualIndex].imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        errorBuilder: (_, __, ___) =>
-                            Container(color: AppColors.dotInactive),
+                    final item = items[actualIndex];
+                    return GestureDetector(
+                      onTap: () => _onBannerTap(item),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          item.imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (_, __, ___) =>
+                              Container(color: AppColors.dotInactive),
+                        ),
                       ),
                     );
                   },
@@ -861,7 +911,7 @@ class _BestsellingSection extends StatelessWidget {
         imageUrl: item.imageUrl,
         price: item.hasOffer ? item.dealPrice! : item.retailPrice,
         brandName: item.brandName,
-         isAssured: item.isAssured,                    // NEW
+        isAssured: item.isAssured, // NEW
         assuredCertificate: item.assuredCertificate,
       ),
       originalPrice: item.hasOffer ? item.retailPrice : null,

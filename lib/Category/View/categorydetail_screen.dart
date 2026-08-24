@@ -563,10 +563,7 @@ class _SortDropdownChip extends StatelessWidget {
   final String selectedSort;
   final VoidCallback onTap;
 
-  const _SortDropdownChip({
-    required this.selectedSort,
-    required this.onTap,
-  });
+  const _SortDropdownChip({required this.selectedSort, required this.onTap});
 
   String _getDisplayLabel() {
     switch (selectedSort) {
@@ -875,11 +872,27 @@ class _ProductGrid extends StatelessWidget {
                 crossAxisSpacing: spacing,
                 mainAxisExtent: cardHeight,
               ),
+              // itemBuilder: (context, index) {
+              //   final product = products[index];
+              //   return SharedProductCard(
+              //     key: ValueKey('product_${product.variantId}'),
+              //     product: product,
+              //   );
+              // },
               itemBuilder: (context, index) {
                 final product = products[index];
+                final offer = product.offer;
+                final discountedPrice = offer != null
+                    ? product.price * (1 - offer.discountPercentage / 100)
+                    : product.price;
+
                 return SharedProductCard(
                   key: ValueKey('product_${product.variantId}'),
-                  product: product,
+                  product: product.copyWith(
+                    price: discountedPrice,
+                  ), // see note below
+                  originalPrice: offer != null ? product.price : null,
+                  discountPercent: offer?.discountPercentage.toInt(),
                 );
               },
             );

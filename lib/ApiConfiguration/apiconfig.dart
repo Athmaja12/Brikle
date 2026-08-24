@@ -33,6 +33,7 @@ class ApiConfig {
   static String get profileUrl => '$baseUrl/api/customer-profile/';
   static String get profileEditUrl => '$baseUrl/api/customer-profile/';
   static String get deleteAccountUrl => '$baseUrl/api/customer-delete-account/';
+  static String get totalSavedUrl => '$baseUrl/api/user/total-saved/';
 
   // ==========================================================================
   // ADDRESS (multi-address book — separate from the single profile address)
@@ -125,8 +126,22 @@ class ApiConfig {
 
   static String get wishlistUrl => '$baseUrl/api/wishlist/';
 
-  static String wishlistItemUrl(int variantId) =>
-      '$baseUrl/api/wishlist/$variantId/';
+  /// GET needs the saved device_id appended as a query param (see Postman:
+  /// {{baseurl}}/api/wishlist/?device_id=...) so the guest cart's wishlist
+  /// items come back correctly.
+  static String wishlistUrlForDevice(String? deviceId) {
+    if (deviceId != null && deviceId.isNotEmpty) {
+      return '$baseUrl/api/wishlist/?device_id=${Uri.encodeComponent(deviceId)}';
+    }
+    return '$baseUrl/api/wishlist/';
+  }
+
+  static String wishlistItemUrl(int variantId, {String? deviceId}) {
+    if (deviceId != null && deviceId.isNotEmpty) {
+      return '$baseUrl/api/wishlist/$variantId/?device_id=${Uri.encodeComponent(deviceId)}';
+    }
+    return '$baseUrl/api/wishlist/$variantId/';
+  }
 
   // ==========================================================================
   // CALCULATORS

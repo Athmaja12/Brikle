@@ -8,7 +8,7 @@ import 'package:get/get.dart';
 class HomeController extends GetxController {
   final RxList<CarouselItem> carousels = <CarouselItem>[].obs;
   final RxList<CategoryItem> categories = <CategoryItem>[].obs;
-  final RxInt selectedCategoryIndex = 0.obs;
+  final RxInt selectedCategoryIndex = (-1).obs;
   final RxBool isLoading = true.obs;
 
   final GlobalKey categoriesSectionKey = GlobalKey();
@@ -93,7 +93,9 @@ class HomeController extends GetxController {
   }
 
   String get selectedCategoryName =>
-      categories.isNotEmpty && selectedCategoryIndex.value < categories.length
+      categories.isNotEmpty &&
+          selectedCategoryIndex.value >= 0 &&
+          selectedCategoryIndex.value < categories.length
       ? categories[selectedCategoryIndex.value].name
       : '';
 
@@ -212,6 +214,7 @@ class HomeController extends GetxController {
       // BEST SELLING
       // -----------------------------------------------------------------------
       if (categories.isNotEmpty &&
+          selectedCategoryIndex.value >= 0 &&
           selectedCategoryIndex.value < categories.length) {
         final categoryId = categories[selectedCategoryIndex.value].id;
 
@@ -318,10 +321,8 @@ class HomeController extends GetxController {
   }
 
   void resetAfterCategoryVisit() {
-    selectedCategoryIndex.value = 0;
-    if (categories.isNotEmpty) {
-      _loadBestselling(categories[0].id);
-    }
+    selectedCategoryIndex.value = -1;
+    bestselling.clear();
   }
 
   // ── Pincode serviceability ────────────────────────────────────────────

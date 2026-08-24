@@ -152,69 +152,69 @@ class _OtpViewState extends State<OtpView> {
                               SizedBox(height: Responsive.space(context, 24)),
 
                               // Timer + Resend OTP, stacked & centered
-                              SizedBox(
-                                width: double.infinity,
-                                child: Obx(
-                                  () => Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      if (controller.resendCooldown.value >
-                                          0) ...[
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.access_time_rounded,
-                                              size: Responsive.font(
-                                                context,
-                                                16,
-                                              ),
-                                              color: AppColors.textGray,
-                                            ),
-                                            SizedBox(
-                                              width: Responsive.space(
-                                                context,
-                                                4,
-                                              ),
-                                            ),
-                                            Text(
-                                              controller.formattedCooldown,
-                                              style: AppTextStyles.termsText(
-                                                context,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        SizedBox(
-                                          height: Responsive.space(context, 8),
-                                        ),
-                                      ],
-                                      GestureDetector(
-                                        onTap:
-                                            controller.resendCooldown.value == 0
-                                            ? controller.resendOtp
-                                            : null,
-                                        child: Text(
-                                          'Resend OTP',
-                                          style: AppTextStyles.linkText(context)
-                                              .copyWith(
-                                                color:
-                                                    controller
-                                                            .resendCooldown
-                                                            .value >
-                                                        0
-                                                    ? AppColors.textGray
-                                                    : AppColors.primaryGreen,
-                                              ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: Responsive.space(context, 28)),
+                              // SizedBox(
+                              //   width: double.infinity,
+                              //   child: Obx(
+                              //     () => Column(
+                              //       crossAxisAlignment:
+                              //           CrossAxisAlignment.center,
+                              //       children: [
+                              //         if (controller.resendCooldown.value >
+                              //             0) ...[
+                              //           Row(
+                              //             mainAxisAlignment:
+                              //                 MainAxisAlignment.center,
+                              //             children: [
+                              //               Icon(
+                              //                 Icons.access_time_rounded,
+                              //                 size: Responsive.font(
+                              //                   context,
+                              //                   16,
+                              //                 ),
+                              //                 color: AppColors.textGray,
+                              //               ),
+                              //               SizedBox(
+                              //                 width: Responsive.space(
+                              //                   context,
+                              //                   4,
+                              //                 ),
+                              //               ),
+                              //               Text(
+                              //                 controller.formattedCooldown,
+                              //                 style: AppTextStyles.termsText(
+                              //                   context,
+                              //                 ),
+                              //               ),
+                              //             ],
+                              //           ),
+                              //           SizedBox(
+                              //             height: Responsive.space(context, 8),
+                              //           ),
+                              //         ],
+                              //         GestureDetector(
+                              //           onTap:
+                              //               controller.resendCooldown.value == 0
+                              //               ? controller.resendOtp
+                              //               : null,
+                              //           child: Text(
+                              //             'Resend OTP',
+                              //             style: AppTextStyles.linkText(context)
+                              //                 .copyWith(
+                              //                   color:
+                              //                       controller
+                              //                               .resendCooldown
+                              //                               .value >
+                              //                           0
+                              //                       ? AppColors.textGray
+                              //                       : AppColors.primaryGreen,
+                              //                 ),
+                              //           ),
+                              //         ),
+                              //       ],
+                              //     ),
+                              //   ),
+                              // ),
+                              // SizedBox(height: Responsive.space(context, 28)),
 
                               // "Verify"
                               Obx(

@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
       title: 'Brikle',
       debugShowCheckedModeBanner: false,
       initialRoute: '/splash',
-        builder: (context, child) {
+      builder: (context, child) {
         return UpgradeAlert(
           upgrader: Upgrader(
             durationUntilAlertAgain: const Duration(days: 3),

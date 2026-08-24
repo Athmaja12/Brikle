@@ -12,6 +12,29 @@ import 'package:brikle/Registration/Model/registretion_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+class CountryCodeOption {
+  final String code;
+  final String iso;
+  final String name;
+  final String flag;
+
+  const CountryCodeOption(this.code, this.iso, this.name, this.flag);
+}
+
+const List<CountryCodeOption> kCountryCodes = [
+  CountryCodeOption('+91', 'IN', 'India', '🇮🇳'),
+  CountryCodeOption('+1', 'US', 'United States', '🇺🇸'),
+  CountryCodeOption('+44', 'GB', 'United Kingdom', '🇬🇧'),
+  CountryCodeOption('+971', 'AE', 'UAE', '🇦🇪'),
+  CountryCodeOption('+966', 'SA', 'Saudi Arabia', '🇸🇦'),
+  CountryCodeOption('+974', 'QA', 'Qatar', '🇶🇦'),
+  CountryCodeOption('+968', 'OM', 'Oman', '🇴🇲'),
+  CountryCodeOption('+965', 'KW', 'Kuwait', '🇰🇼'),
+  CountryCodeOption('+973', 'BH', 'Bahrain', '🇧🇭'),
+  CountryCodeOption('+61', 'AU', 'Australia', '🇦🇺'),
+  CountryCodeOption('+65', 'SG', 'Singapore', '🇸🇬'),
+];
+
 class SignupView extends GetView<SignupController> {
   /// Propagated from LoginView so the resulting OtpView knows whether
   /// to pop(true) back up to AuthGate on success.
@@ -74,8 +97,9 @@ class SignupView extends GetView<SignupController> {
                             context,
                             MaterialPageRoute(
                               builder: (_) => LoginView(
-                                checkoutReason:
-                                    isModal ? 'Please log in to continue' : null,
+                                checkoutReason: isModal
+                                    ? 'Please log in to continue'
+                                    : null,
                               ),
                             ),
                           );
@@ -206,14 +230,70 @@ class SignupView extends GetView<SignupController> {
                         _FieldBlock(
                           label: 'Phone Number',
                           child: Obx(
-                            () => CustomIconField(
-                              controller: controller.phoneController,
-                              icon: Icons.call_outlined,
-                              hintText: 'Phone Number',
-                              keyboardType: TextInputType.phone,
-                              isValid: controller.isPhoneValid.value,
-                              errorText: 'Enter a valid 10-digit phone number',
-                              onChanged: controller.onPhoneChanged,
+                            () => Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Country code trigger — opens a bottom sheet, no overlay bugs
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => _showCountryCodePicker(
+                                    context,
+                                    controller,
+                                  ),
+                                  child: Container(
+                                    height:
+                                        52, // match CustomIconField's height — verify & adjust
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: Responsive.space(context, 12),
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: controller.isPhoneValid.value
+                                            ? AppColors.inputBorder
+                                            : Colors.red,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          controller.countryCode.value,
+                                          style: TextStyle(
+                                            color: AppColors.textDark,
+                                            fontSize: Responsive.font(
+                                              context,
+                                              15,
+                                            ),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: Responsive.space(context, 4),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_drop_down,
+                                          color: AppColors.textDark,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: Responsive.space(context, 8)),
+                                Expanded(
+                                  child: CustomIconField(
+                                    controller: controller.phoneController,
+                                    icon: Icons.call_outlined,
+                                    hintText: 'Phone Number',
+                                    keyboardType: TextInputType.phone,
+                                    isValid: controller.isPhoneValid.value,
+                                    errorText:
+                                        'Enter a valid 10-digit phone number',
+                                    onChanged: controller.onPhoneChanged,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -302,10 +382,11 @@ class SignupView extends GetView<SignupController> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        LoginView(checkoutReason: isModal
-                                            ? 'Please log in to continue'
-                                            : null),
+                                    builder: (_) => LoginView(
+                                      checkoutReason: isModal
+                                          ? 'Please log in to continue'
+                                          : null,
+                                    ),
                                   ),
                                 );
                               },
@@ -342,6 +423,94 @@ class SignupView extends GetView<SignupController> {
       case CustomerType.seller:
         return Icons.sell_outlined;
     }
+  }
+
+  void _showCountryCodePicker(
+    BuildContext context,
+    SignupController controller,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.inputBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    'Select Country Code',
+                    style: AppTextStyles.fieldLabel(context).copyWith(
+                      fontSize: Responsive.font(context, 16),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: kCountryCodes.length,
+                    separatorBuilder: (_, __) =>
+                        Divider(height: 1, color: AppColors.inputBorder),
+                    itemBuilder: (context, index) {
+                      final c = kCountryCodes[index];
+                      final isSelected = controller.countryCode.value == c.code;
+                      return ListTile(
+                        leading: Text(
+                          c.flag,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                        title: Text(
+                          c.name,
+                          style: TextStyle(
+                            color: AppColors.textDark,
+                            fontSize: Responsive.font(context, 15),
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                        trailing: Text(
+                          c.code,
+                          style: TextStyle(
+                            color: isSelected
+                                ? AppColors.primaryGreen
+                                : AppColors.textDark,
+                            fontWeight: FontWeight.w600,
+                            fontSize: Responsive.font(context, 15),
+                          ),
+                        ),
+                        onTap: () {
+                          controller.onCountryCodeChanged(c.code);
+                          Navigator.pop(sheetContext);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                SizedBox(height: Responsive.space(context, 12)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

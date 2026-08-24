@@ -61,7 +61,7 @@ class CategoryProductItem {
   final String? type; // thickness_or_spec
   final String? quantity; // size_dimension
   final double price;
-  final OfferTag? offer;  // retail_price_with_gst — base unit price (qty 1)
+  final OfferTag? offer; // retail_price_with_gst — base unit price (qty 1)
 
   final bool hasTiers;
   final List<PriceTier> priceTiers; // sorted ascending by minQty
@@ -102,6 +102,25 @@ class CategoryProductItem {
   double get bestTierPrice {
     if (priceTiers.isEmpty) return price;
     return priceTiers.map((t) => t.price).reduce((a, b) => a < b ? a : b);
+  }
+
+  CategoryProductItem copyWith({double? price}) {
+    return CategoryProductItem(
+      variantId: variantId,
+      materialId: materialId,
+      name: name,
+      imageUrl: imageUrl,
+      brandName: brandName,
+      brandId: brandId,
+      type: type,
+      quantity: quantity,
+      price: price ?? this.price,
+      hasTiers: hasTiers,
+      priceTiers: priceTiers,
+      isAssured: isAssured,
+      assuredCertificate: assuredCertificate,
+      offer: offer,
+    );
   }
 
   factory CategoryProductItem.fromVariantJson({
@@ -145,8 +164,11 @@ class CategoryProductItem {
         variantMaterial['assured_certificate'] ??
             fallbackMaterial['assured_certificate'],
       ),
-      offer: variant['offer'] != null
-          ? OfferTag.fromJson(variant['offer'] as Map<String, dynamic>)
+      // offer: variant['offer'] != null
+      //     ? OfferTag.fromJson(variant['offer'] as Map<String, dynamic>)
+      //     : null,
+      offer: variantMaterial['offer'] != null
+          ? OfferTag.fromJson(variantMaterial['offer'] as Map<String, dynamic>)
           : null,
     );
   }

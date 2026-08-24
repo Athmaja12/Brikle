@@ -119,6 +119,8 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+// In _WishlistItemCard class, update the image section:
+
 // ── Single wishlist item card ─────────────────────────────────────────────
 class _WishlistItemCard extends StatelessWidget {
   final WishlistItem item;
@@ -192,7 +194,6 @@ class _WishlistItemCard extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      // FIX 1: removeItem now exists in the controller
                       controller.removeItem(item);
                     },
                     style: ElevatedButton.styleFrom(
@@ -220,6 +221,29 @@ class _WishlistItemCard extends StatelessWidget {
     );
   }
 
+  // Helper method to navigate to product detail
+  void _navigateToProductDetail(BuildContext context) {
+    // Since we only have variantId and material name from wishlist item,
+    // we need to fetch the full product details or use minimal data
+    // Option 1: Navigate with variantId and let ProductDetailScreen fetch details
+    // Option 2: Create a minimal CategoryProductItem from wishlist data
+    
+    // For now, we'll use a simple approach - navigate to product detail with minimal data
+    // You may need to modify this based on your ProductDetailScreen requirements
+    
+    // Get the product detail controller or navigate with variantId
+    Get.toNamed(
+      '/product-detail',
+      arguments: {
+        'variantId': item.variantId,
+        'name': item.materialName,
+        'imageUrl': item.imageUrl,
+        'price': item.retailPrice,
+        'sizeDimension': item.sizeDimension,
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -232,31 +256,29 @@ class _WishlistItemCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // FIX 2: Responsive.width() doesn't exist in your Responsive class.
-          // Replaced with Responsive.height() for both dimensions since it's
-          // a square image box, and height() is confirmed to exist.
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: Responsive.height(
-                context,
-                90,
-              ), // FIX: was Responsive.width
-              height: Responsive.height(context, 90),
-              child: item.imageUrl.isNotEmpty
-                  ? Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Container(color: AppColors.fieldFill),
-                    )
-                  : Container(
-                      color: AppColors.fieldFill,
-                      child: const Icon(
-                        Icons.inventory_2_outlined,
-                        color: Colors.black26,
+          // ── Product Image (Clickable) ──
+          GestureDetector(
+            onTap: () => _navigateToProductDetail(context),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: Responsive.height(context, 90),
+                height: Responsive.height(context, 90),
+                child: item.imageUrl.isNotEmpty
+                    ? Image.network(
+                        item.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Container(color: AppColors.fieldFill),
+                      )
+                    : Container(
+                        color: AppColors.fieldFill,
+                        child: const Icon(
+                          Icons.inventory_2_outlined,
+                          color: Colors.black26,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
           SizedBox(width: Responsive.space(context, 12)),
@@ -265,13 +287,17 @@ class _WishlistItemCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.materialName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.fieldLabel(context).copyWith(
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w600,
+                // ── Product Name (Clickable) ──
+                GestureDetector(
+                  onTap: () => _navigateToProductDetail(context),
+                  child: Text(
+                    item.materialName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.fieldLabel(context).copyWith(
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 SizedBox(height: Responsive.space(context, 4)),
@@ -322,6 +348,7 @@ class _WishlistItemCard extends StatelessWidget {
 
           SizedBox(width: Responsive.space(context, 8)),
 
+          // ── Remove button ──
           GestureDetector(
             onTap: () => _showRemoveSheet(context),
             child: Container(
@@ -333,7 +360,7 @@ class _WishlistItemCard extends StatelessWidget {
               ),
               child: Icon(
                 Icons.favorite_rounded,
-                size: 18,
+                size: 18, 
                 color: Colors.red.shade500,
               ),
             ),

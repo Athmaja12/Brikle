@@ -16,30 +16,110 @@ import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
-
 class ProductDetailScreen extends StatelessWidget {
-  final CategoryProductItem product;
+  final CategoryProductItem? product;
   final double? originalPrice;
   final int? discountPercent;
+  final int? variantId;
 
   const ProductDetailScreen({
     super.key,
-    required this.product,
+    this.product,
     this.originalPrice,
     this.discountPercent,
+    this.variantId,
   });
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(
-      ProductDetailController(
-        product: product,
-        originalPrice: originalPrice,
-        discountPercent: discountPercent,
-      ),
-      tag: 'product_detail_${product.variantId}',
-    );
+    // Check if we have a product or variantId
+    final args = Get.arguments as Map<String, dynamic>?;
+    final variantIdFromArgs = args?['variantId'] as int?;
+    final effectiveVariantId = variantId ?? variantIdFromArgs;
+    
+    // If we don't have a product but have variantId, fetch product details
+    if (product == null && effectiveVariantId != null) {
+      // You can fetch product details here using the variantId
+      // For now, we'll show a loading state
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Loading product details...',
+                style: AppTextStyles.termsText(context),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
+    // If we have a product, use it
+    if (product != null) {
+      final controller = Get.put(
+        ProductDetailController(
+          product: product!,
+          originalPrice: originalPrice,
+          discountPercent: discountPercent,
+        ),
+        tag: 'product_detail_${product!.variantId}',
+      );
+
+      return _buildProductDetail(context, controller);
+    }
+
+    // Fallback: show empty state
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Product not found',
+              style: AppTextStyles.welcomeBackTitle(context),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'The product you\'re looking for doesn\'t exist',
+              style: AppTextStyles.termsText(context),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Get.back(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Go Back',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductDetail(BuildContext context, ProductDetailController controller) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Obx(() {
@@ -65,7 +145,7 @@ class ProductDetailScreen extends StatelessWidget {
                         ),
                       SizedBox(height: Responsive.space(context, 4)),
                       Text(
-                        product.name,
+                        controller.product.name,
                         style: AppTextStyles.welcomeBackTitle(
                           context,
                         ).copyWith(fontSize: 18),
@@ -183,11 +263,11 @@ class ProductDetailScreen extends StatelessWidget {
                         );
                       }),
 
-                      if (product.hasTiers &&
-                          product.priceTiers.isNotEmpty) ...[
+                      if (controller.product.hasTiers &&
+                          controller.product.priceTiers.isNotEmpty) ...[
                         SizedBox(height: Responsive.space(context, 10)),
                         _BulkPricingCard(
-                          product: product,
+                          product: controller.product,
                           controller: controller,
                         ),
                       ],
@@ -198,7 +278,7 @@ class ProductDetailScreen extends StatelessWidget {
                         style: AppTextStyles.termsText(context),
                       ),
 
-                      // ── Offers preview (#1) ──────────────────────────
+                      // ── Offers preview ──────────────────────────
                       Obx(() {
                         if (controller.isLoadingOffers.value) {
                           return const SizedBox.shrink();
