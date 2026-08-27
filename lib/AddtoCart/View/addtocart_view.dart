@@ -7,6 +7,7 @@ import 'package:brikle/AddtoCart/Model/address_model.dart';
 import 'package:brikle/AddtoCart/View/ordersuccess_screen.dart'
     show OrderSuccessScreen;
 import 'package:brikle/ApiConfiguration/auth_gate.dart';
+import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
@@ -20,6 +21,11 @@ import 'package:get/get.dart';
 class CartScreen extends GetView<CartController> {
   const CartScreen({super.key});
 
+  // Used by the Cart ListView for smooth scrolling.
+  static final ScrollController scrollController = ScrollController();
+  // Payment section location.
+  static final GlobalKey paymentMethodKey = GlobalKey();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,25 +38,137 @@ class CartScreen extends GetView<CartController> {
           if (controller.isLoading.value) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _CartBody();
+          return const _CartBody();
         }),
       ),
     );
   }
+
+  /// Smoothly scrolls the Cart page to the Payment Method section.
+  static Future<void> scrollToPaymentMethod() async {
+    debugPrint('[CartScreen] scrollToPaymentMethod() called');
+
+    for (int attempt = 0; attempt < 15; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      await WidgetsBinding.instance.endOfFrame;
+
+      final BuildContext? targetContext = paymentMethodKey.currentContext;
+
+      final ScrollController scroll = CartScreen.scrollController;
+
+      debugPrint(
+        '[CartScreen] attempt=${attempt + 1} '
+        'context=${targetContext != null} '
+        'hasClients=${scroll.hasClients}',
+      );
+
+      if (targetContext == null) {
+        continue;
+      }
+
+      if (!scroll.hasClients) {
+        continue;
+      }
+
+      // Make sure the target belongs to the scrollable.
+      final RenderObject? renderObject = targetContext.findRenderObject();
+
+      if (renderObject == null) {
+        continue;
+      }
+
+      debugPrint(
+        '[CartScreen] Payment widget found. '
+        'Starting ensureVisible...',
+      );
+
+      await Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
+
+        // Put Payment Method near the top of
+        // the available screen.
+        alignment: 0.08,
+
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+
+      debugPrint('[CartScreen] AUTO SCROLL COMPLETED');
+
+      return;
+    }
+
+    debugPrint(
+      '[CartScreen] AUTO SCROLL FAILED '
+      'after 15 attempts',
+    );
+  }
 }
 
-class _CartBody extends GetView<CartController> {
-  _CartBody();
+class _CartBody extends StatefulWidget {
+  const _CartBody();
+
+  @override
+  State<_CartBody> createState() => _CartBodyState();
+}
+
+class _CartBodyState extends State<_CartBody> {
+  final CartController controller = Get.find<CartController>();
+
+  Worker? _addressWorker;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Listen specifically for address changes.
+    _addressWorker = ever(controller.selectedAddress, (address) {
+      if (address != null) {
+        debugPrint(
+          '[CartScreen] selectedAddress changed → '
+          'schedule payment scroll',
+        );
+
+        _schedulePaymentScroll();
+      }
+    });
+  }
+
+  void _schedulePaymentScroll() {
+    // First frame after Obx rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 150));
+
+      if (!mounted) return;
+
+      await WidgetsBinding.instance.endOfFrame;
+
+      if (!mounted) return;
+
+      await CartScreen.scrollToPaymentMethod();
+    });
+  }
+
+  @override
+  void dispose() {
+    _addressWorker?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         _TopBar(controller: controller),
+
         Expanded(
           child: RefreshIndicator(
             color: AppColors.primaryGreen,
+
             onRefresh: () => controller.fetchCart(showLoader: false),
+
             child: Obx(
               () => controller.cartItems.isEmpty
                   ? ListView(
@@ -58,48 +176,87 @@ class _CartBody extends GetView<CartController> {
                       children: const [_EmptyCart()],
                     )
                   : ListView(
+                      controller: CartScreen.scrollController,
+
                       physics: const AlwaysScrollableScrollPhysics(),
+
                       padding: EdgeInsets.symmetric(
                         horizontal: Responsive.space(context, 16),
                       ),
+
                       children: [
                         SizedBox(height: Responsive.space(context, 12)),
-                        _CartItemsCard(controller: controller),
-                        SizedBox(height: Responsive.space(context, 12)),
-                        _CouponCard(controller: controller),
-                        SizedBox(height: Responsive.space(context, 12)),
-                        _GstinCard(controller: controller),
-                        SizedBox(height: Responsive.space(context, 12)),
-                        _BillDetailsCard(controller: controller),
-                        SizedBox(height: Responsive.space(context, 12)),
-                        _CancellationPolicyCard(controller: controller),
-                        SizedBox(height: Responsive.space(context, 16)),
+
+                        // =============================================
+                        // PAYMENT SECTION - ONLY SHOWN WHEN ADDRESS EXISTS
+                        // =============================================
                         Obx(() {
                           final hasAddress =
                               controller.selectedAddress.value != null;
-                          if (!hasAddress) return const SizedBox.shrink();
+
+                          if (!hasAddress) {
+                            return const SizedBox.shrink();
+                          }
+
                           return Column(
                             children: [
-                              _PaymentMethodSelector(controller: controller),
+                              _PaymentMethodSelector(
+                                key: CartScreen.paymentMethodKey,
+                                controller: controller,
+                              ),
+
                               SizedBox(height: Responsive.space(context, 16)),
                             ],
                           );
                         }),
+
+                        // =============================================
+                        // CART ITEMS
+                        // =============================================
+                        _CartItemsCard(controller: controller),
+
+                        SizedBox(height: Responsive.space(context, 12)),
+
+                        _CouponCard(controller: controller),
+
+                        SizedBox(height: Responsive.space(context, 12)),
+
+                        _GstinCard(controller: controller),
+
+                        SizedBox(height: Responsive.space(context, 12)),
+
+                        _BillDetailsCard(controller: controller),
+
+                        SizedBox(height: Responsive.space(context, 12)),
+
+                        _CancellationPolicyCard(controller: controller),
+
+                        SizedBox(height: Responsive.space(context, 16)),
+
+                        // =============================================
+                        // ADD ADDRESS / PAYMENT PROMPT / CHECKOUT BUTTON
+                        // - MOVED TO THE BOTTOM
+                        // =============================================
                         Obx(() {
                           final hasAddress =
                               controller.selectedAddress.value != null;
+
                           final hasPayment =
                               controller.hasSelectedPaymentMethod.value;
+
                           if (!hasAddress) {
                             return _AddAddressButton(controller: controller);
                           }
+
                           if (!hasPayment) {
                             return const _SelectPaymentPrompt();
                           }
+
                           return _ProceedToCheckoutButton(
                             controller: controller,
                           );
                         }),
+
                         SizedBox(height: Responsive.space(context, 16)),
                       ],
                     ),
@@ -1319,11 +1476,13 @@ class _BillRow extends StatelessWidget {
 
 class _PaymentMethodSelector extends StatelessWidget {
   final CartController controller;
-  const _PaymentMethodSelector({required this.controller});
+
+  const _PaymentMethodSelector({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: CartScreen.paymentMethodKey,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -1565,11 +1724,25 @@ class _AddAddressButton extends StatelessWidget {
 
     if (!context.mounted) return;
 
-    _showAddressModal(context);
+    // Show the address modal and wait for the result
+    final result = await _showAddressModal(context);
+
+    // If the user successfully saved an address, scroll to payment method
+    if (result == true) {
+      if (!context.mounted) return;
+
+      debugPrint(
+        '[CartScreen] Address saved successfully → scrolling to payment',
+      );
+
+      // Small delay to let the UI rebuild with the new address
+      await Future.delayed(const Duration(milliseconds: 300));
+      await CartScreen.scrollToPaymentMethod();
+    }
   }
 
-  void _showAddressModal(BuildContext context) {
-    showModalBottomSheet(
+  Future<bool?> _showAddressModal(BuildContext context) {
+    return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1697,12 +1870,37 @@ class _ProceedToCheckoutButton extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      // Guest just registered: OtpController already navigated to a
-      // brand-new CartScreen via Get.offAll(). This old widget instance
-      // is on its way out — don't act further on it.
       debugPrint(
         '[CartScreen] Registration successful — new CartScreen took over',
       );
+
+      // Refresh cart and load profile/address
+      await controller.fetchCart(showLoader: false);
+
+      // Load the user's address from profile
+      try {
+        final profile = await ApiService.getProfile();
+        final address = AddressModel.fromJson(profile);
+        // This will trigger the _addressWorker which will scroll
+        controller.selectedAddress.value = address;
+        debugPrint('[CartScreen] Address loaded, worker will handle scroll');
+      } catch (e) {
+        debugPrint('[CartScreen] Failed to load address: $e');
+      }
+
+      // Wait for the UI to build with the address
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!context.mounted) return;
+
+      // If address is loaded but worker didn't trigger, scroll manually
+      if (controller.selectedAddress.value != null) {
+        debugPrint(
+          '[CartScreen] Scrolling to payment method after registration',
+        );
+        await CartScreen.scrollToPaymentMethod();
+      }
+
       return;
     }
 
@@ -1743,6 +1941,17 @@ class _ProceedToCheckoutButton extends StatelessWidget {
     );
 
     if (confirmed != true) {
+      // User cancelled - scroll to payment method
+      if (context.mounted) {
+        debugPrint(
+          '[CartScreen] Checkout cancelled - scrolling to payment method',
+        );
+        // Small delay for modal to close
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (context.mounted) {
+          await CartScreen.scrollToPaymentMethod();
+        }
+      }
       return;
     }
 

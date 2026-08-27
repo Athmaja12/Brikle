@@ -135,8 +135,13 @@ class _Header extends StatelessWidget {
                     size: 18,
                   ),
                   SizedBox(width: Responsive.space(context, 4)),
-                  Obx(
-                    () => GestureDetector(
+                  Obx(() {
+                    final pincode = controller.deliverToPincode.value.trim();
+                    final hasPincode =
+                        pincode.isNotEmpty &&
+                        RegExp(r'^\d+$').hasMatch(pincode);
+
+                    return GestureDetector(
                       onTap: () => _showPincodeSheet(context, controller),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,22 +152,24 @@ class _Header extends StatelessWidget {
                             style: AppTextStyles.termsText(context),
                           ),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                controller.deliverToPincode.value,
-                                style: AppTextStyles.fieldLabel(context)
-                                    .copyWith(
-                                      color: AppColors.textDark,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
+                              if (hasPincode)
+                                Text(
+                                  pincode,
+                                  style: AppTextStyles.fieldLabel(context)
+                                      .copyWith(
+                                        color: AppColors.textDark,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
                               const Icon(Icons.keyboard_arrow_down, size: 16),
                             ],
                           ),
                         ],
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                   const Spacer(),
                   InkWell(
                     borderRadius: BorderRadius.circular(20),
@@ -207,7 +214,6 @@ class _Header extends StatelessWidget {
                       );
                     }),
                   ),
-                  // Notification icon removed per request.
                 ],
               ),
               // Sits on top, centered on the Stack itself — not affected

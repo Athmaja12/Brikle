@@ -3,6 +3,7 @@ import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
+import 'package:brikle/Category/View/category_page.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/Model/wishlist_model.dart';
 import 'package:flutter/material.dart';
@@ -227,10 +228,10 @@ class _WishlistItemCard extends StatelessWidget {
     // we need to fetch the full product details or use minimal data
     // Option 1: Navigate with variantId and let ProductDetailScreen fetch details
     // Option 2: Create a minimal CategoryProductItem from wishlist data
-    
+
     // For now, we'll use a simple approach - navigate to product detail with minimal data
     // You may need to modify this based on your ProductDetailScreen requirements
-    
+
     // Get the product detail controller or navigate with variantId
     Get.toNamed(
       '/product-detail',
@@ -360,7 +361,7 @@ class _WishlistItemCard extends StatelessWidget {
               ),
               child: Icon(
                 Icons.favorite_rounded,
-                size: 18, 
+                size: 18,
                 color: Colors.red.shade500,
               ),
             ),
@@ -399,7 +400,12 @@ class _EmptyWishlist extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CategoryPage()),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),

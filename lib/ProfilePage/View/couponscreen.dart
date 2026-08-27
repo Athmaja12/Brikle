@@ -5,6 +5,7 @@
 // - AppColors / AppTextStyles / Responsive used instead of hardcoded hex + raw padding
 // - Coupon code chip uses the same green-tint style as the Cart coupon selector
 // - Coupons are now split into Active and Expired sections
+// - Share options now include the Play Store app link so recipients can install the app
 
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
@@ -13,6 +14,10 @@ import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+
+/// Link shared alongside coupon codes so the recipient can install the app.
+const String kAppDownloadLink =
+    'https://play.google.com/store/apps/details?id=com.brikle.app';
 
 class CouponScreen extends StatelessWidget {
   CouponScreen({super.key});
@@ -257,6 +262,7 @@ class _CouponListCard extends StatelessWidget {
                   couponCode: coupon.couponCode,
                   discountPercentage: coupon.discountPercentage.toDouble(),
                   materialName: coupon.rewardMaterialName,
+                  appLink: kAppDownloadLink,
                 );
               },
             ),
@@ -277,24 +283,29 @@ class _CouponListCard extends StatelessWidget {
                   couponCode: coupon.couponCode,
                   discountPercentage: coupon.discountPercentage.toDouble(),
                   materialName: coupon.rewardMaterialName,
+                  appLink: kAppDownloadLink,
                 );
               },
             ),
 
             const SizedBox(height: 12),
 
-            // Option 3: Copy coupon code
+            // Option 3: Copy coupon code (now includes the app download link)
             _ShareOptionCard(
               icon: Icons.code_outlined,
               title: 'Copy Coupon Code',
               subtitle: 'Copy coupon code to clipboard',
               color: Colors.blue,
               onTap: () async {
-                await Clipboard.setData(ClipboardData(text: coupon.couponCode));
+                final text =
+                    'Use my coupon code ${coupon.couponCode} for '
+                    '${coupon.discountPercentage}% off on ${coupon.rewardMaterialName}!\n'
+                    'Get the app: $kAppDownloadLink';
+                await Clipboard.setData(ClipboardData(text: text));
                 Navigator.pop(sheetContext);
                 Get.snackbar(
                   'Copied!',
-                  'Coupon code copied to clipboard',
+                  'Coupon code and app link copied to clipboard',
                   backgroundColor: AppColors.primaryGreen,
                   colorText: Colors.white,
                   snackPosition: SnackPosition.BOTTOM,

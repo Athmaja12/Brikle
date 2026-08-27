@@ -80,12 +80,22 @@ class CartController extends GetxController {
     fetchCart();
     _fetchMyCouponsIfLoggedIn();
 
-    ever(selectedAddress, (_) => _maybeRefreshCheckout());
-    ever(selectedDeliveryDate, (_) => _maybeRefreshCheckout());
-    ever(selectedDeliveryTime, (_) => _maybeRefreshCheckout());
-    ever(selectedCoupon, (_) => _maybeRefreshCheckout());
-    ever(cartItems, (_) => _maybeRefreshCheckout());
-  }
+    ever(selectedAddress, (_) {
+      if (cartItems.isNotEmpty) _maybeRefreshCheckout();
+    });
+    ever(selectedDeliveryDate, (_) {
+      if (cartItems.isNotEmpty) _maybeRefreshCheckout();
+    });
+    ever(selectedDeliveryTime, (_) {
+      if (cartItems.isNotEmpty) _maybeRefreshCheckout();
+    });
+    ever(selectedCoupon, (_) {
+      if (cartItems.isNotEmpty) _maybeRefreshCheckout();
+    });
+    ever(cartItems, (_) {
+      if (cartItems.isNotEmpty) _maybeRefreshCheckout();
+    });
+  } 
 
   Future<void> _fetchMyCouponsIfLoggedIn() async {
     if (await AuthGate.isLoggedIn()) {
@@ -94,6 +104,14 @@ class CartController extends GetxController {
   }
 
   void _maybeRefreshCheckout() {
+    if (cartItems.isEmpty) {
+      debugPrint(
+        '$_tag _maybeRefreshCheckout — cart is empty, skipping refresh',
+      );
+      // Clear checkout response to avoid stale data
+      checkoutResponse.value = null;
+      return;
+    }
     final address = selectedAddress.value;
     final date = selectedDeliveryDate.value;
     final time = selectedDeliveryTime.value;
@@ -651,6 +669,8 @@ class CartController extends GetxController {
   }
 
   // ── Checkout Process ──────────────────────────────────────
+  // In addtocart_provider.dart - update processCheckout
+
   Future<CheckoutResponse?> processCheckout({
     required String pincode,
     required String deliveryDate,
@@ -661,6 +681,14 @@ class CartController extends GetxController {
       '$_tag processCheckout(pincode: "$pincode", deliveryDate: '
       '"$deliveryDate", deliveryTime: "$deliveryTime", couponId: $couponId)',
     );
+
+    // Skip if cart is empty
+    if (cartItems.isEmpty) {
+      debugPrint('$_tag processCheckout — cart is empty, skipping');
+      checkoutResponse.value = null;
+      return null;
+    }
+
     try {
       isCheckingOut.value = true;
       final response = await ApiService.checkout(
@@ -685,7 +713,10 @@ class CartController extends GetxController {
       debugPrint(
         '$_tag processCheckout failed: ${e.message} (status ${e.statusCode})',
       );
-      Get.snackbar('Checkout Error', e.message);
+      // Only show snackbar if it's not an empty cart error
+      if (!e.message.contains('empty')) {
+        Get.snackbar('Checkout Error', e.message);
+      }
       return null;
     } catch (e, st) {
       debugPrint('$_tag processCheckout unexpected error: $e');

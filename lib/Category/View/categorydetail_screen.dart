@@ -114,9 +114,16 @@ class _TopBar extends StatelessWidget {
                     size: 18,
                   ),
                   SizedBox(width: Responsive.space(context, 4)),
-                  Obx(
-                    () => GestureDetector(
-                      onTap: () => _showPincodeSheet(context, HomeController()),
+                  Obx(() {
+                    final homeController = Get.find<HomeController>();
+                    final pincode = homeController.deliverToPincode.value
+                        .trim();
+                    final hasPincode =
+                        pincode.isNotEmpty &&
+                        RegExp(r'^\d+$').hasMatch(pincode);
+
+                    return GestureDetector(
+                      onTap: () => _showPincodeSheet(context, homeController),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -126,22 +133,24 @@ class _TopBar extends StatelessWidget {
                             style: AppTextStyles.termsText(context),
                           ),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                controller.deliverToPincode.value,
-                                style: AppTextStyles.fieldLabel(context)
-                                    .copyWith(
-                                      color: AppColors.textDark,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
+                              if (hasPincode)
+                                Text(
+                                  pincode,
+                                  style: AppTextStyles.fieldLabel(context)
+                                      .copyWith(
+                                        color: AppColors.textDark,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
                               const Icon(Icons.keyboard_arrow_down, size: 16),
                             ],
                           ),
                         ],
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                   const Spacer(),
                   InkWell(
                     borderRadius: BorderRadius.circular(20),

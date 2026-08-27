@@ -468,115 +468,115 @@ class ProfileController extends GetxController {
 
   // Generate coupon share link and copy to clipboard
 
-// Replace the generateCouponShareLink method with this:
-Future<void> generateCouponShareLink({
-  required String couponCode,
-  required double discountPercentage,
-  required String materialName,
-}) async {
-  debugPrint('[ProfileController] generateCouponShareLink($couponCode)');
-  
-  try {
-    // Build the WhatsApp message
-    final String message = 
-        "Hey! I'm sharing a $discountPercentage% discount coupon for $materialName on Brickle. "
-        "Use my coupon code $couponCode at checkout!";
-    
-    // Create the WhatsApp link without phone number
-    final String whatsappLink = 
-        "https://wa.me/?text=${Uri.encodeComponent(message)}";
-    
-    debugPrint('[ProfileController] Generated link: $whatsappLink');
-    
-    // Copy to clipboard
-    await Clipboard.setData(ClipboardData(text: whatsappLink));
-    
-    Get.snackbar(
-      'Copied!',
-      'WhatsApp share link copied to clipboard!',
-      backgroundColor: AppColors.primaryGreen,
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 3),
-    );
-    
-    // Remove the coupon after sharing
-    coupons.removeWhere((c) => c.couponCode == couponCode);
-    unawaited(fetchCoupons());
-    
-  } catch (e) {
-    debugPrint('[ProfileController] generateCouponShareLink error: $e');
-    Get.snackbar(
-      'Error',
-      'Failed to generate share link. Please try again.',
-      backgroundColor: AppColors.errorRed,
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
-    );
-  }
-}
+  // Replace the generateCouponShareLink method with this:
+  Future<void> generateCouponShareLink({
+    required String couponCode,
+    required double discountPercentage,
+    required String materialName,
+    String? appLink,
+  }) async {
+    debugPrint('[ProfileController] generateCouponShareLink($couponCode)');
 
-// Replace the shareCouponDirectly method with this:
-Future<void> shareCouponDirectly({
-  required String couponCode,
-  required double discountPercentage,
-  required String materialName,
-}) async {
-  debugPrint('[ProfileController] shareCouponDirectly($couponCode)');
-  
-  try {
-    // Build the WhatsApp message
-    final String message = 
-        "Hey! I'm sharing a $discountPercentage% discount coupon for $materialName on Brickle. "
-        "Use my coupon code $couponCode at checkout!";
-    
-    // Create the WhatsApp link without phone number
-    final String whatsappLink = 
-        "https://wa.me/?text=${Uri.encodeComponent(message)}";
-    
-    final Uri whatsappUri = Uri.parse(whatsappLink);
-    
-    debugPrint('[ProfileController] Opening: $whatsappLink');
-    
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(
-        whatsappUri,
-        mode: LaunchMode.externalApplication,
-      );
-      
+    try {
+      // Build the WhatsApp message
+      final String message =
+          "Hey! I'm sharing a $discountPercentage% discount coupon for $materialName on Brickle. "
+          "Use my coupon code $couponCode at checkout!"
+          "${appLink != null ? '\n\nGet the app: $appLink' : ''}";
+
+      // Create the WhatsApp link without phone number
+      final String whatsappLink =
+          "https://wa.me/?text=${Uri.encodeComponent(message)}";
+
+      debugPrint('[ProfileController] Generated link: $whatsappLink');
+
+      // Copy to clipboard
+      await Clipboard.setData(ClipboardData(text: whatsappLink));
+
       Get.snackbar(
-        'Success',
-        'Opening WhatsApp...',
+        'Copied!',
+        'WhatsApp share link copied to clipboard!',
         backgroundColor: AppColors.primaryGreen,
         colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 3),
       );
-      
+
       // Remove the coupon after sharing
       coupons.removeWhere((c) => c.couponCode == couponCode);
       unawaited(fetchCoupons());
-    } else {
-      // Fallback: Copy to clipboard
-      await Clipboard.setData(ClipboardData(text: whatsappLink));
+    } catch (e) {
+      debugPrint('[ProfileController] generateCouponShareLink error: $e');
       Get.snackbar(
-        'Info',
-        'WhatsApp not installed. Link copied to clipboard.',
-        backgroundColor: Colors.orange,
+        'Error',
+        'Failed to generate share link. Please try again.',
+        backgroundColor: AppColors.errorRed,
         colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
       );
     }
-  } catch (e) {
-    debugPrint('[ProfileController] shareCouponDirectly error: $e');
-    Get.snackbar(
-      'Error',
-      'Failed to share. Please try again.',
-      backgroundColor: AppColors.errorRed,
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
-    );
   }
-}
+
+  // Replace the shareCouponDirectly method with this:
+  Future<void> shareCouponDirectly({
+    required String couponCode,
+    required double discountPercentage,
+    required String materialName,
+    String? appLink,
+  }) async {
+    debugPrint('[ProfileController] shareCouponDirectly($couponCode)');
+
+    try {
+      // Build the WhatsApp message
+      final String message =
+          "Hey! I'm sharing a $discountPercentage% discount coupon for $materialName on Brickle. "
+          "Use my coupon code $couponCode at checkout!"
+          "${appLink != null ? '\n\nGet the app: $appLink' : ''}";
+
+      // Create the WhatsApp link without phone number
+      final String whatsappLink =
+          "https://wa.me/?text=${Uri.encodeComponent(message)}";
+
+      final Uri whatsappUri = Uri.parse(whatsappLink);
+
+      debugPrint('[ProfileController] Opening: $whatsappLink');
+
+      if (await canLaunchUrl(whatsappUri)) {
+        await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+
+        Get.snackbar(
+          'Success',
+          'Opening WhatsApp...',
+          backgroundColor: AppColors.primaryGreen,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+
+        // Remove the coupon after sharing
+        coupons.removeWhere((c) => c.couponCode == couponCode);
+        unawaited(fetchCoupons());
+      } else {
+        // Fallback: Copy to clipboard
+        await Clipboard.setData(ClipboardData(text: whatsappLink));
+        Get.snackbar(
+          'Info',
+          'WhatsApp not installed. Link copied to clipboard.',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ProfileController] shareCouponDirectly error: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to share. Please try again.',
+        backgroundColor: AppColors.errorRed,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ADDRESSES

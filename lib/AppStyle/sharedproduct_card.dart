@@ -116,6 +116,37 @@ class _SharedProductCardState extends State<SharedProductCard> {
     });
   }
 
+  /// Shows a lightweight "added to cart" confirmation without navigating
+  /// away from wherever the user currently is (grid, search results, etc).
+  void _showAddedToCartSnackbar() {
+    final context = this.context;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Item added to cart successfully',
+                style: GoogleFonts.manrope(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.primaryGreen,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _showBulkPricingDialog(
     BuildContext context,
     CartController cartController,
@@ -497,12 +528,9 @@ class _SharedProductCardState extends State<SharedProductCard> {
                           variantId: product.variantId,
                           quantity: 1,
                         );
-                        if (widget.navigateToCartOnAdd && context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => CartScreen()),
-                          );
-                        }
+                        // Just confirm the add — don't navigate away to the
+                        // cart page (that was the bug being fixed here).
+                        _showAddedToCartSnackbar();
                       },
                       child: Container(
                         width: double.infinity,

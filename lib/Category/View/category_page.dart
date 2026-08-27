@@ -2,10 +2,8 @@ import 'dart:async';
 
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
-import 'package:brikle/AppStyle/pincode.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/Category/Controller/category_controller.dart';
-import 'package:brikle/Category/Model/category_model.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/Controller/search_Provider.dart';
 import 'package:brikle/HomePage/View/search_bar.dart';
@@ -85,9 +83,16 @@ class _SearchHeader extends StatelessWidget {
                     size: 18,
                   ),
                   SizedBox(width: Responsive.space(context, 4)),
-                  Obx(
-                    () => GestureDetector(
-                      onTap: () => _showPincodeSheet(context, HomeController()),
+                  Obx(() {
+                    final homeController = Get.find<HomeController>();
+                    final pincode = homeController.deliverToPincode.value
+                        .trim();
+                    final hasPincode =
+                        pincode.isNotEmpty &&
+                        RegExp(r'^\d+$').hasMatch(pincode);
+
+                    return GestureDetector(
+                      onTap: () => _showPincodeSheet(context, homeController),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -97,22 +102,24 @@ class _SearchHeader extends StatelessWidget {
                             style: AppTextStyles.termsText(context),
                           ),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                controller.deliverToPincode.value,
-                                style: AppTextStyles.fieldLabel(context)
-                                    .copyWith(
-                                      color: AppColors.textDark,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
+                              if (hasPincode)
+                                Text(
+                                  pincode,
+                                  style: AppTextStyles.fieldLabel(context)
+                                      .copyWith(
+                                        color: AppColors.textDark,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
                               const Icon(Icons.keyboard_arrow_down, size: 16),
                             ],
                           ),
                         ],
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                   const Spacer(),
                   InkWell(
                     borderRadius: BorderRadius.circular(20),
