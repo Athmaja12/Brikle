@@ -18,10 +18,10 @@ class CategoryPage extends GetView<CategoryController> {
   @override
   Widget build(BuildContext context) {
     if (!Get.isRegistered<CategoryController>()) {
-      Get.put(CategoryController());
+      Get.put(CategoryController(), permanent: true);
     }
     if (!Get.isRegistered<GlobalSearchController>()) {
-      Get.put(GlobalSearchController());
+      Get.put(GlobalSearchController(), permanent: true);
     }
 
     return Scaffold(

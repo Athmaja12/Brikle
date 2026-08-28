@@ -95,7 +95,7 @@ class CartController extends GetxController {
     ever(cartItems, (_) {
       if (cartItems.isNotEmpty) _maybeRefreshCheckout();
     });
-  } 
+  }
 
   Future<void> _fetchMyCouponsIfLoggedIn() async {
     if (await AuthGate.isLoggedIn()) {
@@ -797,6 +797,7 @@ class CartController extends GetxController {
 
       debugPrint('$_tag placeOrder — clearing cart after successful order');
       await clearCart();
+      _resetCheckoutStateForNewOrder();
       await fetchMyCoupons();
 
       if (Get.isRegistered<ProfileController>()) {
@@ -966,4 +967,27 @@ class CartController extends GetxController {
 
   void toggleCancellationPolicy() =>
       cancellationPolicyExpanded.value = !cancellationPolicyExpanded.value;
+
+  /// Resets all per-order checkout selections after a successful order,
+  /// so the NEXT order requires the user to go through address, date/time,
+  /// vehicle, and payment method selection again — nothing carries over
+  /// implicitly.
+  void _resetCheckoutStateForNewOrder() {
+    debugPrint('$_tag _resetCheckoutStateForNewOrder — clearing selections');
+    selectedAddress.value = null;
+    selectedDeliveryDate.value = null;
+    selectedDeliveryTime.value = null;
+    selectedVehicle.value = null;
+    checkoutResponse.value = null;
+
+    selectedPaymentMethod.value = 'COD';
+    hasSelectedPaymentMethod.value = false;
+    showPaymentMethodSelector.value = false;
+
+    gstinNumber.value = '';
+    gstinAdded.value = false;
+
+    billDetailsExpanded.value = true;
+    cancellationPolicyExpanded.value = false;
+  }
 }

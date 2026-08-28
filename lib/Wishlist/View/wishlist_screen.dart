@@ -3,7 +3,9 @@ import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
+import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Category/View/category_page.dart';
+import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/Model/wishlist_model.dart';
 import 'package:flutter/material.dart';
@@ -223,25 +225,25 @@ class _WishlistItemCard extends StatelessWidget {
   }
 
   // Helper method to navigate to product detail
+  // Helper method to navigate to product detail
   void _navigateToProductDetail(BuildContext context) {
-    // Since we only have variantId and material name from wishlist item,
-    // we need to fetch the full product details or use minimal data
-    // Option 1: Navigate with variantId and let ProductDetailScreen fetch details
-    // Option 2: Create a minimal CategoryProductItem from wishlist data
-
-    // For now, we'll use a simple approach - navigate to product detail with minimal data
-    // You may need to modify this based on your ProductDetailScreen requirements
-
-    // Get the product detail controller or navigate with variantId
-    Get.toNamed(
-      '/product-detail',
-      arguments: {
-        'variantId': item.variantId,
-        'name': item.materialName,
-        'imageUrl': item.imageUrl,
-        'price': item.retailPrice,
-        'sizeDimension': item.sizeDimension,
-      },
+    // '/product-detail' is not a registered GetPage, so Get.toNamed()
+    // throws (Null check operator used on a null value) inside GetX's
+    // PageRedirect. Navigate directly instead — same pattern already
+    // used by the cart screen's _CartItemRow._openProductDetail.
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(
+          product: CategoryProductItem(
+            variantId: item.variantId,
+            materialId: item.materialId,
+            name: item.materialName,
+            imageUrl: item.imageUrl,
+            price: item.retailPrice,
+          ),
+        ),
+      ),
     );
   }
 

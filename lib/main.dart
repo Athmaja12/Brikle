@@ -8,6 +8,7 @@ import 'package:brikle/Calculation/View/calculatiorPage.dart';
 import 'package:brikle/Calculation/View/cementcalculation_page.dart';
 import 'package:brikle/Calculation/View/steelCalculation_Page.dart';
 import 'package:brikle/Calculation/View/waterproofCalculation_Page.dart';
+import 'package:brikle/Category/Controller/category_controller.dart';
 import 'package:brikle/GoogleAuth/googleauthapiservice.dart';
 import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/HomePage/Controller/search_Provider.dart';
@@ -30,14 +31,20 @@ Future<void> main() async {
 
   debugPrint('[DEBUG] ApiConfig.baseUrl      = ${ApiConfig.baseUrl}');
   debugPrint('[DEBUG] AuthApiService.baseUrl = ${AuthApiService.baseUrl}');
+
+  // All tab-level / app-lifetime controllers must be permanent so they
+  // survive Get.offAll() calls (e.g. post-checkout navigation resets),
+  // which otherwise dispose any controller tied to the cleared route stack.
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
   Get.put(WishlistController(), permanent: true);
-  Get.put(GlobalSearchController());
+  Get.put(GlobalSearchController(), permanent: true); // was missing permanent: true
+  Get.put(CategoryController(), permanent: true);      // was missing entirely
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatelessWidget {   
   const MyApp({super.key});
 
   @override

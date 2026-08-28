@@ -820,7 +820,7 @@ class _OfferBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = _label;
     if (label == null) return const SizedBox.shrink();
-    return Container(
+    return Container( 
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: const Color(0xFFDFF5E3),

@@ -11,6 +11,7 @@ String _fullImageUrl(String? path) {
 class WishlistItem {
   final int id;           // wishlist entry id — used for DELETE /api/wishlist/{id}/
   final int variantId;    // "variant" in JSON
+  final int materialId;   // "material_id" in JSON — required by product-details API
   final String materialName;
   final String sizeDimension;
   final String imageUrl;
@@ -20,6 +21,7 @@ class WishlistItem {
   const WishlistItem({
     required this.id,
     required this.variantId,
+    required this.materialId,
     required this.materialName,
     required this.sizeDimension,
     required this.imageUrl,
@@ -30,6 +32,7 @@ class WishlistItem {
   factory WishlistItem.fromJson(Map<String, dynamic> json) => WishlistItem(
         id: (json['id'] as num).toInt(),
         variantId: (json['variant'] as num).toInt(),
+        materialId: (json['material_id'] as num).toInt(),
         materialName: json['material_name']?.toString() ?? '',
         sizeDimension: json['size_dimension']?.toString() ?? '',
         imageUrl: _fullImageUrl(json['master_image']?.toString()),

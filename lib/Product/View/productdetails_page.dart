@@ -1,12 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/AddtoCart/Model/address_model.dart';
-import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
-import 'package:brikle/AppStyle/sharedproduct_card.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
