@@ -111,138 +111,130 @@ class HomeController extends GetxController {
 
   Future<void> refresh() async {
     isLoading.value = true;
-
     debugPrint('[HomeController] refresh() started');
 
     try {
       debugPrint(
-        '[HomeController] Loading public APIs: '
+        '[HomeController] Loading public APIs in parallel: '
         'carousel, categories, deals',
       );
 
       // -----------------------------------------------------------------------
-      // CAROUSEL
+      // CAROUSEL + CATEGORIES + DEALS — independent of each other, so run
+      // them concurrently instead of one after another. This is the main
+      // fix for the Home page load lag.
       // -----------------------------------------------------------------------
-      try {
-        final carouselResponse = await ApiService.getCarousel();
-
-        carousels.value = carouselResponse
-            .map((e) => CarouselItem.fromJson(e as Map<String, dynamic>))
-            .toList();
-
-        debugPrint(
-          '[HomeController] ✅ getCarousel OK — '
-          '${carousels.length} items',
-        );
-      } on ApiException catch (e) {
-        debugPrint('[HomeController] ❌ getCarousel FAILED: ${e.message}');
-
-        carousels.clear();
-      } catch (e) {
-        debugPrint('[HomeController] ❌ getCarousel unexpected error: $e');
-
-        carousels.clear();
-      }
+      await Future.wait([_loadCarousel(), _loadCategories(), _loadDeals()]);
 
       // -----------------------------------------------------------------------
-      // CATEGORIES
+      // PROFILE + BEST SELLING
       // -----------------------------------------------------------------------
-      try {
-        final categoryResponse = await ApiService.getCategories();
-
-        categories.value = categoryResponse
-            .map((e) => CategoryItem.fromJson(e as Map<String, dynamic>))
-            .toList();
-
-        debugPrint(
-          '[HomeController] ✅ getCategories OK — '
-          '${categories.length} items',
-        );
-
-        debugPrint(
-          '[HomeController] parsed categories: '
-          '${categories.map((c) => '${c.id}:${c.name}').toList()}',
-        );
-      } on ApiException catch (e) {
-        debugPrint('[HomeController] ❌ getCategories FAILED: ${e.message}');
-
-        categories.clear();
-      } catch (e) {
-        debugPrint('[HomeController] ❌ getCategories unexpected error: $e');
-
-        categories.clear();
-      }
-
+      // Profile is authenticated only. Bestselling depends on categories
+      // being loaded above. Both are independent of each other, so run
+      // them together as well.
       // -----------------------------------------------------------------------
-      // DEALS OF THE WEEK
-      // -----------------------------------------------------------------------
-      try {
-        final dealsResponse = await ApiService.getDealsOfWeek();
+      final int? bestsellingCategoryId =
+          (categories.isNotEmpty &&
+              selectedCategoryIndex.value >= 0 &&
+              selectedCategoryIndex.value < categories.length)
+          ? categories[selectedCategoryIndex.value].id
+          : null;
 
-        topDeals.value = dealsResponse
-            .map((e) => DealItem.fromJson(e as Map<String, dynamic>))
-            .toList();
-
-        debugPrint(
-          '[HomeController] ✅ getDealsOfWeek OK — '
-          '${topDeals.length} items',
-        );
-      } on ApiException catch (e) {
-        debugPrint('[HomeController] ❌ getDealsOfWeek FAILED: ${e.message}');
-
-        topDeals.clear();
-      } catch (e) {
-        debugPrint('[HomeController] ❌ getDealsOfWeek unexpected error: $e');
-
-        topDeals.clear();
-      }
-
-      // -----------------------------------------------------------------------
-      // PROFILE
-      // -----------------------------------------------------------------------
-      // Profile is authenticated only.
-      //
-      // Guest:
-      //   Do NOT call /api/customer-profile/
-      //
-      // Logged-in:
-      //   Load profile and pincode.
-      // -----------------------------------------------------------------------
-      await _fetchProfileIfLoggedIn();
-
-      // -----------------------------------------------------------------------
-      // BEST SELLING
-      // -----------------------------------------------------------------------
-      if (categories.isNotEmpty &&
-          selectedCategoryIndex.value >= 0 &&
-          selectedCategoryIndex.value < categories.length) {
-        final categoryId = categories[selectedCategoryIndex.value].id;
-
-        debugPrint(
-          '[HomeController] Loading bestselling for '
-          'category id=$categoryId',
-        );
-
-        await _loadBestselling(categoryId);
-      } else {
-        debugPrint(
-          '[HomeController] Categories unavailable — '
-          'skipping bestselling load',
-        );
-
-        bestselling.clear();
-      }
+      await Future.wait([
+        _fetchProfileIfLoggedIn(),
+        if (bestsellingCategoryId != null)
+          _loadBestselling(bestsellingCategoryId)
+        else
+          _clearBestselling(),
+      ]);
     } catch (e, stack) {
       // This should almost never be reached because each API above
       // handles its own exception.
       debugPrint('[HomeController] ❌ refresh() unexpected error: $e');
-
       debugPrint('[HomeController] stack: $stack');
     } finally {
       isLoading.value = false;
-
       debugPrint('[HomeController] refresh() finished — isLoading=false');
     }
+  }
+
+  Future<void> _loadCarousel() async {
+    try {
+      final carouselResponse = await ApiService.getCarousel();
+
+      carousels.value = carouselResponse
+          .map((e) => CarouselItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      debugPrint(
+        '[HomeController] ✅ getCarousel OK — '
+        '${carousels.length} items',
+      );
+    } on ApiException catch (e) {
+      debugPrint('[HomeController] ❌ getCarousel FAILED: ${e.message}');
+      carousels.clear();
+    } catch (e) {
+      debugPrint('[HomeController] ❌ getCarousel unexpected error: $e');
+      carousels.clear();
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categoryResponse = await ApiService.getCategories();
+
+      categories.value = categoryResponse
+          .map((e) => CategoryItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      debugPrint(
+        '[HomeController] ✅ getCategories OK — '
+        '${categories.length} items',
+      );
+
+      debugPrint(
+        '[HomeController] parsed categories: '
+        '${categories.map((c) => '${c.id}:${c.name}').toList()}',
+      );
+    } on ApiException catch (e) {
+      debugPrint('[HomeController] ❌ getCategories FAILED: ${e.message}');
+      categories.clear();
+    } catch (e) {
+      debugPrint('[HomeController] ❌ getCategories unexpected error: $e');
+      categories.clear();
+    }
+  }
+
+  Future<void> _loadDeals() async {
+    try {
+      final dealsResponse = await ApiService.getDealsOfWeek();
+
+      topDeals.value = dealsResponse
+          .map((e) => DealItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      debugPrint(
+        '[HomeController] ✅ getDealsOfWeek OK — '
+        '${topDeals.length} items',
+      );
+    } on ApiException catch (e) {
+      debugPrint('[HomeController] ❌ getDealsOfWeek FAILED: ${e.message}');
+      topDeals.clear();
+    } catch (e) {
+      debugPrint('[HomeController] ❌ getDealsOfWeek unexpected error: $e');
+      topDeals.clear();
+    }
+  }
+
+  /// Wrapped as a Future so it can sit alongside other awaited calls in
+  /// Future.wait([...]) — clear() itself returns void and can't be used
+  /// as a list element directly.
+  Future<void> _clearBestselling() async {
+    debugPrint(
+      '[HomeController] Categories unavailable — '
+      'skipping bestselling load',
+    );
+    bestselling.clear();
   }
 
   /// Profile is only fetched for logged-in users. For guests this is a
@@ -350,5 +342,24 @@ class HomeController extends GetxController {
     } finally {
       isCheckingPincode.value = false;
     }
+  }
+
+  Future<void> refreshLoggedInProfile() async {
+    debugPrint('[HomeController] refreshLoggedInProfile() called');
+
+    if (!await AuthGate.isLoggedIn()) {
+      debugPrint(
+        '[HomeController] refreshLoggedInProfile() skipped — '
+        'user is not logged in',
+      );
+      return;
+    }
+
+    await _fetchProfileIfLoggedIn();
+
+    debugPrint(
+      '[HomeController] logged-in profile refreshed — '
+      'pincode: ${deliverToPincode.value}',
+    );
   }
 }

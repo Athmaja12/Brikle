@@ -443,10 +443,403 @@ class _CartItemsCard extends StatelessWidget {
             itemCount: controller.cartItems.length,
             separatorBuilder: (_, __) =>
                 const Divider(height: 1, color: Color(0xFFF0F0F0)),
-            itemBuilder: (_, index) => _CartItemRow(
+            itemBuilder: (_, index) => _SwipeableCartItemRow(
               item: controller.cartItems[index],
               controller: controller,
+              index: index,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeableCartItemRow extends StatefulWidget {
+  final CartItem item;
+  final CartController controller;
+  final int index;
+
+  const _SwipeableCartItemRow({
+    required this.item,
+    required this.controller,
+    required this.index,
+  });
+
+  @override
+  State<_SwipeableCartItemRow> createState() => _SwipeableCartItemRowState();
+}
+
+class _SwipeableCartItemRowState extends State<_SwipeableCartItemRow> {
+  double _dragOffset = 0;
+  bool _isSwiped = false;
+  static const double _deleteThreshold = -50;
+  static const double _maxSwipe = -70;
+
+  void _openProductDetail(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(
+          product: CategoryProductItem(
+            variantId: widget.item.variantId,
+            materialId: widget.item.variantId,
+            name: widget.item.materialName,
+            imageUrl: widget.item.imageUrl,
+            price: widget.item.unitPriceWithGst,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showBulkPricingSheet(BuildContext context) {
+    if (!widget.item.hasTiers || widget.item.priceTiers.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.inputBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: const [
+                Icon(
+                  Icons.local_offer_outlined,
+                  size: 18,
+                  color: AppColors.primaryGreen,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Bulk Prices Launched',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.item.materialName}, ${widget.item.sizeDimension}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textGray, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            ...widget.item.priceTiers.map(
+              (tier) => InkWell(
+                onTap: () {
+                  widget.controller.updateQuantity(widget.item, tier.minQty);
+                  Navigator.pop(context);
+                  Get.snackbar(
+                    'Bulk Price Applied',
+                    'Qty set to ${tier.minQty} at ₹${tier.price.toStringAsFixed(2)}/unit',
+                    backgroundColor: AppColors.primaryGreen,
+                    colorText: Colors.white,
+                    snackPosition: SnackPosition.BOTTOM,
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F9F1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.primaryGreen.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.circle,
+                        size: 6,
+                        color: AppColors.primaryGreen,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Buy ${tier.minQty}+ units',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '₹${tier.price.toStringAsFixed(0)}/unit',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryGreen,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Apply',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _resetSwipe() {
+    setState(() {
+      _dragOffset = 0;
+      _isSwiped = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onHorizontalDragUpdate: (details) {
+            setState(() {
+              _dragOffset += details.delta.dx;
+              _dragOffset = _dragOffset.clamp(_maxSwipe, 0);
+              _isSwiped = _dragOffset < _deleteThreshold;
+            });
+          },
+          onHorizontalDragEnd: (details) {
+            setState(() {
+              if (_dragOffset < _deleteThreshold) {
+                _dragOffset = _maxSwipe;
+                _isSwiped = true;
+              } else {
+                _dragOffset = 0;
+                _isSwiped = false;
+              }
+            });
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Delete background - minimal design
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 12),
+                  child: AnimatedOpacity(
+                    opacity: _isSwiped ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: GestureDetector(
+                      onTap: () async {
+                        // Show confirmation dialog
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Remove Item'),
+                            content: Text(
+                              'Remove "${widget.item.materialName}" from your cart?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                child: const Text('Remove'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirm == true) {
+                          await widget.controller.removeItem(widget.item);
+                          _resetSwipe();
+                        } else {
+                          _resetSwipe();
+                        }
+                      },
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Main content
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                transform: Matrix4.translationValues(_dragOffset, 0, 0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: _CartItemContent(
+                    item: widget.item,
+                    controller: widget.controller,
+                    onTap: () => _openProductDetail(context),
+                    onBulkTap: () => _showBulkPricingSheet(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CartItemContent extends StatelessWidget {
+  final CartItem item;
+  final CartController controller;
+  final VoidCallback onTap;
+  final VoidCallback onBulkTap;
+
+  const _CartItemContent({
+    required this.item,
+    required this.controller,
+    required this.onTap,
+    required this.onBulkTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: item.imageUrl.isNotEmpty
+                          ? Image.network(
+                              item.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  Container(color: AppColors.fieldFill),
+                            )
+                          : Container(
+                              color: AppColors.fieldFill,
+                              child: const Icon(
+                                Icons.inventory_2_outlined,
+                                color: Colors.black26,
+                              ),
+                            ),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.space(context, 12)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item.materialName}, ${item.sizeDimension}',
+                          style: AppTextStyles.fieldLabel(
+                            context,
+                          ).copyWith(color: AppColors.textDark),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (item.hasTiers && item.priceTiers.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          GestureDetector(
+                            onTap: onBulkTap,
+                            child: const Text(
+                              'Buy at wholesale price',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue,
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(width: Responsive.space(context, 8)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '₹${item.totalPriceWithGst.toStringAsFixed(2)}', // Changed from 0 to 2
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _QuantityStepper(item: item, controller: controller),
+            ],
           ),
         ],
       ),
@@ -1323,11 +1716,13 @@ class _BillDetailsCard extends StatelessWidget {
                 const Divider(height: 24),
                 _BillRow(
                   label: 'Sub Total (Inclusive of GST)',
-                  value: '₹${controller.subTotal.toStringAsFixed(0)}',
+                  value:
+                      '₹${controller.subTotal.toStringAsFixed(2)}', // Changed to 2
                 ),
                 _BillRow(
                   label: 'Discount',
-                  value: '₹${CartController.staticDiscount.toStringAsFixed(0)}',
+                  value:
+                      '₹${CartController.staticDiscount.toStringAsFixed(2)}', // Changed to 2
                 ),
                 Obx(() {
                   final checkout = controller.checkoutResponse.value;
@@ -1336,7 +1731,7 @@ class _BillDetailsCard extends StatelessWidget {
                   return _BillRow(
                     label: 'Delivery Charge',
                     value: deliveryCharge > 0
-                        ? '₹${deliveryCharge.toStringAsFixed(0)}'
+                        ? '₹${deliveryCharge.toStringAsFixed(2)}' // Changed to 2
                         : 'FREE',
                     valueColor: deliveryCharge > 0
                         ? null
@@ -1346,7 +1741,7 @@ class _BillDetailsCard extends StatelessWidget {
                 _BillRow(
                   label: 'Handling Charge',
                   value:
-                      '₹${CartController.staticHandlingCharge.toStringAsFixed(0)}',
+                      '₹${CartController.staticHandlingCharge.toStringAsFixed(2)}', // Changed to 2
                 ),
                 const Divider(height: 24),
                 Obx(() {
@@ -1355,7 +1750,7 @@ class _BillDetailsCard extends StatelessWidget {
                       checkout?.paymentSummary.grandTotal ?? controller.total;
                   return _BillRow(
                     label: 'Total',
-                    value: '₹${total.toStringAsFixed(0)}',
+                    value: '₹${total.toStringAsFixed(2)}', // Changed to 2
                     bold: true,
                   );
                 }),
@@ -2135,15 +2530,15 @@ class _CheckoutConfirmationModal extends StatelessWidget {
             const SizedBox(height: 8),
             _SummaryRow(
               'Items Total',
-              '₹${checkout.paymentSummary.itemsTotalWithGst.toStringAsFixed(0)}',
+              '₹${checkout.paymentSummary.itemsTotalWithGst.toStringAsFixed(2)}',
             ),
             _SummaryRow(
               'GST',
-              '₹${checkout.paymentSummary.totalGstTax.toStringAsFixed(0)}',
+              '₹${checkout.paymentSummary.totalGstTax.toStringAsFixed(2)}',
             ),
             _SummaryRow(
               'Delivery Charge',
-              '₹${checkout.paymentSummary.deliveryCharge.toStringAsFixed(0)}',
+              '₹${checkout.paymentSummary.deliveryCharge.toStringAsFixed(2)}',
             ),
             if (checkout.paymentSummary.couponDiscount > 0)
               _SummaryRow(
@@ -2154,7 +2549,7 @@ class _CheckoutConfirmationModal extends StatelessWidget {
             const Divider(),
             _SummaryRow(
               'Grand Total',
-              '₹${checkout.paymentSummary.grandTotal.toStringAsFixed(0)}',
+              '₹${checkout.paymentSummary.grandTotal.toStringAsFixed(2)}',
               isTotal: true,
             ),
             const SizedBox(height: 16),

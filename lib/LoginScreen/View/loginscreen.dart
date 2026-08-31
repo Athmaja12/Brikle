@@ -5,6 +5,7 @@ import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/GoogleAuth/googleauthapiservice.dart';
 import 'package:brikle/GoogleAuth/googleauthservice.dart';
+import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/LoginOtp/Controller/loginotp_provider.dart';
 import 'package:brikle/LoginOtp/View/logiotppage.dart';
 import 'package:brikle/LoginScreen/Controller/login_controller.dart';
@@ -96,9 +97,25 @@ class LoginView extends GetView<LoginController> {
           Navigator.pop(context, true);
         } else {
           debugPrint('[LoginView] Step 3: navigating to MainScreen');
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const MainScreen()),
+
+          // Pre-warm HomeController now, BEFORE MainScreen is built, so its
+          // refresh() starts firing network calls immediately — overlapping
+          // with the route transition instead of only starting once
+          // MainScreen's State is constructed.
+          if (!Get.isRegistered<HomeController>()) {
+            debugPrint('[LoginView] pre-warming HomeController');
+            Get.put(HomeController());
+          }
+
+          Navigator.of(context).pushAndRemoveUntil(
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => const MainScreen(),
+              transitionDuration: const Duration(milliseconds: 120),
+              reverseTransitionDuration: Duration.zero,
+              transitionsBuilder: (_, animation, __, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
             (route) => false,
           );
         }

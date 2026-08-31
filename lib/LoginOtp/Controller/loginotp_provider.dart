@@ -3,6 +3,7 @@ import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
+import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:brikle/LoginOtp/Model/otp_model.dart';
 import 'package:brikle/ProfilePage/Controller/profile_provider.dart';
 import 'package:flutter/material.dart';
@@ -241,15 +242,21 @@ class OtpController extends GetxController {
 
   Future<void> _verifyLoginOtp() async {
     debugPrint('[OtpController] hitting /customer-login-verify/');
+
     final response = await ApiService.verifyLoginOtp(
       phoneNumber: model.phoneNumber,
       otp: model.otpCode,
     );
+
     final customerId = response['customer_id'] as int?;
+
     debugPrint(
       '[OtpController] login verify SUCCESS — customer_id: $customerId',
     );
 
+    // ------------------------------------------------------------
+    // SAVE SESSION FIRST
+    // ------------------------------------------------------------
     await SessionManager.saveSession(
       accessToken: response['access'] as String,
       refreshToken: response['refresh'] as String,
@@ -257,55 +264,157 @@ class OtpController extends GetxController {
       phoneNumber: model.phoneNumber,
     );
 
+    debugPrint('[OtpController] session saved successfully');
+
     _verificationCompleted = true;
     _verificationInProgress = false;
     isLoading.value = false;
 
-    if (Get.isRegistered<ProfileController>()) {
-      await Get.find<ProfileController>().loadUserDataAfterLogin();
+    // ------------------------------------------------------------
+    // NORMAL LOGIN
+    // Navigate immediately after authentication.
+    // Do NOT await profile/cart operations before navigation.
+    // ------------------------------------------------------------
+    if (!_isNewRegistration && !isModal) {
+      debugPrint(
+        '[OtpController] login successful — navigating to Home immediately',
+      );
+
+      Get.offAllNamed('/home');
+
+      // Run the remaining synchronization in the background.
+      _completePostLoginSync();
+
+      return;
     }
 
-    Get.snackbar(
-      'Verified',
-      response['message']?.toString() ?? 'Logged in successfully!',
+    // ------------------------------------------------------------
+    // MODAL LOGIN
+    // ------------------------------------------------------------
+    if (isModal) {
+      debugPrint('[OtpController] modal flow — popping true to caller');
+
+      Get.back(result: true);
+
+      _completePostLoginSync();
+
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // NEW REGISTRATION
+    // Keep existing Flipkart-style Cart navigation.
+    // ------------------------------------------------------------
+    debugPrint(
+      '[OtpController] new registration verified — navigating to Cart',
     );
 
-    // ------------------------------------------------------------
-    // MERGE GUEST CART & ADDRESS — must run BEFORE any other
-    // authenticated fetchCart() call, while cartItems still holds
-    // the device-based guest cart in memory.
-    // ------------------------------------------------------------
-    if (Get.isRegistered<CartController>()) {
-      final cart = Get.find<CartController>();
-      await cart.mergeGuestCartAfterLogin();
-      if (Get.isRegistered<CartController>()) {
-        // only if you've added mergeGuestAddressAfterLogin from earlier
-        // await cart.mergeGuestAddressAfterLogin();
-      }
-    }
+    Get.offAll(() => const CartScreen());
 
-    // ------------------------------------------------------------
-    // NAVIGATION — exactly one call, no fallthrough to any other path.
-    // ------------------------------------------------------------
-    if (_isNewRegistration) {
-      // Flipkart-style: guest who just registered lands on Cart with
-      // their merged items, not Home. Get.offAll() replaces the whole
-      // GetX-managed stack directly — it does NOT depend on
-      // Navigator.pop()/Get.back() correctly targeting whatever nested
-      // Navigator OtpView happened to live in (that mismatch is what
-      // caused the OTP screen to appear stuck/duplicated before).
-      debugPrint(
-        '[OtpController] new registration verified — navigating to Cart',
-      );
-      Get.offAll(() => const CartScreen());
-    } else if (isModal) {
-      debugPrint('[OtpController] modal flow — popping true to caller');
-      Get.back(result: true);
-    } else {
-      debugPrint('[OtpController] non-modal flow — navigating to /home');
-      Get.offAllNamed('/home');
-    }
+    _completePostLoginSync();
   }
+
+  //  Future<void> _verifyLoginOtp() async {
+  //   debugPrint('[OtpController] hitting /customer-login-verify/');
+
+  //   final response = await ApiService.verifyLoginOtp(
+  //     phoneNumber: model.phoneNumber,
+  //     otp: model.otpCode,
+  //   );
+
+  //   final customerId = response['customer_id'] as int?;
+
+  //   debugPrint(
+  //     '[OtpController] login verify SUCCESS — customer_id: $customerId',
+  //   );
+
+  //     await SessionManager.saveSession(
+  //       accessToken: response['access'] as String,
+  //       refreshToken: response['refresh'] as String,
+  //       customerId: customerId,
+  //       phoneNumber: model.phoneNumber,
+  //     );
+
+  //     debugPrint(
+  //       '[OtpController] session saved successfully — '
+  //       'access token available: ${response['access'] != null}',
+  //     );
+
+  //     // ------------------------------------------------------------
+  //     // REFRESH HOME PROFILE IMMEDIATELY AFTER LOGIN
+  //     // This ensures the delivery pincode is available on Home
+  //     // without requiring a manual page refresh.
+  //     // ------------------------------------------------------------
+  //     if (Get.isRegistered<HomeController>()) {
+  //       debugPrint(
+  //         '[OtpController] HomeController already registered — '
+  //         'refreshing logged-in profile',
+  //       );
+
+  //       await Get.find<HomeController>().refreshLoggedInProfile();
+  //     } else {
+  //       debugPrint(
+  //         '[OtpController] HomeController not registered — '
+  //         'creating it for the next Home screen',
+  //       );
+
+  //       Get.put(HomeController());
+  //     }
+
+  //     // Existing profile controller refresh
+  //     if (Get.isRegistered<ProfileController>()) {
+  //       await Get.find<ProfileController>().loadUserDataAfterLogin();
+  //     }
+
+  //     _verificationCompleted = true;
+  //     _verificationInProgress = false;
+  //     isLoading.value = false;
+
+  //     if (Get.isRegistered<ProfileController>()) {
+  //       await Get.find<ProfileController>().loadUserDataAfterLogin();
+  //     }
+
+  //     Get.snackbar(
+  //       'Verified',
+  //       response['message']?.toString() ?? 'Logged in successfully!',
+  //     );
+
+  //     // ------------------------------------------------------------
+  //     // MERGE GUEST CART & ADDRESS — must run BEFORE any other
+  //     // authenticated fetchCart() call, while cartItems still holds
+  //     // the device-based guest cart in memory.
+  //     // ------------------------------------------------------------
+  //     if (Get.isRegistered<CartController>()) {
+  //       final cart = Get.find<CartController>();
+  //       await cart.mergeGuestCartAfterLogin();
+  //       if (Get.isRegistered<CartController>()) {
+  //         // only if you've added mergeGuestAddressAfterLogin from earlier
+  //         // await cart.mergeGuestAddressAfterLogin();
+  //       }
+  //     }
+
+  //     // ------------------------------------------------------------
+  //     // NAVIGATION — exactly one call, no fallthrough to any other path.
+  //     // ------------------------------------------------------------
+  //     if (_isNewRegistration) {
+  //       // Flipkart-style: guest who just registered lands on Cart with
+  //       // their merged items, not Home. Get.offAll() replaces the whole
+  //       // GetX-managed stack directly — it does NOT depend on
+  //       // Navigator.pop()/Get.back() correctly targeting whatever nested
+  //       // Navigator OtpView happened to live in (that mismatch is what
+  //       // caused the OTP screen to appear stuck/duplicated before).
+  //       debugPrint(
+  //         '[OtpController] new registration verified — navigating to Cart',
+  //       );
+  //       Get.offAll(() => const CartScreen());
+  //     } else if (isModal) {
+  //       debugPrint('[OtpController] modal flow — popping true to caller');
+  //       Get.back(result: true);
+  //     } else {
+  //       debugPrint('[OtpController] non-modal flow — navigating to /home');
+  //       Get.offAllNamed('/home');
+  //     }
+  //   }
 
   Future<void> resendOtp() async {
     debugPrint(
@@ -398,5 +507,52 @@ class OtpController extends GetxController {
     for (final c in digitControllers) c.dispose();
     for (final f in digitFocusNodes) f.dispose();
     super.onClose();
+  }
+
+  Future<void> _completePostLoginSync() async {
+    try {
+      debugPrint('[OtpController] starting background post-login sync');
+
+      // ------------------------------------------------------------
+      // Refresh profile in background
+      // This updates the Home delivery pincode.
+      // ------------------------------------------------------------
+      if (Get.isRegistered<ProfileController>()) {
+        try {
+          await Get.find<ProfileController>().loadUserDataAfterLogin();
+          debugPrint('[OtpController] profile refreshed successfully');
+        } catch (e) {
+          debugPrint('[OtpController] profile refresh failed: $e');
+        }
+      }
+
+      // ------------------------------------------------------------
+      // Refresh Home profile/pincode if HomeController exists.
+      // ------------------------------------------------------------
+      if (Get.isRegistered<HomeController>()) {
+        try {
+          await Get.find<HomeController>().refreshLoggedInProfile();
+          debugPrint('[OtpController] Home profile refreshed successfully');
+        } catch (e) {
+          debugPrint('[OtpController] Home profile refresh failed: $e');
+        }
+      }
+
+      // ------------------------------------------------------------
+      // Merge guest cart in background.
+      // ------------------------------------------------------------
+      if (Get.isRegistered<CartController>()) {
+        try {
+          await Get.find<CartController>().mergeGuestCartAfterLogin();
+          debugPrint('[OtpController] guest cart merged successfully');
+        } catch (e) {
+          debugPrint('[OtpController] guest cart merge failed: $e');
+        }
+      }
+
+      debugPrint('[OtpController] post-login sync completed');
+    } catch (e) {
+      debugPrint('[OtpController] post-login sync error: $e');
+    }
   }
 }

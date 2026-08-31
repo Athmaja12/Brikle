@@ -205,13 +205,13 @@ class _TopBar extends StatelessWidget {
                         text: 'Br',
                         style: AppTextStyles.brikleLogoAccent(
                           context,
-                        ).copyWith(fontSize: 20),
+                        ).copyWith(fontSize: 25),
                       ),
                       TextSpan(
                         text: 'ikle',
                         style: AppTextStyles.brikleLogoDark(
                           context,
-                        ).copyWith(fontSize: 20),
+                        ).copyWith(fontSize: 25),
                       ),
                     ],
                   ),

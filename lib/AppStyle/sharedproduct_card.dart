@@ -214,7 +214,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                           ),
                         ),
                         Text(
-                          '₹${t.price.toStringAsFixed(0)}/unit',
+                          '₹${t.price.toStringAsFixed(2)}/unit',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             color: AppColors.primaryGreen,
@@ -424,7 +424,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                             textBaseline: TextBaseline.alphabetic,
                             children: [
                               Text(
-                                '₹${unitPrice.toStringAsFixed(0)}',
+                                '₹${unitPrice.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15,
@@ -434,7 +434,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                                   widget.originalPrice! > unitPrice) ...[
                                 const SizedBox(width: 6),
                                 Text(
-                                  '₹${widget.originalPrice!.toStringAsFixed(0)}',
+                                  '₹${widget.originalPrice!.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     decoration: TextDecoration.lineThrough,
                                     color: AppColors.textGray,
@@ -448,7 +448,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                           if (quantity > 1) ...[
                             const SizedBox(height: 2),
                             Text(
-                              'Total: ₹${totalPrice.toStringAsFixed(0)}',
+                              'Total: ₹${totalPrice.toStringAsFixed(2)}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textGray,
@@ -464,7 +464,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                                 cartController,
                               ),
                               child: Text(
-                                'Unlock Bulk Prices of ₹${product.bestTierPrice.toStringAsFixed(0)}',
+                                'Unlock Bulk Prices of ₹${product.bestTierPrice.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.primaryGreen,
@@ -628,7 +628,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                         ],
                       ),
                       child: Text(
-                        '🎉 Unlocked ₹${_unlockedPrice!.toStringAsFixed(0)}/unit',
+                        '🎉 Unlocked ₹${_unlockedPrice!.toStringAsFixed(2)}/unit',
                         style: GoogleFonts.manrope(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -820,7 +820,7 @@ class _OfferBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = _label;
     if (label == null) return const SizedBox.shrink();
-    return Container( 
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: const Color(0xFFDFF5E3),

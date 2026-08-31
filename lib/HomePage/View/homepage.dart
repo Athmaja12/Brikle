@@ -40,25 +40,15 @@ class HomeScreen extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure controller is initialized and data is loaded
-    // Ensure controller is initialized and data is loaded
+    // Registration only — HomeController.onInit() already triggers its
+    // own refresh() the moment it's created (ideally pre-warmed in
+    // LoginView before navigation), so nothing extra is scheduled here.
     if (!Get.isRegistered<HomeController>()) {
       Get.put(HomeController());
     }
-    // Was never registered anywhere — Get.find<GlobalSearchController>()
-    // inside GlobalSearchBar was throwing, which is why the search bar
-    // wasn't working at all.
     if (!Get.isRegistered<GlobalSearchController>()) {
       Get.put(GlobalSearchController());
     }
-
-    // Call refresh on first build if data is empty
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final controller = Get.find<HomeController>();
-      if (controller.carousels.isEmpty) {
-        controller.refresh();
-      }
-    });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F6),
@@ -226,13 +216,13 @@ class _Header extends StatelessWidget {
                         text: 'Br',
                         style: AppTextStyles.brikleLogoAccent(
                           context,
-                        ).copyWith(fontSize: 20),
+                        ).copyWith(fontSize: 25),
                       ),
                       TextSpan(
                         text: 'ikle',
                         style: AppTextStyles.brikleLogoDark(
                           context,
-                        ).copyWith(fontSize: 20),
+                        ).copyWith(fontSize: 25),
                       ),
                     ],
                   ),
@@ -452,7 +442,7 @@ class _CategoriesSection extends StatelessWidget {
           ),
           SizedBox(height: Responsive.space(context, 8)),
           SizedBox(
-            height: (116.0 * MediaQuery.of(context).size.width / 390),
+            height: (132.0 * MediaQuery.of(context).size.width / 390),
             child: Obx(
               () => ListView.separated(
                 scrollDirection: Axis.horizontal,
@@ -466,9 +456,9 @@ class _CategoriesSection extends StatelessWidget {
                         controller.selectedCategoryIndex.value == index;
 
                     final scale = MediaQuery.of(context).size.width / 390;
-                    const cardWidth = 105.0;
-                    const cardHeight = 116.0;
-                    const imageBoxHeight = 98.0;
+                    const cardWidth = 120.0;
+                    const cardHeight = 132.0;
+                    const imageBoxHeight = 110.0;
 
                     return GestureDetector(
                       onTap: () async {
@@ -507,7 +497,7 @@ class _CategoriesSection extends StatelessWidget {
                               right: 0,
                               child: Container(
                                 height: imageBoxHeight * scale,
-                                padding: EdgeInsets.all(6 * scale),
+                                padding: EdgeInsets.all(7 * scale),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFE6F7E6),
                                   borderRadius: BorderRadius.circular(8),
@@ -542,7 +532,7 @@ class _CategoriesSection extends StatelessWidget {
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
                                   maxLines: 1,

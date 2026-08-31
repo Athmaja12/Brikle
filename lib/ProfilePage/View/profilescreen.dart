@@ -55,8 +55,7 @@ class _ProfileViewState extends State<ProfileView> {
                         _buildDeliveryAddress(context),
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildAppSettings(context),
-                        SizedBox(height: Responsive.space(context, 16)),
-                        _buildDeleteAccount(context),
+
                         SizedBox(height: Responsive.space(context, 20)),
                       ],
                     ),
@@ -94,7 +93,6 @@ class _ProfileViewState extends State<ProfileView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Tappable avatar → opens "My Details" dialog ─────────────────────
         GestureDetector(
           onTap: () => _onProfileIconTap(context),
           child: Container(
@@ -115,7 +113,9 @@ class _ProfileViewState extends State<ProfileView> {
             ),
           ),
         ),
+
         SizedBox(width: Responsive.space(context, 12)),
+
         Expanded(
           child: GestureDetector(
             onTap: () => _onProfileIconTap(context),
@@ -146,7 +146,9 @@ class _ProfileViewState extends State<ProfileView> {
                     ],
                   ],
                 ),
+
                 SizedBox(height: Responsive.space(context, 4)),
+
                 Row(
                   children: [
                     Icon(
@@ -167,6 +169,7 @@ class _ProfileViewState extends State<ProfileView> {
                     ),
                   ],
                 ),
+
                 if (_ctrl.email.isNotEmpty) ...[
                   SizedBox(height: Responsive.space(context, 2)),
                   Row(
@@ -192,6 +195,31 @@ class _ProfileViewState extends State<ProfileView> {
                   ),
                 ],
               ],
+            ),
+          ),
+        ),
+
+        // ── Delete Account: minimal icon at top-right ─────────────────────
+        Obx(
+          () => GestureDetector(
+            onTap: _ctrl.isDeleting.value ? null : _ctrl.deleteAccount,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8, top: 4),
+              child: _ctrl.isDeleting.value
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.errorRed,
+                      ),
+                    )
+                  : Icon(
+                      Icons.delete_outline_rounded,
+                      size: 19,
+                      color: AppColors.errorRed.withValues(alpha: 0.55),
+                    ),
             ),
           ),
         ),
@@ -599,17 +627,17 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
               ),
             ),
-            GestureDetector(
-              onTap: () => _showManageAddressesDialog(context),
-              child: Text(
-                'Manage',
-                style: GoogleFonts.manrope(
-                  fontSize: Responsive.font(context, 13),
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryGreen,
-                ),
-              ),
-            ),
+            // GestureDetector(
+            //   onTap: () => _showManageAddressesDialog(context),
+            //   child: Text(
+            //     'Manage',
+            //     style: GoogleFonts.manrope(
+            //       fontSize: Responsive.font(context, 13),
+            //       fontWeight: FontWeight.w600,
+            //       color: AppColors.primaryGreen,
+            //     ),
+            //   ),
+            // ),
           ],
         ),
         SizedBox(height: Responsive.space(context, 10)),
@@ -1166,43 +1194,43 @@ class _ProfileViewState extends State<ProfileView> {
           ),
           child: Column(
             children: [
-              _settingsRow(
-                context,
-                icon: Icons.notifications_outlined,
-                label: 'Notifications',
-                trailing: GestureDetector(
-                  onTap: () =>
-                      setState(() => _notificationsOn = !_notificationsOn),
-                  child: Text(
-                    _notificationsOn ? 'On' : 'Off',
-                    style: GoogleFonts.manrope(
-                      fontSize: Responsive.font(context, 13),
-                      fontWeight: FontWeight.w500,
-                      color: _notificationsOn
-                          ? AppColors.primaryGreen
-                          : AppColors.textGray,
-                    ),
-                  ),
-                ),
-              ),
-              Divider(
-                height: 1,
-                indent: Responsive.space(context, 50),
-                color: const Color(0xFFE5E7EB),
-              ),
-              _settingsRow(
-                context,
-                icon: Icons.translate_outlined,
-                label: 'Language',
-                trailing: Text(
-                  'English',
-                  style: GoogleFonts.manrope(
-                    fontSize: Responsive.font(context, 13),
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-              ),
+              // _settingsRow(
+              //   context,
+              //   icon: Icons.notifications_outlined,
+              //   label: 'Notifications',
+              //   trailing: GestureDetector(
+              //     onTap: () =>
+              //         setState(() => _notificationsOn = !_notificationsOn),
+              //     child: Text(
+              //       _notificationsOn ? 'On' : 'Off',
+              //       style: GoogleFonts.manrope(
+              //         fontSize: Responsive.font(context, 13),
+              //         fontWeight: FontWeight.w500,
+              //         color: _notificationsOn
+              //             ? AppColors.primaryGreen
+              //             : AppColors.textGray,
+              //       ),
+              //     ),
+              //   ),
+              // ),
+              // Divider(
+              //   height: 1,
+              //   indent: Responsive.space(context, 50),
+              //   color: const Color(0xFFE5E7EB),
+              // ),
+              // _settingsRow(
+              //   context,
+              //   icon: Icons.translate_outlined,
+              //   label: 'Language',
+              //   trailing: Text(
+              //     'English',
+              //     style: GoogleFonts.manrope(
+              //       fontSize: Responsive.font(context, 13),
+              //       fontWeight: FontWeight.w500,
+              //       color: AppColors.primaryGreen,
+              //     ),
+              //   ),
+              // ),
               Divider(
                 height: 1,
                 indent: Responsive.space(context, 50),
@@ -1277,44 +1305,51 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  // ── Delete Account ──────────────────────────────────────────────────────────
-  Widget _buildDeleteAccount(BuildContext context) {
-    return Obx(
-      () => GestureDetector(
-        onTap: _ctrl.isDeleting.value ? null : _ctrl.deleteAccount,
-        child: Container(
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.space(context, 16),
-            vertical: Responsive.space(context, 16),
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(Responsive.space(context, 12)),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: _ctrl.isDeleting.value
-              ? const SizedBox(
-                  height: 20,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.errorRed,
-                    ),
-                  ),
-                )
-              : Text(
-                  'Delete Account Forever',
-                  style: GoogleFonts.manrope(
-                    fontSize: Responsive.font(context, 14),
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.errorRed,
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
+  // // ── Delete Account ──────────────────────────────────────────────────────────
+  // Widget _buildDeleteAccount(BuildContext context) {
+  //   return Obx(
+  //     () => Center(
+  //       child: GestureDetector(
+  //         onTap: _ctrl.isDeleting.value ? null : _ctrl.deleteAccount,
+  //         behavior: HitTestBehavior.opaque,
+  //         child: Padding(
+  //           padding: EdgeInsets.symmetric(
+  //             vertical: Responsive.space(context, 8),
+  //             horizontal: Responsive.space(context, 12),
+  //           ),
+  //           child: _ctrl.isDeleting.value
+  //               ? SizedBox(
+  //                   height: Responsive.space(context, 18),
+  //                   width: Responsive.space(context, 18),
+  //                   child: const CircularProgressIndicator(
+  //                     strokeWidth: 2,
+  //                     color: AppColors.errorRed,
+  //                   ),
+  //                 )
+  //               : Row(
+  //                   mainAxisSize: MainAxisSize.min,
+  //                   children: [
+  //                     Icon(
+  //                       Icons.delete_outline_rounded,
+  //                       size: Responsive.space(context, 16),
+  //                       color: AppColors.errorRed.withValues(alpha: 0.75),
+  //                     ),
+  //                     SizedBox(width: Responsive.space(context, 6)),
+  //                     Text(
+  //                       'Delete Account',
+  //                       style: GoogleFonts.manrope(
+  //                         fontSize: Responsive.font(context, 12),
+  //                         fontWeight: FontWeight.w500,
+  //                         color: AppColors.errorRed.withValues(alpha: 0.75),
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   // ── Edit Profile Sheet ──────────────────────────────────────────────────────
   // Covers every field the backend's PATCH /api/customer-profile/ accepts:

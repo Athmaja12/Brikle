@@ -218,8 +218,8 @@ class SignupView extends GetView<SignupController> {
                           child: Obx(
                             () => CustomIconField(
                               controller: controller.fullNameController,
-                              icon: Icons.person_outline,
-                              hintText: 'Full Name',
+                              icon: Icons.badge_outlined,
+                              hintText: '',
                               isValid: controller.isFullNameValid.value,
                               errorText: 'Please enter your full name',
                               onChanged: controller.onFullNameChanged,
@@ -285,7 +285,7 @@ class SignupView extends GetView<SignupController> {
                                   child: CustomIconField(
                                     controller: controller.phoneController,
                                     icon: Icons.call_outlined,
-                                    hintText: 'Phone Number',
+                                    hintText: '',
                                     keyboardType: TextInputType.phone,
                                     isValid: controller.isPhoneValid.value,
                                     errorText:
@@ -303,8 +303,8 @@ class SignupView extends GetView<SignupController> {
                           child: Obx(
                             () => CustomIconField(
                               controller: controller.address1Controller,
-                              icon: Icons.location_on_outlined,
-                              hintText: 'e.g. Building No 4B, Phase 1',
+                              icon: Icons.home_work_outlined,
+                              hintText: '',
                               isValid: controller.isAddress1Valid.value,
                               errorText: 'Please enter your street address',
                               onChanged: controller.onAddress1Changed,
@@ -317,8 +317,8 @@ class SignupView extends GetView<SignupController> {
                           child: Obx(
                             () => CustomIconField(
                               controller: controller.address2Controller,
-                              icon: Icons.location_city_outlined,
-                              hintText: 'e.g. Infopark Kakkanad',
+                              icon: Icons.apartment_outlined,
+                              hintText: '',
                               isValid: controller.isAddress2Valid.value,
                               errorText: 'Please enter the second address line',
                               onChanged: controller.onAddress2Changed,
@@ -333,7 +333,7 @@ class SignupView extends GetView<SignupController> {
                             () => CustomIconField(
                               controller: controller.pincodeController,
                               icon: Icons.pin_drop_outlined,
-                              hintText: 'Enter 6-digit Pincode',
+                              hintText: '',
                               keyboardType: TextInputType.number,
                               isValid: controller.isPincodeValid.value,
                               errorText: 'Enter a valid 6-digit pincode',
@@ -352,7 +352,7 @@ class SignupView extends GetView<SignupController> {
                             child: CustomIconField(
                               controller: controller.gstController,
                               icon: Icons.receipt_long_outlined,
-                              hintText: 'e.g. 32ABCDE1234F1Z5',
+                              hintText: '',
                               isValid: controller.isGstValid.value,
                               errorText: 'Enter a valid GST number',
                               onChanged: controller.onGstChanged,
