@@ -248,67 +248,42 @@ class _CouponListCard extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 16),
 
-            // Option 1: Copy WhatsApp link
+            // Option 1: Copy WhatsApp link (server-generated)
             _ShareOptionCard(
               icon: Icons.copy_outlined,
               title: 'Copy WhatsApp Link',
               subtitle: 'Copy share link to clipboard',
               color: Colors.green,
               onTap: () async {
-                debugPrint('[CouponScreen] Copy WhatsApp Link tapped');
                 Navigator.pop(sheetContext);
+                final phone = await _promptForRecipientPhone(context);
+                if (phone == null) return;
                 final controller = Get.find<ProfileController>();
-                await controller.generateCouponShareLink(
+                await controller.shareCouponViaWhatsapp(
                   couponCode: coupon.couponCode,
-                  discountPercentage: coupon.discountPercentage.toDouble(),
-                  materialName: coupon.rewardMaterialName,
-                  appLink: kAppDownloadLink,
+                  recipientPhone: phone,
+                  openDirectly: false,
                 );
               },
             ),
 
             const SizedBox(height: 12),
 
-            // Option 2: Open WhatsApp directly
+            // Option 2: Open WhatsApp directly (server-generated link)
             _ShareOptionCard(
               icon: Icons.message,
               title: 'Open WhatsApp',
               subtitle: 'Share directly via WhatsApp',
               color: Colors.green,
               onTap: () async {
-                debugPrint('[CouponScreen] Open WhatsApp tapped');
                 Navigator.pop(sheetContext);
+                final phone = await _promptForRecipientPhone(context);
+                if (phone == null) return;
                 final controller = Get.find<ProfileController>();
-                await controller.shareCouponDirectly(
+                await controller.shareCouponViaWhatsapp(
                   couponCode: coupon.couponCode,
-                  discountPercentage: coupon.discountPercentage.toDouble(),
-                  materialName: coupon.rewardMaterialName,
-                  appLink: kAppDownloadLink,
-                );
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            // Option 3: Copy coupon code (now includes the app download link)
-            _ShareOptionCard(
-              icon: Icons.code_outlined,
-              title: 'Copy Coupon Code',
-              subtitle: 'Copy coupon code to clipboard',
-              color: Colors.blue,
-              onTap: () async {
-                final text =
-                    'Use my coupon code ${coupon.couponCode} for '
-                    '${coupon.discountPercentage}% off on ${coupon.rewardMaterialName}!\n'
-                    'Get the app: $kAppDownloadLink';
-                await Clipboard.setData(ClipboardData(text: text));
-                Navigator.pop(sheetContext);
-                Get.snackbar(
-                  'Copied!',
-                  'Coupon code and app link copied to clipboard',
-                  backgroundColor: AppColors.primaryGreen,
-                  colorText: Colors.white,
-                  snackPosition: SnackPosition.BOTTOM,
+                  recipientPhone: phone,
+                  openDirectly: true,
                 );
               },
             ),
@@ -317,6 +292,55 @@ class _CouponListCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// Small dialog to collect the recipient's phone number — required by
+  /// the /api/my-coupons/share/ endpoint. Returns null if cancelled or
+  /// if the input isn't a plausible 10-digit number.
+  Future<String?> _promptForRecipientPhone(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Recipient\'s Phone Number'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.phone,
+            maxLength: 10,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Enter 10-digit phone number',
+              counterText: '',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+              ),
+              onPressed: () {
+                final value = controller.text.trim();
+                if (RegExp(r'^\d{10}$').hasMatch(value)) {
+                  Navigator.pop(dialogContext, value);
+                } else {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter a valid 10-digit phone number'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Share', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
   }
 

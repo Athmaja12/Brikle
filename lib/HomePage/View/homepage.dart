@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
@@ -289,11 +290,11 @@ class _CarouselSectionState extends State<_CarouselSection> {
     });
   }
 
-  void _onBannerTap(CarouselItem item) {
+  Future<void> _onBannerTap(CarouselItem item) async {
     final materialId = item.material;
     final categoryId = item.category;
 
-    // Step 3: If both material and category are null, do nothing (standalone banner)
+    // Standalone banner — nothing to navigate to.
     if (materialId == null && categoryId == null) {
       return;
     }
@@ -306,24 +307,47 @@ class _CarouselSectionState extends State<_CarouselSection> {
     }
     _lastTapTime = now;
 
-    // Step 1: Material navigation priority
+    // Material navigation priority
     if (materialId != null) {
+      // FIX: previously navigated straight to ProductDetailScreen with a
+      // placeholder variantId: 0 / price: 0, which broke Add to Cart and
+      // price display on the product page. Now fetches the real product
+      // (correct variantId + price) the same way smart suggestions do,
+      // with a brief loading spinner while it resolves.
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      CategoryProductItem? product;
+      try {
+        product = await ApiService.getSuggestedProductDetail(materialId);
+      } catch (e) {
+        debugPrint('[CarouselSection] getSuggestedProductDetail failed: $e');
+      }
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // close loader
+
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ProductDetailScreen(
-            product: CategoryProductItem(
-              variantId: 0,
-              materialId: materialId,
-              name: item.materialName ?? item.title,
-              imageUrl: item.imageUrl,
-              price: 0,
-            ),
+            product:
+                product ??
+                CategoryProductItem(
+                  variantId: 0,
+                  materialId: materialId,
+                  name: item.materialName ?? item.title,
+                  imageUrl: item.imageUrl,
+                  price: 0,
+                ),
           ),
         ),
       );
     }
-    // Step 2: Category navigation priority
+    // Category navigation priority
     else if (categoryId != null) {
       Navigator.push(
         context,
@@ -376,6 +400,7 @@ class _CarouselSectionState extends State<_CarouselSection> {
                   // without ever reaching this bound.
                   itemCount: _virtualMultiplier * items.length,
                   onPageChanged: (i) => setState(() => _page = i),
+
                   itemBuilder: (context, i) {
                     final actualIndex = i % items.length;
                     final item = items[actualIndex];
@@ -383,16 +408,84 @@ class _CarouselSectionState extends State<_CarouselSection> {
                       onTap: () => _onBannerTap(item),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          item.imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          errorBuilder: (_, __, ___) =>
-                              Container(color: AppColors.dotInactive),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              item.imageUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              errorBuilder: (_, __, ___) =>
+                                  Container(color: AppColors.dotInactive),
+                            ),
+                            // NEW: title + description, overlaid at the
+                            // bottom with a gradient scrim for legibility.
+                            if (item.title.isNotEmpty ||
+                                item.description.isNotEmpty)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    24,
+                                    14,
+                                    10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.65),
+                                      ],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (item.title.isNotEmpty)
+                                        Text(
+                                          item.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      if (item.description.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                          ),
+                                          child: Text(
+                                            item.description,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(
+                                                0.9,
+                                              ),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w400,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     );
-                  },
+                  },  
                 ),
               ),
             ),

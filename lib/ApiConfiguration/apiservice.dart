@@ -999,15 +999,14 @@ class ApiService {
 
   static Future<ShareCouponResponse> shareCoupon({
     required String couponCode,
-    String? recipientPhone,
+    required String recipientPhone, // was optional — now always sent
   }) async {
     debugPrint('[ApiService] shareCoupon called with couponCode: $couponCode');
 
-    final body = <String, dynamic>{'coupon_code': couponCode};
-
-    if (recipientPhone != null && recipientPhone.isNotEmpty) {
-      body['recipient_phone'] = recipientPhone;
-    }
+    final body = <String, dynamic>{
+      'coupon_code': couponCode,
+      'recipient_phone': recipientPhone,
+    };
 
     debugPrint('[ApiService] Request body: $body');
     debugPrint('[ApiService] URL: ${ApiConfig.shareCouponUrl}');

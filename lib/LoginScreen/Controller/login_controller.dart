@@ -12,6 +12,12 @@ class LoginController extends GetxController {
 
   final RxBool isPhoneValid = true.obs;
   final RxBool isLoading = false.obs;
+
+  // NEW: separate flag for the Google Sign-In flow so it doesn't
+  // interfere with the phone/OTP loading state, and so the button
+  // + overlay can react to it independently.
+  final RxBool isGoogleLoading = false.obs;
+
   final RxString countryCode = '+91'.obs;
   String lastOtp = '';
 

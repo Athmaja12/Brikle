@@ -1,10 +1,13 @@
-// lib/Category/Controller/categorydeatil_controller.dart
+// lib/Category/Controller/categorydeatail_controller.dart
+
+import 'dart:async';
 
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
 import 'package:brikle/ApiConfiguration/apiservice.dart';
 import 'package:brikle/ApiConfiguration/auth_gate.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Category/View/categorydetail_screen.dart';
+import 'package:brikle/HomePage/Controller/home_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -30,24 +33,22 @@ class CategoryProductsController extends GetxController {
   // ---------------------------------------------------------------------------
 
   final RxnInt selectedBrandId = RxnInt();
-
   final RxString selectedType = ''.obs;
-
   final RxString selectedQuantity = ''.obs;
-
-  // NEW: Sorting
-  final RxString selectedSort = 'default'.obs; // default, price_low_to_high, price_high_to_low
+  final RxString selectedSort = 'default'.obs;
 
   // ---------------------------------------------------------------------------
   // DELIVERY / PINCODE
+  //
+  // We mirror HomeController's values by default (no extra network call).
+  // Only if HomeController isn't registered / has no pincode yet do we
+  // fall back to fetching it ourselves — and even then, it never blocks
+  // isLoading.
   // ---------------------------------------------------------------------------
 
   final RxString deliverToPincode = '—'.obs;
-
   final RxBool isPincodeServiceable = true.obs;
-
   final RxString pincodeMessage = ''.obs;
-
   final RxBool isCheckingPincode = false.obs;
 
   // ---------------------------------------------------------------------------
@@ -57,119 +58,95 @@ class CategoryProductsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-
-    debugPrint(
-      '[CategoryProductsController] onInit '
-      'categoryId=$categoryId',
-    );
-
+    debugPrint('[CategoryProductsController] onInit categoryId=$categoryId');
     refresh();
   }
 
   // ---------------------------------------------------------------------------
-  // REFRESH
+  // REFRESH — category + filters load in PARALLEL and gate isLoading.
+  // Profile/pincode load AFTER, in the background, and never block the UI.
   // ---------------------------------------------------------------------------
 
   Future<void> refresh() async {
     isLoading.value = true;
-
     debugPrint(
-      '[CategoryProductsController] refresh() started '
-      'categoryId=$categoryId',
+      '[CategoryProductsController] refresh() started categoryId=$categoryId',
     );
 
     try {
-      try {
-        final categoryResponse = await ApiService.getCategoryDetails(
-          categoryId,
-        );
+      // Fire both requests at once instead of one-after-another.
+      final results = await Future.wait([
+        ApiService.getCategoryDetails(categoryId),
+        ApiService.getCategoryFilterOptions(categoryId).catchError((e) {
+          // Filters are non-critical — swallow errors here so a filter
+          // failure never takes down the whole page.
+          debugPrint(
+            '[CategoryProductsController] ❌ getCategoryFilterOptions FAILED: $e',
+          );
+          return <String, dynamic>{};
+        }),
+      ]);
 
-        category.value = CategoryDetail.fromJson(categoryResponse);
+      category.value = CategoryDetail.fromJson(
+        results[0] as Map<String, dynamic>,
+      );
 
-        debugPrint(
-          '[CategoryProductsController] ✅ '
-          'getCategoryDetails OK',
-        );
-      } on ApiException catch (e) {
-        debugPrint(
-          '[CategoryProductsController] ❌ '
-          'getCategoryDetails FAILED: ${e.message}',
-        );
+      final filterJson = results[1] as Map<String, dynamic>;
+      filterOptions.value = filterJson.isEmpty
+          ? null
+          : CategoryFilterOptions.fromJson(filterJson);
 
-        category.value = null;
-
-        rethrow;
-      }
-
-      try {
-        final filterResponse = await ApiService.getCategoryFilterOptions(
-          categoryId,
-        );
-
-        filterOptions.value = CategoryFilterOptions.fromJson(filterResponse);
-
-        debugPrint(
-          '[CategoryProductsController] ✅ '
-          'getCategoryFilterOptions OK',
-        );
-      } on ApiException catch (e) {
-        debugPrint(
-          '[CategoryProductsController] ❌ '
-          'getCategoryFilterOptions FAILED: ${e.message}',
-        );
-
-        filterOptions.value = null;
-      } catch (e) {
-        debugPrint(
-          '[CategoryProductsController] ❌ '
-          'getCategoryFilterOptions unexpected error: $e',
-        );
-
-        filterOptions.value = null;
-      }
-
-      await _fetchProfileIfLoggedIn();
+      debugPrint('[CategoryProductsController] ✅ category+filters OK');
     } on ApiException catch (e) {
       debugPrint('[CategoryProductsController] ❌ refresh failed: ${e.message}');
-
+      category.value = null;
       Get.snackbar('Could not load category', e.message);
     } catch (e, stack) {
       debugPrint('[CategoryProductsController] ❌ unexpected error: $e');
-
       debugPrint('[CategoryProductsController] stack: $stack');
     } finally {
+      // UI unblocks here — products are visible now.
       isLoading.value = false;
-
-      debugPrint('[CategoryProductsController] refresh() finished');
+      debugPrint(
+        '[CategoryProductsController] refresh() finished (UI unblocked)',
+      );
     }
+
+    // Delivery info is not needed to render products, so it runs
+    // unawaited in the background and updates reactively when ready.
+    _loadDeliveryInfo();
   }
 
   // ---------------------------------------------------------------------------
-  // PROFILE — AUTHENTICATED USERS ONLY
+  // DELIVERY INFO — background only, never blocks isLoading
   // ---------------------------------------------------------------------------
+
+  void _loadDeliveryInfo() {
+    // Prefer whatever HomeController already resolved at app startup —
+    // avoids a redundant getProfile()/checkPincode() round trip on every
+    // single category open.
+    if (Get.isRegistered<HomeController>()) {
+      final home = Get.find<HomeController>();
+      final homePincode = home.deliverToPincode.value;
+
+      if (homePincode.isNotEmpty && homePincode != '—') {
+        deliverToPincode.value = homePincode;
+        isPincodeServiceable.value = home.isPincodeServiceable.value;
+        pincodeMessage.value = home.pincodeMessage.value;
+        return; // done — no network call needed
+      }
+    }
+
+    // Fallback: only hit the network if we truly have nothing cached.
+    unawaited(_fetchProfileIfLoggedIn());
+  }
 
   Future<void> _fetchProfileIfLoggedIn() async {
     final loggedIn = await AuthGate.isLoggedIn();
-
-    debugPrint(
-      '[CategoryProductsController] session => '
-      '${loggedIn ? "LOGGED IN" : "GUEST"}',
-    );
-
-    if (!loggedIn) {
-      debugPrint(
-        '[CategoryProductsController] Guest user -> '
-        'skipping getProfile',
-      );
-
-      return;
-    }
+    if (!loggedIn) return;
 
     try {
       final profile = await ApiService.getProfile();
-
-      debugPrint('[CategoryProductsController] ✅ getProfile OK');
-
       deliverToPincode.value = profile['pincode']?.toString() ?? '—';
 
       if (deliverToPincode.value != '—') {
@@ -177,15 +154,12 @@ class CategoryProductsController extends GetxController {
       }
     } on ApiException catch (e) {
       debugPrint(
-        '[CategoryProductsController] getProfile failed: '
-        '${e.message}',
+        '[CategoryProductsController] getProfile failed: ${e.message}',
       );
-    } catch (e, stack) {
+    } catch (e) {
       debugPrint(
         '[CategoryProductsController] getProfile unexpected error: $e',
       );
-
-      debugPrint('[CategoryProductsController] stack: $stack');
     }
   }
 
@@ -194,38 +168,22 @@ class CategoryProductsController extends GetxController {
   // ---------------------------------------------------------------------------
 
   Future<void> checkPincode(String pincode) async {
-    if (pincode.trim().isEmpty) {
-      return;
-    }
+    if (pincode.trim().isEmpty) return;
 
     isCheckingPincode.value = true;
-
     try {
       final response = await ApiService.checkPincode(pincode.trim());
-
       isPincodeServiceable.value = response['is_serviceable'] as bool? ?? false;
-
       pincodeMessage.value = response['message']?.toString() ?? '';
 
       if (isPincodeServiceable.value) {
         deliverToPincode.value = response['pincode']?.toString() ?? pincode;
       }
     } on ApiException catch (e) {
-      debugPrint(
-        '[CategoryProductsController] checkPincode FAILED: '
-        '${e.message}',
-      );
-
       isPincodeServiceable.value = false;
-
       pincodeMessage.value = e.message;
     } catch (e) {
-      debugPrint(
-        '[CategoryProductsController] checkPincode unexpected error: $e',
-      );
-
       isPincodeServiceable.value = false;
-
       pincodeMessage.value = 'Could not check delivery for this pincode.';
     } finally {
       isCheckingPincode.value = false;
@@ -233,31 +191,25 @@ class CategoryProductsController extends GetxController {
   }
 
   // ---------------------------------------------------------------------------
-  // FILTERED PRODUCTS WITH SORTING
+  // FILTERED PRODUCTS / FILTER ACTIONS / SWITCH CATEGORY — unchanged
   // ---------------------------------------------------------------------------
 
   List<CategoryProductItem> get filteredProducts {
     final all = category.value?.products ?? [];
-
-    // Apply filters
     var filtered = all.where((p) {
       if (selectedBrandId.value != null && p.brandId != selectedBrandId.value) {
         return false;
       }
-
       if (selectedType.value.isNotEmpty && p.type != selectedType.value) {
         return false;
       }
-
       if (selectedQuantity.value.isNotEmpty &&
           p.quantity != selectedQuantity.value) {
         return false;
       }
-
       return true;
     }).toList();
 
-    // Apply sorting
     switch (selectedSort.value) {
       case 'price_low_to_high':
         filtered.sort((a, b) => a.price.compareTo(b.price));
@@ -265,35 +217,18 @@ class CategoryProductsController extends GetxController {
       case 'price_high_to_low':
         filtered.sort((a, b) => b.price.compareTo(a.price));
         break;
-      case 'default':
       default:
-        // Keep original order from API
         break;
     }
-
     return filtered;
   }
 
-  // ---------------------------------------------------------------------------
-  // FILTER ACTIONS
-  // ---------------------------------------------------------------------------
-
-  void setBrandFilter(int? brandId) {
-    selectedBrandId.value = brandId;
-  }
-
-  void setTypeFilter(String type) {
-    selectedType.value = selectedType.value == type ? '' : type;
-  }
-
-  void setQuantityFilter(String qty) {
-    selectedQuantity.value = selectedQuantity.value == qty ? '' : qty;
-  }
-
-  // NEW: Set sort option
-  void setSort(String sortOption) {
-    selectedSort.value = sortOption;
-  }
+  void setBrandFilter(int? brandId) => selectedBrandId.value = brandId;
+  void setTypeFilter(String type) =>
+      selectedType.value = selectedType.value == type ? '' : type;
+  void setQuantityFilter(String qty) =>
+      selectedQuantity.value = selectedQuantity.value == qty ? '' : qty;
+  void setSort(String sortOption) => selectedSort.value = sortOption;
 
   void clearFilters() {
     selectedBrandId.value = null;
@@ -301,10 +236,6 @@ class CategoryProductsController extends GetxController {
     selectedQuantity.value = '';
     selectedSort.value = 'default';
   }
-
-  // ---------------------------------------------------------------------------
-  // SWITCH CATEGORY
-  // ---------------------------------------------------------------------------
 
   void switchCategory(BuildContext context, int newCategoryId) {
     Navigator.pushReplacement(

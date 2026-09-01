@@ -15,13 +15,14 @@ import 'package:brikle/HomePage/Controller/search_Provider.dart';
 import 'package:brikle/LoginScreen/View/loginscreen.dart';
 import 'package:brikle/OnboardingScreens/View/onboardingscrenn.dart';
 import 'package:brikle/ProfilePage/View/orderDetailScreen.dart';
-import 'package:brikle/SplashScreen/View/splashscreen.dart';
+// import 'package:brikle/SplashScreen/View/splashscreen.dart';
 import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/View/wishlist_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:upgrader/upgrader.dart';
 
 Future<void> main() async {
@@ -38,21 +39,29 @@ Future<void> main() async {
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
   Get.put(WishlistController(), permanent: true);
-  Get.put(GlobalSearchController(), permanent: true); // was missing permanent: true
-  Get.put(CategoryController(), permanent: true);      // was missing entirely
+  Get.put(
+    GlobalSearchController(),
+    permanent: true,
+  ); // was missing permanent: true
+  Get.put(CategoryController(), permanent: true); // was missing entirely
+  final prefs = await SharedPreferences.getInstance();
+  final seenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
-  runApp(const MyApp());
+  final initialRoute = seenOnboarding ? '/home' : '/onboarding';
+
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
-class MyApp extends StatelessWidget {   
-  const MyApp({super.key});
+class MyApp extends StatelessWidget {
+  final String initialRoute;
 
+  const MyApp({super.key, this.initialRoute = '/onboarding'});
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'Brikle',
       debugShowCheckedModeBanner: false,
-      initialRoute: '/splash',
+      initialRoute: initialRoute,
       builder: (context, child) {
         return UpgradeAlert(
           upgrader: Upgrader(
@@ -64,7 +73,7 @@ class MyApp extends StatelessWidget {
       },
       getPages: [
         // ─── Auth & Onboarding ──────────────────────────────────────────
-        GetPage(name: '/splash', page: () => const SplashView()),
+        // GetPage(name: '/splash', page: () => const SplashView()),
         GetPage(name: '/onboarding', page: () => const OnboardingScreen()),
         GetPage(name: '/login', page: () => const LoginView()),
 

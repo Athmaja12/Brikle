@@ -63,8 +63,59 @@ class LoginView extends GetView<LoginController> {
       // on success, so there's nothing further to do here.
     }
 
+    Future<void> handleGuestContinue() async {
+      // Guard against tapping while a login/Google flow is already
+      // navigating — avoids double navigation or racing with MainScreen push.
+      if (controller.isLoading.value || controller.isGoogleLoading.value) {
+        debugPrint(
+          '[LoginView] Guest tap ignored — another auth flow is in progress',
+        );
+        return;
+      }
+
+      debugPrint('[LoginView] ── Continue as Guest tapped ──');
+
+      if (_isModal) {
+        // Checkout-triggered login: guest can't complete checkout, so just
+        // close the modal without pretending login succeeded.
+        debugPrint('[LoginView] Guest continue in modal flow — popping false');
+        Navigator.pop(context, false);
+        return;
+      }
+
+      if (!Get.isRegistered<HomeController>()) {
+        debugPrint('[LoginView] pre-warming HomeController for guest');
+        Get.put(HomeController());
+      }
+
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const MainScreen(),
+          transitionDuration: const Duration(milliseconds: 120),
+          reverseTransitionDuration: Duration.zero,
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+        (route) => false,
+      );
+
+      debugPrint('[LoginView] ── Continue as Guest COMPLETE ──');
+    }
+
     Future<void> handleGoogleSignIn() async {
+      // Prevent a second tap from starting a duplicate sign-in while one
+      // is already in flight.
+      if (controller.isGoogleLoading.value) {
+        debugPrint(
+          '[LoginView] Google Sign-In already in progress — ignoring tap',
+        );
+        return;
+      }
+
       debugPrint('[LoginView] ── Google Sign-In button tapped ──');
+      controller.isGoogleLoading.value = true;
+
       try {
         debugPrint(
           '[LoginView] Step 1: calling GoogleAuthService.signInWithGoogle()',
@@ -98,10 +149,6 @@ class LoginView extends GetView<LoginController> {
         } else {
           debugPrint('[LoginView] Step 3: navigating to MainScreen');
 
-          // Pre-warm HomeController now, BEFORE MainScreen is built, so its
-          // refresh() starts firing network calls immediately — overlapping
-          // with the route transition instead of only starting once
-          // MainScreen's State is constructed.
           if (!Get.isRegistered<HomeController>()) {
             debugPrint('[LoginView] pre-warming HomeController');
             Get.put(HomeController());
@@ -130,171 +177,229 @@ class LoginView extends GetView<LoginController> {
             backgroundColor: Colors.red,
           ),
         );
+      } finally {
+        // Always clear the flag, whether we succeeded, failed, or the
+        // user cancelled the Google picker — so a retry is always possible.
+        controller.isGoogleLoading.value = false;
       }
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: Responsive.space(context, 48)),
-                  Center(
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'B',
-                            style: AppTextStyles.brikleLogoAccent(context),
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.contentMaxWidth(context),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(height: Responsive.space(context, 48)),
+                      Center(
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'B',
+                                style: AppTextStyles.brikleLogoAccent(context),
+                              ),
+                              TextSpan(
+                                text: 'rikle',
+                                style: AppTextStyles.brikleLogoDark(context),
+                              ),
+                            ],
                           ),
-                          TextSpan(
-                            text: 'rikle',
-                            style: AppTextStyles.brikleLogoDark(context),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  SizedBox(height: Responsive.space(context, 32)),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.space(context, 24),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          checkoutReason ?? 'Welcome Back',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.welcomeBackTitle(context),
+                      SizedBox(height: Responsive.space(context, 32)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: Responsive.space(context, 24),
                         ),
-                        SizedBox(height: Responsive.space(context, 6)),
-                        Text(
-                          _isModal
-                              ? "You're almost there — just log in to continue."
-                              : 'Sign in to manage your construction materials.',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.loginSubtitleCentered(context),
-                        ),
-                        SizedBox(height: Responsive.space(context, 32)),
-
-                        Obx(
-                          () => MergedPhoneField(
-                            selectedCode: controller.countryCode.value,
-                            phoneController: controller.phoneController,
-                            isValid: controller.isPhoneValid.value,
-                            errorText: 'Enter a valid 10-digit phone number',
-                            onCodeChanged: controller.onCountryCodeChanged,
-                            onPhoneChanged: controller.onPhoneChanged,
-                          ),
-                        ),
-                        SizedBox(height: Responsive.space(context, 24)),
-
-                        Obx(
-                          () => CustomButton(
-                            label: 'Login',
-                            isLoading: controller.isLoading.value,
-                            onPressed: handleLogin,
-                          ),
-                        ),
-
-                        SizedBox(height: Responsive.space(context, 20)),
-
-                        Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            const Expanded(child: Divider()),
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: Responsive.space(context, 12),
-                              ),
-                              child: Text(
-                                'OR',
-                                style: AppTextStyles.termsText(context),
+                            Text(
+                              checkoutReason ?? 'Welcome Back',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.welcomeBackTitle(context),
+                            ),
+                            SizedBox(height: Responsive.space(context, 6)),
+                            Text(
+                              _isModal
+                                  ? "You're almost there — just log in to continue."
+                                  : 'Sign in to manage your construction materials.',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.loginSubtitleCentered(
+                                context,
                               ),
                             ),
-                            const Expanded(child: Divider()),
-                          ],
-                        ),
+                            SizedBox(height: Responsive.space(context, 32)),
 
-                        SizedBox(height: Responsive.space(context, 20)),
-
-                        SizedBox(
-                          width: double.infinity,
-                          height: Responsive.space(context, 52),
-                          child: OutlinedButton(
-                            onPressed: handleGoogleSignIn,
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: AppColors.inputBorder),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                            Obx(
+                              () => MergedPhoneField(
+                                selectedCode: controller.countryCode.value,
+                                phoneController: controller.phoneController,
+                                isValid: controller.isPhoneValid.value,
+                                errorText:
+                                    'Enter a valid 10-digit phone number',
+                                onCodeChanged: controller.onCountryCodeChanged,
+                                onPhoneChanged: controller.onPhoneChanged,
                               ),
-                              backgroundColor: Colors.white,
                             ),
-                            child: Row(
+                            SizedBox(height: Responsive.space(context, 24)),
+
+                            Obx(
+                              () => CustomButton(
+                                label: 'Login',
+                                isLoading: controller.isLoading.value,
+                                onPressed: handleLogin,
+                              ),
+                            ),
+
+                            SizedBox(height: Responsive.space(context, 20)),
+
+                            Row(
+                              children: [
+                                const Expanded(child: Divider()),
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: Responsive.space(context, 12),
+                                  ),
+                                  child: Text(
+                                    'OR',
+                                    style: AppTextStyles.termsText(context),
+                                  ),
+                                ),
+                                const Expanded(child: Divider()),
+                              ],
+                            ),
+
+                            SizedBox(height: Responsive.space(context, 20)),
+
+                            Obx(
+                              () => SizedBox(
+                                width: double.infinity,
+                                height: Responsive.space(context, 52),
+                                child: OutlinedButton(
+                                  onPressed: controller.isGoogleLoading.value
+                                      ? null
+                                      : handleGoogleSignIn,
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: AppColors.inputBorder,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    backgroundColor: Colors.white,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _GoogleLogo(
+                                        size: Responsive.space(context, 22),
+                                      ),
+                                      SizedBox(
+                                        width: Responsive.space(context, 12),
+                                      ),
+                                      Text(
+                                        'Continue with Google',
+                                        style: TextStyle(
+                                          fontSize: Responsive.space(
+                                            context,
+                                            15,
+                                          ),
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF3C3C3C),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: Responsive.space(context, 16)),
+                            SizedBox(height: Responsive.space(context, 24)),
+
+                            Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _GoogleLogo(
-                                  size: Responsive.space(context, 22),
-                                ),
-                                SizedBox(width: Responsive.space(context, 12)),
                                 Text(
-                                  'Continue with Google',
-                                  style: TextStyle(
-                                    fontSize: Responsive.space(context, 15),
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF3C3C3C),
+                                  "Don't have an account?  ",
+                                  style: AppTextStyles.termsText(context),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            SignupView(isModal: _isModal),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'Register',
+                                    style: AppTextStyles.linkText(context),
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
 
-                        SizedBox(height: Responsive.space(context, 16)),
-                        SizedBox(height: Responsive.space(context, 24)),
+                            SizedBox(height: Responsive.space(context, 16)),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Don't have an account?  ",
-                              style: AppTextStyles.termsText(context),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        SignupView(isModal: _isModal),
+                            // NEW: Continue as Guest
+                            Obx(
+                              () => Center(
+                                child: GestureDetector(
+                                  onTap:
+                                      (controller.isLoading.value ||
+                                          controller.isGoogleLoading.value)
+                                      ? null
+                                      : handleGuestContinue,
+                                  child: Text(
+                                    'Continue as Guest',
+                                    style: AppTextStyles.linkText(context)
+                                        .copyWith(
+                                          color: AppColors.primaryGreen,
+                                          decoration: TextDecoration.underline,
+                                        ),
                                   ),
-                                );
-                              },
-                              child: Text(
-                                'Register',
-                                style: AppTextStyles.linkText(context),
+                                ),
                               ),
                             ),
+
+                            SizedBox(height: Responsive.space(context, 24)),
                           ],
                         ),
-
-                        SizedBox(height: Responsive.space(context, 24)),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
+
+        // Simple full-screen loading overlay for Google Sign-In.
+        Obx(() {
+          if (!controller.isGoogleLoading.value) return const SizedBox.shrink();
+          return Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.35),
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

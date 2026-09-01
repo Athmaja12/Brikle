@@ -5,7 +5,8 @@ import 'package:brikle/main.dart';
 
 void main() {
   testWidgets('App boots without crashing', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(initialRoute: '/onboarding'));
+
     await tester.pump();
 
     expect(find.byType(MaterialApp), findsOneWidget);

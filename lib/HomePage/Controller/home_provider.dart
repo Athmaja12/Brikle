@@ -130,7 +130,7 @@ class HomeController extends GetxController {
       // PROFILE + BEST SELLING
       // -----------------------------------------------------------------------
       // Profile is authenticated only. Bestselling depends on categories
-      // being loaded above. Both are independent of each other, so run
+      // being loaded above. Both are indepe ndent of each other, so run
       // them together as well.
       // -----------------------------------------------------------------------
       final int? bestsellingCategoryId =

@@ -18,6 +18,12 @@ class ProfileView extends StatefulWidget {
 class _ProfileViewState extends State<ProfileView> {
   late final ProfileController _ctrl = Get.put(ProfileController());
   bool _notificationsOn = true;
+  Future<void> _openLogin() async {
+    await Get.toNamed('/login');
+
+    // Refresh authentication state when returning from Login.
+    await _ctrl.refreshAuthState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,15 +53,36 @@ class _ProfileViewState extends State<ProfileView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHeader(context),
+                        Obx(
+                          () => !_ctrl.isLoggedIn.value
+                              ? Column(
+                                  children: [
+                                    SizedBox(
+                                      height: Responsive.space(context, 16),
+                                    ),
+                                    _buildGuestLoginBanner(context),
+                                  ],
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildTotalSavedCard(context),
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildQuickActions(context),
                         SizedBox(height: Responsive.space(context, 20)),
                         _buildDeliveryAddress(context),
-                        SizedBox(height: Responsive.space(context, 20)),
-                        _buildAppSettings(context),
-
+                        Obx(
+                          () => _ctrl.isLoggedIn.value
+                              ? Column(
+                                  children: [
+                                    SizedBox(
+                                      height: Responsive.space(context, 20),
+                                    ),
+                                    _buildAppSettings(context),
+                                  ],
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                         SizedBox(height: Responsive.space(context, 20)),
                       ],
                     ),
@@ -75,6 +102,13 @@ class _ProfileViewState extends State<ProfileView> {
   // their data may have changed outside the app (e.g. admin edits).
   // OTP/Google accounts still refresh, but don't block the tap on it. ──────
   Future<void> _onProfileIconTap(BuildContext context) async {
+    // Guests have no profile to show — send them to login instead of
+    // fetching/opening a dialog with nothing in it.
+    if (!_ctrl.isLoggedIn.value) {
+      await _openLogin();
+      return;
+    }
+
     if (_ctrl.isManualEntry) {
       // Manual entry: block briefly and guarantee freshest data before
       // the dialog opens.
@@ -90,141 +124,180 @@ class _ProfileViewState extends State<ProfileView> {
 
   // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: () => _onProfileIconTap(context),
-          child: Container(
-            width: Responsive.space(context, 52),
-            height: Responsive.space(context, 52),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              _initials(_ctrl.fullName),
-              style: GoogleFonts.manrope(
-                fontSize: Responsive.font(context, 18),
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+    return Obx(() {
+      final loggedIn = _ctrl.isLoggedIn.value;
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => _onProfileIconTap(context),
+            child: Container(
+              width: Responsive.space(context, 52),
+              height: Responsive.space(context, 52),
+              decoration: const BoxDecoration(
+                color: AppColors.primaryGreen,
+                shape: BoxShape.circle,
               ),
+              alignment: Alignment.center,
+              child: loggedIn
+                  ? Text(
+                      _initials(_ctrl.fullName),
+                      style: GoogleFonts.manrope(
+                        fontSize: Responsive.font(context, 18),
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(
+                      Icons.person_outline_rounded,
+                      color: Colors.white,
+                      size: Responsive.space(context, 26),
+                    ),
             ),
           ),
-        ),
 
-        SizedBox(width: Responsive.space(context, 12)),
+          SizedBox(width: Responsive.space(context, 12)),
 
-        Expanded(
-          child: GestureDetector(
-            onTap: () => _onProfileIconTap(context),
-            behavior: HitTestBehavior.opaque,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        _ctrl.fullName.isNotEmpty ? _ctrl.fullName : '—',
-                        style: GoogleFonts.manrope(
-                          fontSize: Responsive.font(context, 20),
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.inputText,
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _onProfileIconTap(context),
+              behavior: HitTestBehavior.opaque,
+              child: loggedIn
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _ctrl.fullName.isNotEmpty
+                                    ? _ctrl.fullName
+                                    : '—',
+                                style: GoogleFonts.manrope(
+                                  fontSize: Responsive.font(context, 20),
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.inputText,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (_ctrl.isVerified) ...[
+                              SizedBox(width: Responsive.space(context, 6)),
+                              Icon(
+                                Icons.verified_rounded,
+                                color: AppColors.primaryGreen,
+                                size: Responsive.space(context, 16),
+                              ),
+                            ],
+                          ],
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (_ctrl.isVerified) ...[
-                      SizedBox(width: Responsive.space(context, 6)),
-                      Icon(
-                        Icons.verified_rounded,
-                        color: AppColors.primaryGreen,
-                        size: Responsive.space(context, 16),
-                      ),
-                    ],
-                  ],
-                ),
 
-                SizedBox(height: Responsive.space(context, 4)),
+                        SizedBox(height: Responsive.space(context, 4)),
 
-                Row(
-                  children: [
-                    Icon(
-                      Icons.phone_outlined,
-                      size: Responsive.space(context, 14),
-                      color: AppColors.textGray,
-                    ),
-                    SizedBox(width: Responsive.space(context, 6)),
-                    Text(
-                      _ctrl.displayPhoneNumber.isNotEmpty
-                          ? _ctrl.displayPhoneNumber
-                          : '—',
-                      style: GoogleFonts.manrope(
-                        fontSize: Responsive.font(context, 13),
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.textGray,
-                      ),
-                    ),
-                  ],
-                ),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.phone_outlined,
+                              size: Responsive.space(context, 14),
+                              color: AppColors.textGray,
+                            ),
+                            SizedBox(width: Responsive.space(context, 6)),
+                            Text(
+                              _ctrl.displayPhoneNumber.isNotEmpty
+                                  ? _ctrl.displayPhoneNumber
+                                  : '—',
+                              style: GoogleFonts.manrope(
+                                fontSize: Responsive.font(context, 13),
+                                fontWeight: FontWeight.w400,
+                                color: AppColors.textGray,
+                              ),
+                            ),
+                          ],
+                        ),
 
-                if (_ctrl.email.isNotEmpty) ...[
-                  SizedBox(height: Responsive.space(context, 2)),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.mail_outline_rounded,
-                        size: Responsive.space(context, 14),
-                        color: AppColors.textGray,
-                      ),
-                      SizedBox(width: Responsive.space(context, 6)),
-                      Flexible(
-                        child: Text(
-                          _ctrl.email,
+                        if (_ctrl.email.isNotEmpty) ...[
+                          SizedBox(height: Responsive.space(context, 2)),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.mail_outline_rounded,
+                                size: Responsive.space(context, 14),
+                                color: AppColors.textGray,
+                              ),
+                              SizedBox(width: Responsive.space(context, 6)),
+                              Flexible(
+                                child: Text(
+                                  _ctrl.email,
+                                  style: GoogleFonts.manrope(
+                                    fontSize: Responsive.font(context, 13),
+                                    fontWeight: FontWeight.w400,
+                                    color: AppColors.textGray,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    )
+                  // ── Guest state: no fake "—" placeholders, just a clear
+                  // prompt that this is where the account will show up. ────
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Guest',
+                          style: GoogleFonts.manrope(
+                            fontSize: Responsive.font(context, 20),
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.inputText,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.space(context, 4)),
+                        Text(
+                          'Tap to log in',
                           style: GoogleFonts.manrope(
                             fontSize: Responsive.font(context, 13),
                             fontWeight: FontWeight.w400,
                             color: AppColors.textGray,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        // ── Delete Account: minimal icon at top-right ─────────────────────
-        Obx(
-          () => GestureDetector(
-            onTap: _ctrl.isDeleting.value ? null : _ctrl.deleteAccount,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8, top: 4),
-              child: _ctrl.isDeleting.value
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.errorRed,
-                      ),
-                    )
-                  : Icon(
-                      Icons.delete_outline_rounded,
-                      size: 19,
-                      color: AppColors.errorRed.withValues(alpha: 0.55),
+                      ],
                     ),
             ),
           ),
-        ),
-      ],
-    );
+
+          // ── Delete Account: only meaningful for a logged-in account,
+          // so it no longer shows for guests. ─────────────────────────────
+          if (loggedIn)
+            Obx(
+              () => GestureDetector(
+                onTap: _ctrl.isDeleting.value ? null : _ctrl.deleteAccount,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 4),
+                  child: _ctrl.isDeleting.value
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.errorRed,
+                          ),
+                        )
+                      : Icon(
+                          Icons.delete_outline_rounded,
+                          size: 19,
+                          color: AppColors.errorRed.withValues(alpha: 0.55),
+                        ),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
   }
 
   String _formatCurrency(double amount) {
@@ -627,17 +700,6 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
               ),
             ),
-            // GestureDetector(
-            //   onTap: () => _showManageAddressesDialog(context),
-            //   child: Text(
-            //     'Manage',
-            //     style: GoogleFonts.manrope(
-            //       fontSize: Responsive.font(context, 13),
-            //       fontWeight: FontWeight.w600,
-            //       color: AppColors.primaryGreen,
-            //     ),
-            //   ),
-            // ),
           ],
         ),
         SizedBox(height: Responsive.space(context, 10)),
@@ -722,7 +784,9 @@ class _ProfileViewState extends State<ProfileView> {
                         ),
                 ),
                 GestureDetector(
-                  onTap: () => _showManageAddressesDialog(context),
+                  onTap: () => _ctrl.isLoggedIn.value
+                      ? _showManageAddressesDialog(context)
+                      : _openLogin(),
                   child: Icon(
                     Icons.edit_outlined,
                     size: Responsive.space(context, 18),
@@ -1173,6 +1237,12 @@ class _ProfileViewState extends State<ProfileView> {
   }
 
   // ── App Settings ────────────────────────────────────────────────────────────
+  // Only rendered for logged-in users now (the caller in build() gates on
+  // _ctrl.isLoggedIn). This card previously showed for guests too, but with
+  // only the Logout row inside — which hid itself via Obx while leaving an
+  // orphaned Divider and an empty white card behind. Now the Divider and
+  // Logout row are kept together, and the whole card just doesn't build at
+  // all for a guest.
   Widget _buildAppSettings(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1192,78 +1262,32 @@ class _ProfileViewState extends State<ProfileView> {
             borderRadius: BorderRadius.circular(Responsive.space(context, 12)),
             border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
-          child: Column(
-            children: [
-              // _settingsRow(
-              //   context,
-              //   icon: Icons.notifications_outlined,
-              //   label: 'Notifications',
-              //   trailing: GestureDetector(
-              //     onTap: () =>
-              //         setState(() => _notificationsOn = !_notificationsOn),
-              //     child: Text(
-              //       _notificationsOn ? 'On' : 'Off',
-              //       style: GoogleFonts.manrope(
-              //         fontSize: Responsive.font(context, 13),
-              //         fontWeight: FontWeight.w500,
-              //         color: _notificationsOn
-              //             ? AppColors.primaryGreen
-              //             : AppColors.textGray,
-              //       ),
-              //     ),
-              //   ),
-              // ),
-              // Divider(
-              //   height: 1,
-              //   indent: Responsive.space(context, 50),
-              //   color: const Color(0xFFE5E7EB),
-              // ),
-              // _settingsRow(
-              //   context,
-              //   icon: Icons.translate_outlined,
-              //   label: 'Language',
-              //   trailing: Text(
-              //     'English',
-              //     style: GoogleFonts.manrope(
-              //       fontSize: Responsive.font(context, 13),
-              //       fontWeight: FontWeight.w500,
-              //       color: AppColors.primaryGreen,
-              //     ),
-              //   ),
-              // ),
-              Divider(
-                height: 1,
-                indent: Responsive.space(context, 50),
-                color: const Color(0xFFE5E7EB),
-              ),
-              Obx(
-                () => _settingsRow(
-                  context,
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  trailing: _ctrl.isLoading.value
-                      ? SizedBox(
-                          width: Responsive.space(context, 16),
-                          height: Responsive.space(context, 16),
-                          child: const CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primaryGreen,
-                          ),
-                        )
-                      : GestureDetector(
-                          onTap: _ctrl.logout,
-                          child: Text(
-                            'Logout',
-                            style: GoogleFonts.manrope(
-                              fontSize: Responsive.font(context, 13),
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.primaryGreen,
-                            ),
-                          ),
+          child: Obx(
+            () => _settingsRow(
+              context,
+              icon: Icons.logout,
+              label: 'Logout',
+              trailing: _ctrl.isLoading.value
+                  ? SizedBox(
+                      width: Responsive.space(context, 16),
+                      height: Responsive.space(context, 16),
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryGreen,
+                      ),
+                    )
+                  : GestureDetector(
+                      onTap: _ctrl.logout,
+                      child: Text(
+                        'Logout',
+                        style: GoogleFonts.manrope(
+                          fontSize: Responsive.font(context, 13),
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.primaryGreen,
                         ),
-                ),
-              ),
-            ],
+                      ),
+                    ),
+            ),
           ),
         ),
       ],
@@ -1305,52 +1329,6 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  // // ── Delete Account ──────────────────────────────────────────────────────────
-  // Widget _buildDeleteAccount(BuildContext context) {
-  //   return Obx(
-  //     () => Center(
-  //       child: GestureDetector(
-  //         onTap: _ctrl.isDeleting.value ? null : _ctrl.deleteAccount,
-  //         behavior: HitTestBehavior.opaque,
-  //         child: Padding(
-  //           padding: EdgeInsets.symmetric(
-  //             vertical: Responsive.space(context, 8),
-  //             horizontal: Responsive.space(context, 12),
-  //           ),
-  //           child: _ctrl.isDeleting.value
-  //               ? SizedBox(
-  //                   height: Responsive.space(context, 18),
-  //                   width: Responsive.space(context, 18),
-  //                   child: const CircularProgressIndicator(
-  //                     strokeWidth: 2,
-  //                     color: AppColors.errorRed,
-  //                   ),
-  //                 )
-  //               : Row(
-  //                   mainAxisSize: MainAxisSize.min,
-  //                   children: [
-  //                     Icon(
-  //                       Icons.delete_outline_rounded,
-  //                       size: Responsive.space(context, 16),
-  //                       color: AppColors.errorRed.withValues(alpha: 0.75),
-  //                     ),
-  //                     SizedBox(width: Responsive.space(context, 6)),
-  //                     Text(
-  //                       'Delete Account',
-  //                       style: GoogleFonts.manrope(
-  //                         fontSize: Responsive.font(context, 12),
-  //                         fontWeight: FontWeight.w500,
-  //                         color: AppColors.errorRed.withValues(alpha: 0.75),
-  //                       ),
-  //                     ),
-  //                   ],
-  //                 ),
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
-
   // ── Edit Profile Sheet ──────────────────────────────────────────────────────
   // Covers every field the backend's PATCH /api/customer-profile/ accepts:
   // full_name, email, phone_number (conditionally), address, pincode,
@@ -1361,6 +1339,11 @@ class _ProfileViewState extends State<ProfileView> {
   //  - Logged in via mail/Google → phone shown editable (can add one).
   //  - Account type stays editable in all cases.
   void _showEditProfileSheet() {
+    if (!_ctrl.isLoggedIn.value) {
+      _openLogin();
+      return;
+    }
+
     final p = _ctrl.profile.value;
     final nameCtrl = TextEditingController(text: p.fullName);
     final emailCtrl = TextEditingController(text: p.email ?? '');
@@ -1428,7 +1411,6 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
                 const SizedBox(height: 14),
 
-                // ── Phone Number: gated by registration type ────────────────
                 // ── Phone Number: gated by registration type ────────────────
                 if (_ctrl.canEditPhoneNumber) ...[
                   _sheetLabeledField(
@@ -1737,45 +1719,61 @@ class _ProfileViewState extends State<ProfileView> {
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
+
+  Widget _buildGuestLoginBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.space(context, 16),
+        vertical: Responsive.space(context, 18),
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.space(context, 12)),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Log in to get exclusive offers',
+              style: GoogleFonts.manrope(
+                fontSize: Responsive.font(context, 16),
+                fontWeight: FontWeight.w500,
+                color: AppColors.inputText,
+              ),
+            ),
+          ),
+
+          SizedBox(width: Responsive.space(context, 12)),
+
+          SizedBox(
+            width: Responsive.space(context, 90),
+            height: Responsive.space(context, 44),
+            child: ElevatedButton(
+              onPressed: _openLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    Responsive.space(context, 6),
+                  ),
+                ),
+              ),
+              child: Text(
+                'Log In',
+                style: GoogleFonts.manrope(
+                  fontSize: Responsive.font(context, 14),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
-
-// class _AccountTypeChip extends StatelessWidget {
-//   final String label;
-//   final bool selected;
-//   final VoidCallback onTap;
-
-//   const _AccountTypeChip({
-//     required this.label,
-//     required this.selected,
-//     required this.onTap,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return GestureDetector(
-//       onTap: onTap,
-//       child: AnimatedContainer(
-//         duration: const Duration(milliseconds: 150),
-//         height: Responsive.height(context, 40),
-//         padding: const EdgeInsets.symmetric(horizontal: 16),
-//         alignment: Alignment.center,
-//         decoration: BoxDecoration(
-//           color: selected ? AppColors.primaryGreen : Colors.white,
-//           borderRadius: BorderRadius.circular(12),
-//           border: Border.all(
-//             color: selected ? AppColors.primaryGreen : const Color(0xFFE5E7EB),
-//             width: selected ? 1.4 : 1,
-//           ),
-//         ),
-//         child: Text(
-//           label,
-//           style: GoogleFonts.manrope(
-//             fontSize: Responsive.font(context, 13),
-//             fontWeight: FontWeight.w600,
-//             color: selected ? Colors.white : AppColors.inputText,
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }

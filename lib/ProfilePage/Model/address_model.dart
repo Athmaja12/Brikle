@@ -61,25 +61,23 @@ class DeliveryAddressModel {
 class ShareCouponResponse {
   final bool success;
   final String message;
-  final String? whatsappLink;
+  final String? whatsappLink;      // NEW
+  final bool isRegisteredUser;     // NEW
 
-  ShareCouponResponse({
+  const ShareCouponResponse({
     required this.success,
     required this.message,
     this.whatsappLink,
+    this.isRegisteredUser = false,
   });
 
   factory ShareCouponResponse.fromJson(Map<String, dynamic> json) {
     return ShareCouponResponse(
-      success: json['success'] ?? false,
+      success: json['success'] == true,
       message: json['message']?.toString() ?? '',
-      whatsappLink: json['whatsapp_link']?.toString(), // ← ADD THIS LINE
+      whatsappLink: json['whatsapp_link']?.toString(),
+      isRegisteredUser: json['is_registered_user'] == true,
     );
   }
-
-  Map<String, dynamic> toJson() => {
-    'success': success,
-    'message': message,
-    'whatsapp_link': whatsappLink,
-  };
 }
+
