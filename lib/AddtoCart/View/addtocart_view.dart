@@ -1707,53 +1707,69 @@ class _BillDetailsCard extends StatelessWidget {
             ),
           ),
           Obx(() {
-            if (!controller.billDetailsExpanded.value) {
+            if (!controller.billDetailsExpanded.value)
               return const SizedBox.shrink();
-            }
+
+            final checkout = controller.checkoutResponse.value;
+            final subTotal =
+                checkout?.paymentSummary.itemsTotalWithGst ??
+                controller.subTotal;
+            final couponDiscount = checkout?.paymentSummary.couponDiscount ?? 0;
+            final gstTax = checkout?.paymentSummary.totalGstTax;
+            final deliveryCharge = checkout?.paymentSummary.deliveryCharge ?? 0;
+            final total =
+                checkout?.paymentSummary.grandTotal ?? controller.total;
+
+            // 🔎 DEBUG — mirrors the controller log, but from the UI's read of the
+            // reactive value, so a stale/late rebuild would show up as a mismatch
+            // between this line and the one printed in processCheckout()
+            debugPrint(
+              '[BillDetailsCard] 🖼️ rendering => subTotal=$subTotal, '
+              'gstTax=$gstTax, couponDiscount=$couponDiscount, '
+              'deliveryCharge=$deliveryCharge, total=$total, '
+              'hasCheckoutResponse=${checkout != null}, '
+              'localFallbackSubTotal=${controller.subTotal}, '
+              'localFallbackTotal=${controller.total}',
+            );
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Divider(height: 24),
                 _BillRow(
                   label: 'Sub Total (Inclusive of GST)',
-                  value:
-                      '₹${controller.subTotal.toStringAsFixed(2)}', // Changed to 2
+                  value: '₹${subTotal.toStringAsFixed(2)}',
                 ),
+                // if (gstTax != null)
+                //   _BillRow(
+                //     label: 'GST',
+                //     value: '₹${gstTax.toStringAsFixed(2)}',
+                //   ),
                 _BillRow(
                   label: 'Discount',
-                  value:
-                      '₹${CartController.staticDiscount.toStringAsFixed(2)}', // Changed to 2
+                  value: couponDiscount > 0
+                      ? '-₹${couponDiscount.toStringAsFixed(2)}'
+                      : '₹0.00',
+                  valueColor: couponDiscount > 0
+                      ? AppColors.primaryGreen
+                      : null,
                 ),
-                Obx(() {
-                  final checkout = controller.checkoutResponse.value;
-                  final deliveryCharge =
-                      checkout?.paymentSummary.deliveryCharge ?? 0;
-                  return _BillRow(
-                    label: 'Delivery Charge',
-                    value: deliveryCharge > 0
-                        ? '₹${deliveryCharge.toStringAsFixed(2)}' // Changed to 2
-                        : 'FREE',
-                    valueColor: deliveryCharge > 0
-                        ? null
-                        : AppColors.primaryGreen,
-                  );
-                }),
                 _BillRow(
-                  label: 'Handling Charge',
-                  value:
-                      '₹${CartController.staticHandlingCharge.toStringAsFixed(2)}', // Changed to 2
+                  label: 'Delivery Charge',
+                  value: deliveryCharge > 0
+                      ? '₹${deliveryCharge.toStringAsFixed(2)}'
+                      : '₹0.00',
+                  valueColor: deliveryCharge > 0
+                      ? null
+                      : AppColors.primaryGreen,
                 ),
+
                 const Divider(height: 24),
-                Obx(() {
-                  final checkout = controller.checkoutResponse.value;
-                  final total =
-                      checkout?.paymentSummary.grandTotal ?? controller.total;
-                  return _BillRow(
-                    label: 'Total',
-                    value: '₹${total.toStringAsFixed(2)}', // Changed to 2
-                    bold: true,
-                  );
-                }),
+                _BillRow(
+                  label: 'Total',
+                  value: '₹${total.toStringAsFixed(2)}',
+                  bold: true,
+                ),
               ],
             );
           }),
@@ -1877,7 +1893,9 @@ class _PaymentMethodSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: CartScreen.paymentMethodKey,
+      // key removed here — the outer widget already carries
+      // CartScreen.paymentMethodKey via its constructor's `key` param,
+      // and GlobalKeys must only ever appear on ONE widget in the tree.
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),

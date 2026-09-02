@@ -13,6 +13,7 @@ import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
+
 class ProductDetailScreen extends StatelessWidget {
   final CategoryProductItem? product;
   final double? originalPrice;
@@ -33,7 +34,7 @@ class ProductDetailScreen extends StatelessWidget {
     final args = Get.arguments as Map<String, dynamic>?;
     final variantIdFromArgs = args?['variantId'] as int?;
     final effectiveVariantId = variantId ?? variantIdFromArgs;
-    
+
     // If we don't have a product but have variantId, fetch product details
     if (product == null && effectiveVariantId != null) {
       // You can fetch product details here using the variantId
@@ -58,18 +59,38 @@ class ProductDetailScreen extends StatelessWidget {
 
     // If we have a product, use it
     if (product != null) {
+      // FIX: variantId is 0 for every "Suggested for you" placeholder
+      // (it's only resolved after the material loads), so tagging by
+      // variantId alone collapsed every suggestion onto the same
+      // "product_detail_0" GetX instance — Get.put() doesn't overwrite
+      // an existing tag, so the first suggestion opened would silently
+      // "win" and get shown for every subsequent suggestion tapped.
+      //
+      // materialId is always unique and always correct (it's what the
+      // API call actually fetches by), so combine both into the tag.
+      final controllerTag =
+          'product_detail_${product!.materialId}_${product!.variantId}';
+
+      // Also force a fresh controller instance for this tag every time
+      // the screen opens, rather than trusting whatever GetX already
+      // has registered — protects against stale data if the same
+      // product is revisited with different placeholder data (e.g. a
+      // suggestion resolves to a real variantId after its first visit).
+      if (Get.isRegistered<ProductDetailController>(tag: controllerTag)) {
+        Get.delete<ProductDetailController>(tag: controllerTag, force: true);
+      }
+
       final controller = Get.put(
         ProductDetailController(
           product: product!,
           originalPrice: originalPrice,
           discountPercent: discountPercent,
         ),
-        tag: 'product_detail_${product!.variantId}',
+        tag: controllerTag,
       );
 
       return _buildProductDetail(context, controller);
     }
-
     // Fallback: show empty state
     return Scaffold(
       backgroundColor: Colors.white,
@@ -77,11 +98,7 @@ class ProductDetailScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.grey,
-            ),
+            const Icon(Icons.error_outline, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
             Text(
               'Product not found',
@@ -97,7 +114,10 @@ class ProductDetailScreen extends StatelessWidget {
               onPressed: () => Get.back(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryGreen,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -116,7 +136,10 @@ class ProductDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProductDetail(BuildContext context, ProductDetailController controller) {
+  Widget _buildProductDetail(
+    BuildContext context,
+    ProductDetailController controller,
+  ) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Obx(() {
@@ -141,11 +164,13 @@ class ProductDetailScreen extends StatelessWidget {
                           style: AppTextStyles.termsText(context),
                         ),
                       SizedBox(height: Responsive.space(context, 4)),
-                      Text(
-                        controller.product.name,
-                        style: AppTextStyles.welcomeBackTitle(
-                          context,
-                        ).copyWith(fontSize: 18),
+                      Obx(
+                        () => Text(
+                          controller.activeProduct.value.name,
+                          style: AppTextStyles.welcomeBackTitle(
+                            context,
+                          ).copyWith(fontSize: 18),
+                        ),
                       ),
 
                       SizedBox(height: Responsive.space(context, 8)),
@@ -155,7 +180,7 @@ class ProductDetailScreen extends StatelessWidget {
                         final hasOffer = controller.hasOffer;
                         final displayPrice = hasOffer
                             ? controller.discountedPrice
-                            : controller.product.price;
+                            : controller.activeProduct.value.price;
                         final originalPriceValue = hasOffer
                             ? controller.originalPriceValue
                             : null;
@@ -260,14 +285,21 @@ class ProductDetailScreen extends StatelessWidget {
                         );
                       }),
 
-                      if (controller.product.hasTiers &&
-                          controller.product.priceTiers.isNotEmpty) ...[
-                        SizedBox(height: Responsive.space(context, 10)),
-                        _BulkPricingCard(
-                          product: controller.product,
-                          controller: controller,
-                        ),
-                      ],
+                      Obx(() {
+                        final active = controller.activeProduct.value;
+                        if (!active.hasTiers || active.priceTiers.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            top: Responsive.space(context, 10),
+                          ),
+                          child: _BulkPricingCard(
+                            product: active,
+                            controller: controller,
+                          ),
+                        );
+                      }),
 
                       SizedBox(height: Responsive.space(context, 4)),
                       Text(

@@ -25,7 +25,8 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _alternativePhoneController = TextEditingController(); // NEW
+  final TextEditingController _alternativePhoneController =
+      TextEditingController(); // NEW
 
   bool _isPincodeValid = false;
   bool _isCheckingPincode = false;
@@ -341,6 +342,8 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
         deliveryDate: dateString,
         deliveryTime: timeString,
         couponId: widget.controller.selectedCoupon.value?.id,
+        vehicleId: (_selectedVehicle ?? widget.controller.selectedVehicle.value)
+            ?.id, // NEW
       );
 
       if (checkoutResult == null) {
@@ -474,13 +477,15 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
     try {
       // Get the alternative phone number (if entered)
       final alternativePhone = _alternativePhoneController.text.trim();
-      
+
       final orderResult = await widget.controller.placeOrder(
         shippingAddress: address.address,
         pincode: address.pincode,
         deliveryDate: dateString,
         deliveryTime: timeString,
-        alternativePhoneNumber: alternativePhone.isNotEmpty ? alternativePhone : null,
+        alternativePhoneNumber: alternativePhone.isNotEmpty
+            ? alternativePhone
+            : null,
       );
 
       Get.back();
@@ -507,7 +512,14 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
   }
 
   Future<bool> _showDeliveryChargeBreakdown(CheckoutResponse response) async {
-    final config = response.deliveryConfig;
+    // NOTE: the backend currently does NOT return a "delivery_config" object
+    // in the /api/checkout/ response (confirmed via debug logging —
+    // has "delivery_config" key=false). Reading response.deliveryConfig.*
+    // here was silently showing 0.0 km / 0 km rows for data that was never
+    // sent. Until the backend adds that field, this dialog only shows what
+    // the server actually returns: scheduled delivery + the real charge.
+
+    final deliveryCharge = response.paymentSummary.deliveryCharge;
 
     final result = await Get.dialog<bool>(
       barrierDismissible: false,
@@ -540,7 +552,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
 
               const SizedBox(height: 24),
 
-              /// Details Card
+              /// Details Card — only shows fields the backend actually sends
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -552,35 +564,16 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                   children: [
                     _buildChargeRow(
                       "Scheduled Delivery",
-                      "${response.scheduledDeliveryDate} • ${response.scheduledDeliveryTime}",
+                      "${response.scheduledDeliveryDate} ${response.scheduledDeliveryTime}",
                     ),
 
                     const Divider(height: 26),
 
                     _buildChargeRow(
-                      "Delivery Distance",
-                      "${config.totalDistanceKm.toStringAsFixed(1)} km",
-                    ),
-
-                    const Divider(height: 26),
-
-                    _buildChargeRow(
-                      "Free Distance",
-                      "${config.freeDistanceLimitKm} km",
-                    ),
-
-                    const Divider(height: 26),
-
-                    _buildChargeRow(
-                      "Additional Distance",
-                      "${config.extraDistance.toStringAsFixed(1)} km",
-                    ),
-
-                    const Divider(height: 26),
-
-                    _buildChargeRow(
-                      "Rate",
-                      "₹${config.chargePerExtraKm.toStringAsFixed(0)} / km",
+                      "Delivery Charge",
+                      deliveryCharge > 0
+                          ? "₹${deliveryCharge.toStringAsFixed(2)}"
+                          : "0.00",
                     ),
                   ],
                 ),
@@ -868,7 +861,7 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
               ),
               keyboardType: TextInputType.emailAddress,
             ),
-            
+
             // NEW: Alternative Phone Number Field
             SizedBox(height: Responsive.space(context, 12)),
             TextField(
@@ -880,7 +873,13 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
               ),
               keyboardType: TextInputType.phone,
               maxLength: 10,
-              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+              buildCounter:
+                  (
+                    _, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) => null,
             ),
 
             SizedBox(height: Responsive.space(context, 24)),
@@ -914,7 +913,13 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                     ),
                     keyboardType: TextInputType.number,
                     maxLength: 6,
-                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                    buildCounter:
+                        (
+                          _, {
+                          required currentLength,
+                          required isFocused,
+                          maxLength,
+                        }) => null,
                   ),
                 ),
                 SizedBox(width: Responsive.space(context, 12)),
@@ -966,14 +971,22 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                         : const Color(0xFFFDF0F0),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: (_isPincodeValid ? AppColors.primaryGreen : AppColors.errorRed).withOpacity(0.3),
+                      color:
+                          (_isPincodeValid
+                                  ? AppColors.primaryGreen
+                                  : AppColors.errorRed)
+                              .withOpacity(0.3),
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        _isPincodeValid ? Icons.check_circle : Icons.error_outline,
-                        color: _isPincodeValid ? AppColors.primaryGreen : AppColors.errorRed,
+                        _isPincodeValid
+                            ? Icons.check_circle
+                            : Icons.error_outline,
+                        color: _isPincodeValid
+                            ? AppColors.primaryGreen
+                            : AppColors.errorRed,
                         size: 18,
                       ),
                       SizedBox(width: Responsive.space(context, 8)),
@@ -981,7 +994,9 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                         child: Text(
                           _pincodeStatusMessage!,
                           style: TextStyle(
-                            color: _isPincodeValid ? AppColors.primaryGreen : AppColors.errorRed,
+                            color: _isPincodeValid
+                                ? AppColors.primaryGreen
+                                : AppColors.errorRed,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1065,7 +1080,9 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                           Expanded(
                             child: Text(
                               _selectedDeliveryTime != null
-                                  ? _formatTimeForDisplay(_selectedDeliveryTime!)
+                                  ? _formatTimeForDisplay(
+                                      _selectedDeliveryTime!,
+                                    )
                                   : 'Select Time',
                               style: TextStyle(
                                 color: _selectedDeliveryTime != null
@@ -1093,7 +1110,8 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
               ),
               ...List.generate(_vehicles.length, (i) {
                 final vehicle = _vehicles[i];
-                final selected = _selectedVehicle?.vehicleNumber == vehicle.vehicleNumber;
+                final selected =
+                    _selectedVehicle?.vehicleNumber == vehicle.vehicleNumber;
                 return Padding(
                   padding: EdgeInsets.only(
                     bottom: Responsive.space(context, 10),
@@ -1104,10 +1122,14 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: selected ? const Color(0xFFF0F9F1) : Colors.white,
+                        color: selected
+                            ? const Color(0xFFF0F9F1)
+                            : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selected ? AppColors.primaryGreen : AppColors.inputBorder,
+                          color: selected
+                              ? AppColors.primaryGreen
+                              : AppColors.inputBorder,
                           width: selected ? 1.5 : 1,
                         ),
                       ),
@@ -1117,13 +1139,17 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: selected ? AppColors.primaryGreen : const Color(0xFFF3F3F3),
+                              color: selected
+                                  ? AppColors.primaryGreen
+                                  : const Color(0xFFF3F3F3),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               Icons.local_shipping_rounded,
                               size: 20,
-                              color: selected ? Colors.white : AppColors.textGray,
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.textGray,
                             ),
                           ),
                           SizedBox(width: Responsive.space(context, 12)),
@@ -1159,8 +1185,12 @@ class _AddressChangeModalState extends State<AddressChangeModal> {
                             ),
                           ),
                           Icon(
-                            selected ? Icons.check_circle : Icons.circle_outlined,
-                            color: selected ? AppColors.primaryGreen : AppColors.inputBorder,
+                            selected
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            color: selected
+                                ? AppColors.primaryGreen
+                                : AppColors.inputBorder,
                             size: 22,
                           ),
                         ],

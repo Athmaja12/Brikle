@@ -264,13 +264,13 @@ class ApiService {
 
   // ══════════════════════════════════════════════════════════════════════════
   // CHECKOUT & ORDER
-  // ══════════════════════════════════════════════════════════════════════════
-
   static Future<Map<String, dynamic>> checkout({
     required String pincode,
     required String requestedDeliveryDate,
     required String requestedDeliveryTime,
     int? couponId,
+    String? gstNumber,
+    int? vehicleId, // NEW — confirm field name matches VehicleModel
   }) async {
     final body = <String, dynamic>{
       'pincode': pincode,
@@ -278,7 +278,41 @@ class ApiService {
       'requested_delivery_time': requestedDeliveryTime,
     };
     if (couponId != null) body['coupon_id'] = couponId;
-    return _post(ApiConfig.checkoutUrl, body, headers: await _authHeaders());
+    if (gstNumber != null && gstNumber.isNotEmpty)
+      body['gst_number'] = gstNumber;
+    if (vehicleId != null)
+      body['vehicle_id'] = vehicleId; // NEW — confirm key name with backend
+
+    // 🔎 DEBUG — confirm coupon_id / gst_number / vehicle_id actually left the client
+    debugPrint('[ApiService] 🧾 CHECKOUT body => $body');
+
+    final response = await _post(
+      ApiConfig.checkoutUrl,
+      body,
+      headers: await _authHeaders(),
+    );
+
+    // 🔎 DEBUG — inspect the raw payment_summary before it's parsed into
+    // CheckoutResponse, so we can compare "server said X" vs "UI shows Y"
+    debugPrint('[ApiService] 🧾 CHECKOUT raw response => $response');
+    if (response['payment_summary'] != null) {
+      debugPrint(
+        '[ApiService] 🧾 payment_summary => ${response['payment_summary']}',
+      );
+    }
+
+    // 🔎 DEBUG — isolate exactly which delivery-related fields the backend
+    // did/didn't send back, now that vehicle_id is included in the request
+    final hasDeliveryConfig = response.containsKey('delivery_config');
+    final rawDeliveryCharge =
+        (response['payment_summary'] as Map?)?['delivery_charge'];
+    debugPrint(
+      '[ApiService] 🚚 DELIVERY CHECK => vehicle_id sent=$vehicleId, '
+      'delivery_charge(raw)=$rawDeliveryCharge, '
+      'has "delivery_config" key=$hasDeliveryConfig',
+    );
+
+    return response;
   }
 
   static Future<Map<String, dynamic>> placeOrder({
@@ -288,8 +322,8 @@ class ApiService {
     required String requestedDeliveryDate,
     String? requestedDeliveryTime,
     int? couponId,
-    String?
-    alternativePhoneNumber, // NEW — was missing entirely; selected coupon never reached this call
+    String? alternativePhoneNumber,
+    String? gstNumber,
   }) async {
     final body = <String, dynamic>{
       'payment_method': paymentMethod,
@@ -301,7 +335,20 @@ class ApiService {
       body['requested_delivery_time'] = requestedDeliveryTime;
     }
     if (couponId != null) body['coupon_id'] = couponId;
-    return _post(ApiConfig.placeOrderUrl, body, headers: await _authHeaders());
+    if (gstNumber != null && gstNumber.isNotEmpty)
+      body['gst_number'] = gstNumber;
+
+    debugPrint('[ApiService] 🧾 PLACE ORDER body => $body');
+
+    final response = await _post(
+      ApiConfig.placeOrderUrl,
+      body,
+      headers: await _authHeaders(),
+    );
+
+    debugPrint('[ApiService] 🧾 PLACE ORDER raw response => $response');
+
+    return response;
   }
 
   static Future<Map<String, dynamic>> verifyPayment({

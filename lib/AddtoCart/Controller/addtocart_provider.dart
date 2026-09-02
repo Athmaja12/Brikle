@@ -95,6 +95,10 @@ class CartController extends GetxController {
     ever(cartItems, (_) {
       if (cartItems.isNotEmpty) _maybeRefreshCheckout();
     });
+    ever(selectedVehicle, (_) {
+      debugPrint('$_tag selectedVehicle changed → recalculating checkout');
+      if (cartItems.isNotEmpty) _maybeRefreshCheckout();
+    });
   }
 
   Future<void> _fetchMyCouponsIfLoggedIn() async {
@@ -102,6 +106,8 @@ class CartController extends GetxController {
       await fetchMyCoupons();
     }
   }
+
+  DateTime? _lastCheckoutCallAt;
 
   void _maybeRefreshCheckout() {
     if (cartItems.isEmpty) {
@@ -117,12 +123,30 @@ class CartController extends GetxController {
     final time = selectedDeliveryTime.value;
     if (address == null || date == null || time == null) return;
     if (cartItems.isEmpty) return;
+
+    // 🔎 DEBUG — multiple `ever()` listeners (address, cartItems, etc.)
+    // can fire in the same frame and each call this method, producing
+    // duplicate /api/checkout/ calls with identical params. Guard
+    // against that here instead of at the API layer.
+    final now = DateTime.now();
+    if (_lastCheckoutCallAt != null &&
+        now.difference(_lastCheckoutCallAt!) <
+            const Duration(milliseconds: 500)) {
+      debugPrint(
+        '$_tag _maybeRefreshCheckout — SKIPPED duplicate call '
+        '(last call was ${now.difference(_lastCheckoutCallAt!).inMilliseconds}ms ago)',
+      );
+      return;
+    }
+    _lastCheckoutCallAt = now;
+
     debugPrint('$_tag _maybeRefreshCheckout — recalculating bill details');
     processCheckout(
       pincode: address.pincode,
       deliveryDate: date,
       deliveryTime: time,
       couponId: selectedCoupon.value?.id,
+      vehicleId: selectedVehicle.value?.id, // NEW — see item 3 below
     );
   }
 
@@ -150,7 +174,11 @@ class CartController extends GetxController {
   }
 
   void selectCoupon(CouponModel coupon) {
-    debugPrint('$_tag selectCoupon: ${coupon.couponCode}');
+    debugPrint(
+      '$_tag selectCoupon: ${coupon.couponCode} '
+      '(id=${coupon.id}, discount=${coupon.discountPercentage}%) '
+      '— will trigger _maybeRefreshCheckout via ever(selectedCoupon)',
+    );
     selectedCoupon.value = coupon;
     couponCode.value = coupon.couponCode;
     Get.snackbar(
@@ -162,7 +190,9 @@ class CartController extends GetxController {
   }
 
   void removeSelectedCoupon() {
-    debugPrint('$_tag removeSelectedCoupon');
+    debugPrint(
+      '$_tag removeSelectedCoupon — was: ${selectedCoupon.value?.couponCode}',
+    );
     selectedCoupon.value = null;
     couponCode.value = '';
   }
@@ -480,13 +510,15 @@ class CartController extends GetxController {
 
   void saveGstin(String value) {
     final trimmed = value.trim().toUpperCase();
-    debugPrint('$_tag saveGstin("$trimmed")');
+    debugPrint(
+      '$_tag saveGstin("$trimmed") — will be sent on next checkout/placeOrder call',
+    );
     gstinNumber.value = trimmed;
     gstinAdded.value = trimmed.isNotEmpty;
   }
 
   void removeGstin() {
-    debugPrint('$_tag removeGstin');
+    debugPrint('$_tag removeGstin — was: "${gstinNumber.value}"');
     gstinNumber.value = '';
     gstinAdded.value = false;
   }
@@ -676,13 +708,14 @@ class CartController extends GetxController {
     required String deliveryDate,
     required String deliveryTime,
     int? couponId,
+    int? vehicleId, // NEW
   }) async {
     debugPrint(
       '$_tag processCheckout(pincode: "$pincode", deliveryDate: '
-      '"$deliveryDate", deliveryTime: "$deliveryTime", couponId: $couponId)',
+      '"$deliveryDate", deliveryTime: "$deliveryTime", couponId: $couponId, '
+      'vehicleId: $vehicleId, gstin: "${gstinNumber.value}")',
     );
 
-    // Skip if cart is empty
     if (cartItems.isEmpty) {
       debugPrint('$_tag processCheckout — cart is empty, skipping');
       checkoutResponse.value = null;
@@ -696,16 +729,36 @@ class CartController extends GetxController {
         requestedDeliveryDate: deliveryDate,
         requestedDeliveryTime: deliveryTime,
         couponId: couponId,
+        gstNumber: gstinNumber.value.isNotEmpty ? gstinNumber.value : null,
+        vehicleId: vehicleId, // NEW
       );
       debugPrint('$_tag processCheckout response: $response');
 
       final checkoutResult = CheckoutResponse.fromJson(response);
       checkoutResponse.value = checkoutResult;
+
+      // 🔎 DEBUG — full breakdown, parsed side, one line per figure so it's
+      // easy to eyeball against what renders in _BillDetailsCard
+      final ps = checkoutResult.paymentSummary;
       debugPrint(
-        '$_tag processCheckout parsed — deliveryAvailable: '
-        '${checkoutResult.deliveryAvailable}, grandTotal: '
-        '${checkoutResult.paymentSummary.grandTotal}, deliveryCharge: '
-        '${checkoutResult.paymentSummary.deliveryCharge}',
+        '$_tag 🧮 PAYMENT SUMMARY (parsed) => '
+        'itemsTotalWithGst=${ps.itemsTotalWithGst}, '
+        'totalGstTax=${ps.totalGstTax}, '
+        'couponDiscount=${ps.couponDiscount}, '
+        'deliveryCharge=${ps.deliveryCharge}, '
+        'grandTotal=${ps.grandTotal}',
+      );
+      debugPrint(
+        '$_tag 🧮 sanity check: subTotal(${ps.itemsTotalWithGst}) '
+        '- discount(${ps.couponDiscount}) + delivery(${ps.deliveryCharge}) '
+        '= ${(ps.itemsTotalWithGst - ps.couponDiscount + ps.deliveryCharge).toStringAsFixed(2)} '
+        'vs grandTotal(${ps.grandTotal})',
+      );
+      debugPrint(
+        '$_tag 🧮 selectedCoupon at time of checkout => '
+        '${selectedCoupon.value?.couponCode} '
+        '(id=${selectedCoupon.value?.id}, '
+        '${selectedCoupon.value?.discountPercentage}%)',
       );
 
       return checkoutResult;
@@ -713,7 +766,6 @@ class CartController extends GetxController {
       debugPrint(
         '$_tag processCheckout failed: ${e.message} (status ${e.statusCode})',
       );
-      // Only show snackbar if it's not an empty cart error
       if (!e.message.contains('empty')) {
         Get.snackbar('Checkout Error', e.message);
       }
@@ -753,7 +805,10 @@ class CartController extends GetxController {
         requestedDeliveryDate: deliveryDate,
         requestedDeliveryTime: deliveryTime,
         couponId: selectedCoupon.value?.id,
-        alternativePhoneNumber: alternativePhoneNumber, // NEW
+        alternativePhoneNumber: alternativePhoneNumber,
+        gstNumber: gstinNumber.value.isNotEmpty
+            ? gstinNumber.value
+            : null, // NEW
       );
       debugPrint('$_tag placeOrder response: $response');
 
