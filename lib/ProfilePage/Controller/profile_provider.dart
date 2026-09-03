@@ -16,6 +16,14 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// Link appended to coupon share messages so recipients can install the app.
+/// (Library-private on purpose — coupon_screen.dart has its own copy of
+/// this same constant for its "Copy Coupon Code" flow. Keeping this one
+/// private avoids a duplicate top-level name colliding across the two
+/// files if they're ever imported together.)
+const String _kAppDownloadLink =
+    'https://play.google.com/store/apps/details?id=com.brikle.app';
+
 class ProfileController extends GetxController {
   // ── State ──────────────────────────────────────────────────────────────────
   final Rx<ProfileModel> profile = ProfileModel().obs;
@@ -519,20 +527,36 @@ class ProfileController extends GetxController {
         return;
       }
 
-      final Uri whatsappUri = Uri.parse(result.whatsappLink!);
+      // The server builds the wa.me link (and its pre-filled message) for
+      // us, so we can't just concatenate a link onto plain text like the
+      // old client-built flow did. Instead, decode the `text` query param
+      // it sent back, tack the app link onto the end of that message, and
+      // re-encode it into a new wa.me URI — same recipient, same coupon
+      // wording, just with a download link added at the bottom.
+      final Uri serverUri = Uri.parse(result.whatsappLink!);
+      final String baseMessage = serverUri.queryParameters['text'] ?? '';
+      final String messageWithAppLink =
+          '$baseMessage\n\nGet the app: $_kAppDownloadLink';
+      final Uri whatsappUri = serverUri.replace(
+        queryParameters: {
+          ...serverUri.queryParameters,
+          'text': messageWithAppLink,
+        },
+      );
+      final String whatsappLinkWithAppLink = whatsappUri.toString();
 
       if (openDirectly) {
         if (await canLaunchUrl(whatsappUri)) {
           await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
           _showStatusSnackbar(result.message);
         } else {
-          await Clipboard.setData(ClipboardData(text: result.whatsappLink!));
+          await Clipboard.setData(ClipboardData(text: whatsappLinkWithAppLink));
           _showStatusSnackbar(
             'WhatsApp not installed. Link copied to clipboard.',
           );
         }
       } else {
-        await Clipboard.setData(ClipboardData(text: result.whatsappLink!));
+        await Clipboard.setData(ClipboardData(text: whatsappLinkWithAppLink));
         _showStatusSnackbar('WhatsApp link copied to clipboard!');
       }
 

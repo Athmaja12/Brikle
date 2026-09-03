@@ -12,7 +12,172 @@ import 'package:brikle/Product/Model/productdetails_model.dart';
 import 'package:brikle/Wishlist/View/wishlistheart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+
+// Guards against malformed/empty URLs the same way sharedproduct_card.dart
+// and home_page.dart already do — a plain isNotEmpty check lets through
+// things like "http://" that crash Image.network with "No host specified".
+bool _isValidImageUrl(String? url) {
+  if (url == null) return false;
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) return false;
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) return false;
+  if (!(uri.isScheme('HTTP') || uri.isScheme('HTTPS'))) return false;
+  return uri.host.isNotEmpty;
+}
+
+// ── Assured Certificate dialog ────────────────────────────────────────────
+// Same dialog used from the SharedProductCard's ASSURED badge — shows the
+// real backend-uploaded certificate image for this material, with a
+// pinch-zoom viewer and a fallback message if none is available.
+void _showAssuredCertificateDialog(BuildContext context, String? certUrl) {
+  final hasCert = _isValidImageUrl(certUrl);
+
+  showDialog(
+    context: context,
+    barrierColor: Colors.black54,
+    builder: (dialogCtx) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxHeight: 480),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: hasCert
+                  ? InteractiveViewer(
+                      maxScale: 4,
+                      child: Image.network(
+                        certUrl!,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return const Padding(
+                            padding: EdgeInsets.all(48),
+                            child: Center(
+                              child: SizedBox(
+                                height: 28,
+                                width: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text(
+                            'Certificate could not be loaded.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textGray),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text(
+                        'No certificate available for this product yet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textGray),
+                      ),
+                    ),
+            ),
+          ),
+          Positioned(
+            top: -12,
+            right: -12,
+            child: Material(
+              color: Colors.white,
+              shape: const CircleBorder(),
+              elevation: 2,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.pop(dialogCtx),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.close, size: 18, color: Colors.black87),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ── Assured badge ──────────────────────────────────────────────────────────
+// Same orange pill used on SharedProductCard, sized up slightly for the
+// detail page. Tapping it opens the certificate dialog above.
+class _AssuredBadge extends StatelessWidget {
+  final String? certificateUrl;
+  const _AssuredBadge({required this.certificateUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _showAssuredCertificateDialog(context, certificateUrl),
+        child: Container(
+          padding: const EdgeInsets.only(left: 4, right: 9, top: 4, bottom: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF1E6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFFF7A00).withOpacity(0.35),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFF7A00),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.verified_rounded,
+                  size: 10,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'Assured',
+                style: GoogleFonts.manrope(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFC2560A),
+                  letterSpacing: 0.1,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 14,
+                color: const Color(0xFFFF7A00).withOpacity(0.7),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class ProductDetailScreen extends StatelessWidget {
   final CategoryProductItem? product;
@@ -164,6 +329,24 @@ class ProductDetailScreen extends StatelessWidget {
                           style: AppTextStyles.termsText(context),
                         ),
                       SizedBox(height: Responsive.space(context, 4)),
+
+                      // ── Assured badge — same badge/dialog as the
+                      // product cards, driven off the resolved
+                      // activeProduct so it updates correctly for
+                      // "Suggested for you" items too.
+                      Obx(() {
+                        final active = controller.activeProduct.value;
+                        if (!active.isAssured) return const SizedBox.shrink();
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: Responsive.space(context, 8),
+                          ),
+                          child: _AssuredBadge(
+                            certificateUrl: active.assuredCertificate,
+                          ),
+                        );
+                      }),
+
                       Obx(
                         () => Text(
                           controller.activeProduct.value.name,
@@ -919,10 +1102,10 @@ class _ImageGallery extends StatelessWidget {
                 right: 12,
                 child: Row(
                   children: [
-                    _CircleIconButton(
-                      icon: Icons.share_outlined,
-                      onTap: () => _shareProduct(controller),
-                    ),
+                    // _CircleIconButton(
+                    //   icon: Icons.share_outlined,
+                    //   onTap: () => _shareProduct(controller),
+                    // ),
                     const SizedBox(width: 8),
                     WishlistHeart(
                       variantId: controller.product.variantId,
