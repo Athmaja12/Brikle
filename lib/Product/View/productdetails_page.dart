@@ -196,7 +196,7 @@ class ProductDetailScreen extends StatelessWidget {
                               textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  '₹${displayPrice.toStringAsFixed(0)}',
+                                  '₹${displayPrice.toStringAsFixed(2)}',
                                   style: TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w700,
@@ -208,7 +208,7 @@ class ProductDetailScreen extends StatelessWidget {
                                 if (hasOffer && originalPriceValue != null) ...[
                                   SizedBox(width: Responsive.space(context, 8)),
                                   Text(
-                                    '₹${originalPriceValue.toStringAsFixed(0)}',
+                                    '₹${originalPriceValue.toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       decoration: TextDecoration.lineThrough,
                                       color: AppColors.textGray,
@@ -302,10 +302,10 @@ class ProductDetailScreen extends StatelessWidget {
                       }),
 
                       SizedBox(height: Responsive.space(context, 4)),
-                      Text(
-                        'Incl. GST. Shipping calculated at checkout.',
-                        style: AppTextStyles.termsText(context),
-                      ),
+                      // Text(
+                      //   'Incl. GST. Shipping calculated at checkout.',
+                      //   style: AppTextStyles.termsText(context),
+                      // ),
 
                       // ── Offers preview ──────────────────────────
                       Obx(() {
@@ -707,7 +707,7 @@ class _BulkPricingCardState extends State<_BulkPricingCard> {
                     Get.snackbar(
                       'Bulk Price Applied',
                       'Qty set to ${tier.minQty} '
-                          'at ₹${tier.price.toStringAsFixed(0)}/unit',
+                          'at ₹${tier.price.toStringAsFixed(2)}/unit',
                       backgroundColor: AppColors.primaryGreen,
                       colorText: Colors.white,
                       snackPosition: SnackPosition.BOTTOM,
@@ -730,7 +730,7 @@ class _BulkPricingCardState extends State<_BulkPricingCard> {
                         ),
 
                         Text(
-                          '₹${tier.price.toStringAsFixed(0)}/unit',
+                          '₹${tier.price.toStringAsFixed(2)}/unit',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -835,7 +835,7 @@ class _OffersCard extends StatelessWidget {
                               ),
                               TextSpan(
                                 text:
-                                    ' — ${coupon.discountPercentage.toStringAsFixed(0)}% off on ${coupon.rewardMaterialName}',
+                                    ' — ${coupon.discountPercentage.toStringAsFixed(2)}% off on ${coupon.rewardMaterialName}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textGray,
@@ -984,7 +984,7 @@ void _shareProduct(ProductDetailController controller) {
       ? controller.detail.value!.name
       : controller.activeProduct.value.name;
   final price = controller.activeProduct.value.price;
-  Share.share('Check out $name for ₹${price.toStringAsFixed(0)} on Brikle!');
+  Share.share('Check out $name for ₹${price.toStringAsFixed(2)} on Brikle!');
 }
 
 class _CircleIconButton extends StatelessWidget {
@@ -1218,7 +1218,7 @@ class _UnlockPill extends StatelessWidget {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            '🎉 You unlocked ₹${price.toStringAsFixed(0)}!',
+            '🎉 You unlocked ₹${price.toStringAsFixed(2)}!',
             textAlign: TextAlign.center,
             maxLines: 1,
             softWrap: false,

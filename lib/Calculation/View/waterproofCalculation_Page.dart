@@ -663,7 +663,7 @@ class _ProductsSection extends StatelessWidget {
                 title: product.name,
                 subtitle: product.quantityDisplay,
                 priceText: product.priceDisplay,
-                imageUrl: provider.getProductImage(product.materialId),
+                imageUrl: provider.getProductImage(product.variantId),
                 isImageLoading: provider.isLoadingImages,
                 variantId: product.variantId,
                 placeholderIcon: Icons.water_drop,

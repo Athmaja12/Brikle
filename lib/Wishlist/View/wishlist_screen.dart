@@ -1,5 +1,4 @@
 import 'package:brikle/AppStyle/appcolors.dart';
-import 'package:brikle/AppStyle/appstyle.dart';
 import 'package:brikle/AppStyle/responsive.dart';
 import 'package:brikle/BottomNavigation/bottomnavigation.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
@@ -10,6 +9,20 @@ import 'package:brikle/Wishlist/Controller/wishlist_provider.dart';
 import 'package:brikle/Wishlist/Model/wishlist_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// ── Shared price formatter ──────────────────────────────────────────────
+String _formatPrice(double amount) {
+  final formatted = amount.toStringAsFixed(2);
+  final parts = formatted.split('.');
+  final integerPart = parts[0];
+  final decimalPart = parts[1];
+  final grouped = integerPart.replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (Match m) => '${m[1]},',
+  );
+  return '₹$grouped.$decimalPart';
+}
 
 class WishlistScreen extends GetView<WishlistController> {
   const WishlistScreen({super.key});
@@ -17,7 +30,7 @@ class WishlistScreen extends GetView<WishlistController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F6),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -25,7 +38,11 @@ class WishlistScreen extends GetView<WishlistController> {
             Expanded(
               child: Obx(() {
                 if (controller.isLoading.value) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primaryGreen,
+                    ),
+                  );
                 }
                 if (controller.items.isEmpty) {
                   return const _EmptyWishlist();
@@ -33,20 +50,19 @@ class WishlistScreen extends GetView<WishlistController> {
                 return RefreshIndicator(
                   color: AppColors.primaryGreen,
                   onRefresh: controller.fetchWishlist,
-                  child: ListView.builder(
+                  child: ListView.separated(
                     padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.space(context, 16),
-                      vertical: Responsive.space(context, 12),
+                      horizontal: Responsive.space(context, 14),
+                      vertical: Responsive.space(context, 8),
                     ),
                     itemCount: controller.items.length,
-                    itemBuilder: (context, index) => Padding(
-                      padding: EdgeInsets.only(
-                        bottom: Responsive.space(context, 12),
-                      ),
-                      child: _WishlistItemCard(
-                        item: controller.items[index],
-                        controller: controller,
-                      ),
+                    separatorBuilder: (_, __) => Divider(
+                      height: Responsive.space(context, 1),
+                      color: AppColors.inputBorder,
+                    ),
+                    itemBuilder: (context, index) => _WishlistItemRow(
+                      item: controller.items[index],
+                      controller: controller,
                     ),
                   ),
                 );
@@ -76,42 +92,41 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
+    return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: Responsive.space(context, 16),
-        vertical: Responsive.space(context, 12),
+        horizontal: Responsive.space(context, 4),
+        vertical: Responsive.space(context, 2),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: AppColors.textDark,
             onPressed: () => Navigator.pop(context),
           ),
           Expanded(
             child: Text(
               'My Wishlist',
-              style: AppTextStyles.welcomeBackTitle(context),
+              style: GoogleFonts.manrope(
+                fontSize: Responsive.font(context, 18),
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
             ),
           ),
           Obx(
             () => controller.items.isEmpty
                 ? const SizedBox.shrink()
-                : Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
+                : Padding(
+                    padding: EdgeInsets.only(
+                      right: Responsive.space(context, 12),
                     ),
                     child: Text(
-                      '${controller.items.length} items',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryGreen,
+                      '${controller.items.length} item${controller.items.length > 1 ? 's' : ''}',
+                      style: GoogleFonts.manrope(
+                        fontSize: Responsive.font(context, 12),
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textGray,
                       ),
                     ),
                   ),
@@ -122,17 +137,19 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// In _WishlistItemCard class, update the image section:
-
-// ── Single wishlist item card ─────────────────────────────────────────────
-class _WishlistItemCard extends StatelessWidget {
+// ── Single wishlist row — compact, one row tall ─────────────────────────
+// No card border, no full-width button, no shadow. Image + text + two
+// small icon actions (favorite, add-to-cart) so each item takes minimal
+// vertical space and more fit on screen without scrolling.
+class _WishlistItemRow extends StatelessWidget {
   final WishlistItem item;
   final WishlistController controller;
-  const _WishlistItemCard({required this.item, required this.controller});
+  const _WishlistItemRow({required this.item, required this.controller});
 
   void _showRemoveSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -152,15 +169,13 @@ class _WishlistItemCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Icon(
-              Icons.favorite_border_rounded,
-              size: 40,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 12),
-            const Text(
+            Text(
               'Remove from Wishlist?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: GoogleFonts.manrope(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -168,7 +183,11 @@ class _WishlistItemCard extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textGray, fontSize: 13),
+              style: GoogleFonts.manrope(
+                color: AppColors.textGray,
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+              ),
             ),
             const SizedBox(height: 24),
             Row(
@@ -180,14 +199,15 @@ class _WishlistItemCard extends StatelessWidget {
                       side: const BorderSide(color: AppColors.inputBorder),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Cancel',
-                      style: TextStyle(
+                      style: GoogleFonts.manrope(
                         color: AppColors.textDark,
                         fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
                     ),
                   ),
@@ -203,15 +223,16 @@ class _WishlistItemCard extends StatelessWidget {
                       backgroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       elevation: 0,
                     ),
-                    child: const Text(
+                    child: Text(
                       'Remove',
-                      style: TextStyle(
+                      style: GoogleFonts.manrope(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
                     ),
                   ),
@@ -224,13 +245,10 @@ class _WishlistItemCard extends StatelessWidget {
     );
   }
 
-  // Helper method to navigate to product detail
-  // Helper method to navigate to product detail
   void _navigateToProductDetail(BuildContext context) {
     // '/product-detail' is not a registered GetPage, so Get.toNamed()
-    // throws (Null check operator used on a null value) inside GetX's
-    // PageRedirect. Navigate directly instead — same pattern already
-    // used by the cart screen's _CartItemRow._openProductDetail.
+    // throws inside GetX's PageRedirect. Navigate directly instead —
+    // same pattern used by the cart screen's _CartItemRow._openProductDetail.
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -240,7 +258,11 @@ class _WishlistItemCard extends StatelessWidget {
             materialId: item.materialId,
             name: item.materialName,
             imageUrl: item.imageUrl,
-            price: item.retailPrice,
+            // Product Detail just displays whatever price it's handed —
+            // it doesn't recompute GST itself. Pass the GST-inclusive
+            // price so it matches what's shown on the Wishlist card
+            // instead of falling back to the base retail price.
+            price: item.priceWithGst,
           ),
         ),
       ),
@@ -249,24 +271,18 @@ class _WishlistItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      padding: EdgeInsets.all(Responsive.space(context, 12)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Product Image (Clickable) ──
-          GestureDetector(
-            onTap: () => _navigateToProductDetail(context),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+    return InkWell(
+      onTap: () => _navigateToProductDetail(context),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: Responsive.space(context, 10)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
               child: SizedBox(
-                width: Responsive.height(context, 90),
-                height: Responsive.height(context, 90),
+                width: Responsive.height(context, 56),
+                height: Responsive.height(context, 56),
                 child: item.imageUrl.isNotEmpty
                     ? Image.network(
                         item.imageUrl,
@@ -278,97 +294,103 @@ class _WishlistItemCard extends StatelessWidget {
                         color: AppColors.fieldFill,
                         child: const Icon(
                           Icons.inventory_2_outlined,
+                          size: 20,
                           color: Colors.black26,
                         ),
                       ),
               ),
             ),
-          ),
-          SizedBox(width: Responsive.space(context, 12)),
+            SizedBox(width: Responsive.space(context, 10)),
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Product Name (Clickable) ──
-                GestureDetector(
-                  onTap: () => _navigateToProductDetail(context),
-                  child: Text(
+            // ── Name, size, price ──
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
                     item.materialName,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.fieldLabel(context).copyWith(
-                      color: AppColors.textDark,
+                    style: GoogleFonts.manrope(
+                      fontSize: Responsive.font(context, 13.5),
                       fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
                     ),
                   ),
-                ),
-                SizedBox(height: Responsive.space(context, 4)),
-                Text(
-                  item.sizeDimension,
-                  style: AppTextStyles.termsText(context),
-                ),
-                SizedBox(height: Responsive.space(context, 6)),
-                Text(
-                  '₹${item.retailPrice.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                SizedBox(height: Responsive.space(context, 10)),
-                SizedBox(
-                  width: double.infinity,
-                  height: 38,
-                  child: ElevatedButton.icon(
-                    onPressed: () => controller.moveToCart(item),
-                    icon: const Icon(
-                      Icons.shopping_bag_outlined,
-                      size: 16,
-                      color: Colors.white,
+                  SizedBox(height: Responsive.space(context, 2)),
+                  Text(
+                    item.sizeDimension,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.manrope(
+                      fontSize: Responsive.font(context, 11.5),
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.textGray,
                     ),
-                    label: const Text(
-                      'Move to Cart',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                  ),
+                  SizedBox(height: Responsive.space(context, 3)),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        _formatPrice(item.priceWithGst),
+                        style: GoogleFonts.manrope(
+                          fontSize: Responsive.font(context, 14),
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark,
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      SizedBox(width: Responsive.space(context, 4)),
+                      Text(
+                        'incl. GST',
+                        style: GoogleFonts.manrope(
+                          fontSize: Responsive.font(context, 10),
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.textGray,
+                        ),
                       ),
-                      elevation: 0,
-                    ),
+                    ],
                   ),
+                ],
+              ),
+            ),
+
+            SizedBox(width: Responsive.space(context, 6)),
+
+            // ── Actions: heart (remove) + add-to-cart, both compact icons ──
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  onPressed: () => _showRemoveSheet(context),
+                  icon: const Icon(Icons.favorite_rounded),
+                  color: Colors.red,
+                  iconSize: Responsive.font(context, 19),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  splashRadius: 18,
+                ),
+                IconButton(
+                  onPressed: () => controller.moveToCart(item),
+                  icon: const Icon(Icons.add_shopping_cart_rounded),
+                  color: AppColors.primaryGreen,
+                  iconSize: Responsive.font(context, 19),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  splashRadius: 18,
                 ),
               ],
             ),
-          ),
-
-          SizedBox(width: Responsive.space(context, 8)),
-
-          // ── Remove button ──
-          GestureDetector(
-            onTap: () => _showRemoveSheet(context),
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.shade200),
-              ),
-              child: Icon(
-                Icons.favorite_rounded,
-                size: 18,
-                color: Colors.red.shade500,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -381,50 +403,71 @@ class _EmptyWishlist extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.favorite_border_rounded,
-            size: 72,
-            color: AppColors.textGray.withOpacity(0.35),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Your wishlist is empty',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Tap the heart on any product to save it here',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textGray, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CategoryPage()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: Responsive.space(context, 32),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.favorite_border_rounded,
+              size: Responsive.font(context, 48),
+              color: AppColors.textGray,
             ),
-            child: const Text(
-              'Continue Shopping',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+            SizedBox(height: Responsive.space(context, 14)),
+            Text(
+              'Your wishlist is empty',
+              style: GoogleFonts.manrope(
+                fontSize: Responsive.font(context, 16),
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
               ),
             ),
-          ),
-        ],
+            SizedBox(height: Responsive.space(context, 6)),
+            Text(
+              'Tap the heart on any product to save it here',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.manrope(
+                color: AppColors.textGray,
+                fontSize: Responsive.font(context, 12.5),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            SizedBox(height: Responsive.space(context, 18)),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CategoryPage(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  padding: EdgeInsets.symmetric(
+                    vertical: Responsive.space(context, 12),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  'Continue Shopping',
+                  style: GoogleFonts.manrope(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: Responsive.font(context, 13.5),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

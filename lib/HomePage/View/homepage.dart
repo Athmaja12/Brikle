@@ -271,7 +271,10 @@ class _CarouselSectionState extends State<_CarouselSection> {
     // Start deep in the virtual range, aligned so (_page % itemCount) == 0,
     // i.e. we visually start on the real first slide.
     _page = _virtualMultiplier * itemCount ~/ 2;
-    _pageController = PageController(initialPage: _page);
+    _pageController = PageController(
+      initialPage: _page,
+      viewportFraction: 0.88, // NEW — reveals a peek of adjacent slides
+    );
     _startAutoPlay();
   }
 
@@ -372,138 +375,195 @@ class _CarouselSectionState extends State<_CarouselSection> {
       if (items.isEmpty) return const SizedBox.shrink();
 
       return Padding(
-        // Top spacing removed — the Header already ends with its own
-        // bottom padding, so this section used to add a second gap
-        // right underneath it.
         padding: EdgeInsets.only(
-          left: Responsive.space(context, 16),
-          right: Responsive.space(context, 16),
+          left: Responsive.space(context, 6),
+          right: Responsive.space(context, 6),
           top: Responsive.space(context, 8),
-          bottom: Responsive.space(context, 8),
+          bottom: Responsive.space(context, 10),
         ),
         child: Column(
           children: [
             SizedBox(
-              height: Responsive.height(context, 160),
+              // Slightly taller to give the peek-scale effect room to breathe.
+              height: Responsive.height(context, 172),
               child: NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
                   if (notification is ScrollStartNotification &&
                       notification.dragDetails != null) {
-                    _startAutoPlay(); // restart timer on manual swipe, same as before
+                    _startAutoPlay();
                   }
                   return false;
                 },
                 child: PageView.builder(
                   controller: _pageController,
-                  // Effectively unlimited — user/auto-play can move forward
-                  // (or backward, via manual swipe) for the whole session
-                  // without ever reaching this bound.
                   itemCount: _virtualMultiplier * items.length,
                   onPageChanged: (i) => setState(() => _page = i),
-
                   itemBuilder: (context, i) {
                     final actualIndex = i % items.length;
                     final item = items[actualIndex];
-                    return GestureDetector(
-                      onTap: () => _onBannerTap(item),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.network(
-                              item.imageUrl,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              errorBuilder: (_, __, ___) =>
-                                  Container(color: AppColors.dotInactive),
+
+                    return AnimatedBuilder(
+                      animation: _pageController,
+                      builder: (context, child) {
+                        double scale = 1.0;
+                        double opacity = 1.0;
+
+                        if (_pageController.position.haveDimensions) {
+                          final page = _pageController.page ?? _page.toDouble();
+                          final distance = (page - i).abs();
+                          // Active slide: scale 1.0, neighbors ease down to
+                          // ~0.92 and fade slightly — subtle depth, not a
+                          // jarring shrink.
+                          scale = (1 - (distance * 0.08)).clamp(0.92, 1.0);
+                          opacity = (1 - (distance * 0.35)).clamp(0.55, 1.0);
+                        }
+
+                        return Opacity(
+                          opacity: opacity,
+                          child: Transform.scale(scale: scale, child: child),
+                        );
+                      },
+                      child: GestureDetector(
+                        onTap: () => _onBannerTap(item),
+                        child: Padding(
+                          // Gap between peeking slides.
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.10),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
                             ),
-                            // NEW: title + description, overlaid at the
-                            // bottom with a gradient scrim for legibility.
-                            if (item.title.isNotEmpty ||
-                                item.description.isNotEmpty)
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    14,
-                                    24,
-                                    14,
-                                    10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(0.65),
-                                      ],
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (item.title.isNotEmpty)
-                                        Text(
-                                          item.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      if (item.description.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 2,
-                                          ),
-                                          child: Text(
-                                            item.description,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(
-                                                0.9,
-                                              ),
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.network(
+                                    item.imageUrl,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    errorBuilder: (_, __, ___) =>
+                                        Container(color: AppColors.dotInactive),
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return Container(
+                                        color: AppColors.fieldFill,
+                                        child: const Center(
+                                          child: SizedBox(
+                                            height: 22,
+                                            width: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
                                             ),
                                           ),
                                         ),
-                                    ],
+                                      );
+                                    },
                                   ),
-                                ),
+                                  if (item.title.isNotEmpty ||
+                                      item.description.isNotEmpty)
+                                    Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          16,
+                                          36,
+                                          16,
+                                          14,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              Colors.transparent,
+                                              Colors.black.withOpacity(0.05),
+                                              Colors.black.withOpacity(0.55),
+                                            ],
+                                            stops: const [0.0, 0.45, 1.0],
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (item.title.isNotEmpty)
+                                              Text(
+                                                item.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 0.1,
+                                                ),
+                                              ),
+                                            if (item.description.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 3,
+                                                ),
+                                                child: Text(
+                                                  item.description,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: Colors.white
+                                                        .withOpacity(0.88),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w400,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                          ],
+                            ),
+                          ),
                         ),
                       ),
                     );
-                  },  
+                  },
                 ),
               ),
             ),
-            SizedBox(height: Responsive.space(context, 8)),
+            SizedBox(height: Responsive.space(context, 10)),
+            // Pill-style dot indicator with a gradient active dot.
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(items.length, (i) {
                 final active = (_page % items.length) == i;
                 return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
                   margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: active ? 18 : 6,
-                  height: 6,
+                  width: active ? 22 : 7,
+                  height: 7,
                   decoration: BoxDecoration(
-                    color: active
-                        ? AppColors.primaryGreen
-                        : AppColors.dotInactive,
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(4),
+                    gradient: active
+                        ? LinearGradient(
+                            colors: [
+                              AppColors.primaryGreen,
+                              AppColors.primaryGreen.withOpacity(0.75),
+                            ],
+                          )
+                        : null,
+                    color: active ? null : AppColors.dotInactive,
                   ),
                 );
               }),
@@ -947,7 +1007,7 @@ class _BestsellingSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Bestselling on ${controller.selectedCategoryName}',
+                  'Bestselling Products',
                   style: AppTextStyles.welcomeBackTitle(
                     context,
                   ).copyWith(fontSize: 18),

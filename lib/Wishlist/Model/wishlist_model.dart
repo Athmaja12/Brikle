@@ -15,7 +15,8 @@ class WishlistItem {
   final String materialName;
   final String sizeDimension;
   final String imageUrl;
-  final double retailPrice; // "retail_price" comes as a String from API e.g. "100.00"
+  final double retailPrice;   // "retail_price" comes as a String from API e.g. "100.00"
+  final double priceWithGst;  // "price_with_gst" — the price to display in the UI
   final String createdAt;
 
   const WishlistItem({
@@ -26,6 +27,7 @@ class WishlistItem {
     required this.sizeDimension,
     required this.imageUrl,
     required this.retailPrice,
+    required this.priceWithGst,
     required this.createdAt,
   });
 
@@ -38,6 +40,11 @@ class WishlistItem {
         imageUrl: _fullImageUrl(json['master_image']?.toString()),
         // retail_price comes as a String e.g. "100.00" — parse safely
         retailPrice: double.tryParse(json['retail_price']?.toString() ?? '0') ?? 0,
+        // price_with_gst comes as a number (e.g. 422.4) — handle either a
+        // num or a stringified number defensively, same as retail_price.
+        priceWithGst: json['price_with_gst'] is num
+            ? (json['price_with_gst'] as num).toDouble()
+            : double.tryParse(json['price_with_gst']?.toString() ?? '0') ?? 0,
         createdAt: json['created_at']?.toString() ?? '',
       );
 }

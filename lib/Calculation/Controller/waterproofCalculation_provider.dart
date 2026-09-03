@@ -93,8 +93,8 @@ class WaterproofingCalculatorProvider extends ChangeNotifier {
   bool get hasCalculation => calculationResult != null;
   bool get isLoadingImages => _loadingImages;
 
-  String? getProductImage(int materialId) {
-    return _productImages[materialId];
+  String? getProductImage(int variantId) {
+    return _productImages[variantId];
   }
 
   // ─── Type Switching ────────────────────────────────────────────────────
@@ -162,45 +162,56 @@ class WaterproofingCalculatorProvider extends ChangeNotifier {
   }
 
   // ─── Load Product Images ──────────────────────────────────────────────
-
   Future<void> _loadProductImages() async {
     if (calculationResult == null) return;
 
     final products = _getAllProducts();
+
     debugPrint(
-      '[Waterproofing] _loadProductImages: ${products.length} item(s) to fetch',
+      '[Waterproofing] _loadProductImages: '
+      '${products.length} item(s) to fetch',
     );
+
     if (products.isEmpty) return;
 
     _loadingImages = true;
     notifyListeners();
 
     for (final product in products) {
-      if (!_productImages.containsKey(product.materialId)) {
+      // Use variantId as the key because the waterproofing API
+      // provides variant_id for identifying the product variant.
+      if (!_productImages.containsKey(product.variantId)) {
         try {
           debugPrint(
-            '[Waterproofing]   fetching material detail for materialId=${product.materialId} (${product.name})',
+            '[Waterproofing] fetching material detail '
+            'using variantId=${product.variantId} '
+            '(${product.name})',
           );
-          final json = await ApiService.getMaterialDetails(product.materialId);
-          // ⚠️ FIX — was reading json['master_image'] directly, which is a
-          // relative path and doesn't render. MaterialDetail.fromJson runs
-          // it through _fullImageUrl() to prepend the base URL, same as
-          // the block and steel calculators do.
+
+          final json = await ApiService.getMaterialDetails(product.variantId);
+
           final detail = MaterialDetail.fromJson(json);
-          _productImages[product.materialId] = detail.masterImage;
+
+          _productImages[product.variantId] = detail.masterImage;
+
           debugPrint(
-            '[Waterproofing]   -> resolved image for materialId=${product.materialId}: '
+            '[Waterproofing] resolved image for '
+            'variantId=${product.variantId}: '
             '"${detail.masterImage}"',
           );
+
           if (detail.masterImage.isEmpty) {
             debugPrint(
-              '[Waterproofing]   ⚠️ empty master_image for materialId=${product.materialId}',
+              '[Waterproofing] ⚠️ empty master_image '
+              'for variantId=${product.variantId}',
             );
           }
         } catch (e) {
-          _productImages[product.materialId] = null;
+          _productImages[product.variantId] = null;
+
           debugPrint(
-            '[Waterproofing]   ⚠️ FAILED to fetch material ${product.materialId}: $e',
+            '[Waterproofing] ⚠️ FAILED to fetch '
+            'variantId=${product.variantId}: $e',
           );
         }
       }

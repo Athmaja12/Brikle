@@ -19,6 +19,7 @@ class HomeController extends GetxController {
 
   final RxList<BestSellingItem> bestselling = <BestSellingItem>[].obs;
   final RxBool isBestsellingLoading = false.obs;
+  final RxString bestsellingCategoryName = ''.obs;
 
   final Map<String, ({String title, String subtitle, String imageUrl})>
   categoryBanner = const {
@@ -133,12 +134,18 @@ class HomeController extends GetxController {
       // being loaded above. Both are indepe ndent of each other, so run
       // them together as well.
       // -----------------------------------------------------------------------
-      final int? bestsellingCategoryId =
-          (categories.isNotEmpty &&
-              selectedCategoryIndex.value >= 0 &&
-              selectedCategoryIndex.value < categories.length)
-          ? categories[selectedCategoryIndex.value].id
+      final int? bestsellingCategoryId = categories.isNotEmpty
+          ? categories[selectedCategoryIndex.value >= 0 &&
+                        selectedCategoryIndex.value < categories.length
+                    ? selectedCategoryIndex.value
+                    : 0]
+                .id
           : null;
+      // NOTE: selectedCategoryIndex is intentionally left at -1 here.
+      // It now ONLY drives the tile highlight in _CategoriesSection.
+      // bestsellingCategoryId above still defaults to categories[0]'s id
+      // so the initial Bestselling load/title behaves exactly as before —
+      // just without visually marking any tile as selected.
 
       await Future.wait([
         _fetchProfileIfLoggedIn(),
@@ -235,6 +242,7 @@ class HomeController extends GetxController {
       'skipping bestselling load',
     );
     bestselling.clear();
+    bestsellingCategoryName.value = '';
   }
 
   /// Profile is only fetched for logged-in users. For guests this is a
@@ -272,6 +280,18 @@ class HomeController extends GetxController {
     debugPrint(
       '[HomeController] _loadBestselling(categoryId: $categoryId) started',
     );
+
+    // Resolve the display name for whichever category we're loading —
+    // independent of selectedCategoryIndex, so the "Bestselling on X"
+    // title works whether or not a tile is actually highlighted.
+    CategoryItem? matched;
+    for (final c in categories) {
+      if (c.id == categoryId) {
+        matched = c;
+        break;
+      }
+    }
+    bestsellingCategoryName.value = matched?.name ?? '';
 
     try {
       final results = await ApiService.getBestSelling(categoryId);
@@ -315,6 +335,7 @@ class HomeController extends GetxController {
   void resetAfterCategoryVisit() {
     selectedCategoryIndex.value = -1;
     bestselling.clear();
+    bestsellingCategoryName.value = '';
   }
 
   // ── Pincode serviceability ────────────────────────────────────────────

@@ -232,6 +232,97 @@ class _SharedProductCardState extends State<SharedProductCard> {
     );
   }
 
+  // ── Assured Certificate dialog ──────────────────────────────────────────
+  // Shows the actual certificate image uploaded by the backend for this
+  // material (`assured_certificate` → CategoryProductItem.assuredCertificate),
+  // instead of a static placeholder. Falls back to a plain message if the
+  // material has no certificate uploaded, or if the image fails to load.
+  void _showAssuredCertificateDialog(BuildContext context) {
+    final certUrl = product.assuredCertificate;
+    final hasCert = _isValidImageUrl(certUrl);
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              constraints: const BoxConstraints(maxHeight: 480),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: hasCert
+                    ? InteractiveViewer(
+                        maxScale: 4,
+                        child: Image.network(
+                          certUrl!,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const Padding(
+                              padding: EdgeInsets.all(48),
+                              child: Center(
+                                child: SizedBox(
+                                  height: 28,
+                                  width: 28,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => const Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Text(
+                              'Certificate could not be loaded.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textGray),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text(
+                          'No certificate available for this product yet.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textGray),
+                        ),
+                      ),
+              ),
+            ),
+            Positioned(
+              top: -12,
+              right: -12,
+              child: Material(
+                color: Colors.white,
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => Navigator.pop(dialogCtx),
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(Icons.close, size: 18, color: Colors.black87),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cartController = Get.find<CartController>();
@@ -350,45 +441,81 @@ class _SharedProductCardState extends State<SharedProductCard> {
                           const SizedBox(height: 4),
 
                           // Trusted badge
-                          Row(
-                            children: [
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F5E9),
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.check_circle,
-                                        size: 9,
-                                        color: AppColors.primaryGreen,
+                          // Assured badge — show only for assured products.
+                          // Tappable: opens the real backend-uploaded
+                          // certificate image for this material.
+                          // Trusted badge
+                          // Assured badge — show only for assured products.
+                          // Tappable: opens the real backend-uploaded
+                          // certificate image for this material. Pill shape
+                          // with a filled icon chip and a chevron so it
+                          // visibly reads as tappable, not just decorative.
+                          if (product.isAssured)
+                            Row(
+                              children: [
+                                const SizedBox(width: 4),
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(20),
+                                    onTap: () =>
+                                        _showAssuredCertificateDialog(context),
+                                    child: Container(
+                                      padding: const EdgeInsets.only(
+                                        left: 3,
+                                        right: 7,
+                                        top: 3,
+                                        bottom: 3,
                                       ),
-                                      const SizedBox(width: 2),
-                                      Flexible(
-                                        child: Text(
-                                          '100% TRUSTED',
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 8,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.primaryGreen,
-                                          ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF1E6),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(
+                                            0xFFFF7A00,
+                                          ).withOpacity(0.35),
                                         ),
                                       ),
-                                    ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(2),
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFFFF7A00),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.verified_rounded,
+                                              size: 8,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Assured',
+                                            style: GoogleFonts.manrope(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFFC2560A),
+                                              letterSpacing: 0.1,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Icon(
+                                            Icons.chevron_right_rounded,
+                                            size: 12,
+                                            color: const Color(
+                                              0xFFFF7A00,
+                                            ).withOpacity(0.7),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
                           const SizedBox(height: 4),
 
                           // Product name — fixed height, prevents row misalignment
