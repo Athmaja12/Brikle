@@ -738,10 +738,12 @@ class _SharedProductCardState extends State<SharedProductCard> {
                 bottom: 8,
                 child: IgnorePointer(
                   child: AnimatedOpacity(
-                    opacity: _unlockedPrice != null ? 1 : 0,
+                    opacity: 1,
                     duration: const Duration(milliseconds: 200),
                     child: Container(
                       height: 33,
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: const Color(0xFF15803D),
@@ -754,12 +756,25 @@ class _SharedProductCardState extends State<SharedProductCard> {
                           ),
                         ],
                       ),
-                      child: Text(
-                        '🎉 Unlocked ₹${_unlockedPrice!.toStringAsFixed(2)}/unit',
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('🎉', style: TextStyle(fontSize: 13)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Unlocked ₹${_unlockedPrice!.toStringAsFixed(2)}/unit',
+                              maxLines: 1,
+                              softWrap: false,
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

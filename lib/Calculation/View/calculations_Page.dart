@@ -344,6 +344,10 @@ class _SuggestedProductsSection extends StatelessWidget {
             itemBuilder: (context, index) {
               final v = variants[index];
               final inStock = v.stockStatus.toLowerCase().contains('in stock');
+              final parsedPrice =
+                  double.tryParse(v.price.replaceAll(RegExp(r'[^\d.]'), '')) ??
+                  0;
+
               return SharedProductCard(
                 title: provider.estimate!.product,
                 subtitle: v.packSize,
@@ -351,6 +355,8 @@ class _SuggestedProductsSection extends StatelessWidget {
                 imageUrl: provider.productImageUrl,
                 isImageLoading: provider.isLoadingImage,
                 variantId: v.variantId,
+                materialId: provider.selectedPaint?.materialId ?? 0,
+                price: parsedPrice,
                 placeholderIcon: Icons.format_paint,
                 inStock: inStock,
                 stockLabel: v.stockStatus,

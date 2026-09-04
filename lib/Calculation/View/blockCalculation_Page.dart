@@ -466,6 +466,8 @@ class _RelatedProductsSection extends StatelessWidget {
                 imageUrl: item.imageUrl,
                 isImageLoading: item.imageLoading,
                 variantId: item.variantId,
+                materialId: item.materialId,
+                price: item.pricePerUnit,
                 placeholderIcon: Icons.grid_view_rounded,
                 // Block API has no stock field — treat as always available.
                 inStock: true,

@@ -4,6 +4,7 @@ import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Calculation/Controller/cementcalculation_provider.dart';
 import 'package:brikle/Calculation/Model/cementCalculation_model.dart';
+import 'package:brikle/Calculation/product_Card.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -713,9 +714,32 @@ class _SimilarProductsSection extends StatelessWidget {
             itemCount: products.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
-              return _ProductVariantCard(
-                product: products[index],
-                provider: provider,
+              final product = products[index];
+              final inStock = product.stockStatus.toLowerCase().contains(
+                'in stock',
+              );
+
+              // pricePerBag is a formatted string (e.g. "₹410") — strip
+              // non-numeric chars to get the numeric value
+              // SharedProductCard.price needs.
+              final parsedPrice =
+                  double.tryParse(
+                    product.pricePerBag.replaceAll(RegExp(r'[^\d.]'), ''),
+                  ) ??
+                  0;
+
+              return SharedProductCard(
+                title: product.productName,
+                subtitle: product.packSize,
+                priceText: product.pricePerBag,
+                imageUrl: provider.getProductImage(product.materialId),
+                isImageLoading: provider.isLoadingImages,
+                variantId: product.variantId,
+                materialId: product.materialId,
+                price: parsedPrice,
+                placeholderIcon: Icons.inventory_2,
+                inStock: inStock,
+                stockLabel: product.stockStatus,
               );
             },
           ),
@@ -728,197 +752,3 @@ class _SimilarProductsSection extends StatelessWidget {
 // lib/Calculation/View/cementcalculation_page.dart
 
 // Replace the _ProductVariantCard class with this updated version:
-
-class _ProductVariantCard extends StatelessWidget {
-  final SimilarProduct product;
-  final CementCalculationProvider provider;
-
-  static const double _cardWidth = 170;
-
-  const _ProductVariantCard({required this.product, required this.provider});
-
-  bool get _inStock => product.stockStatus.toLowerCase().contains('in stock');
-
-  Future<void> _handleAddToCart(BuildContext context) async {
-    final success = await provider.addVariantToCart(product.variantId);
-    if (!context.mounted) return;
-
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not add to cart: ${provider.errorMessage}'),
-        ),
-      );
-      return;
-    }
-
-    try {
-      final cartController = Get.find<CartController>();
-      await cartController.fetchCart(showLoader: false);
-    } catch (_) {}
-
-    Get.snackbar(
-      'Added to cart',
-      '${product.packSize} added successfully',
-      backgroundColor: const Color(0xFF2E7D32),
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 1),
-    );
-
-    if (!context.mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 3)),
-      (route) => false,
-    );
-  }
-
-  Widget _buildThumbnail() {
-    final imageUrl = provider.getProductImage(product.materialId);
-
-    return Container(
-      width: double.infinity,
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFEFEFEF)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: imageUrl != null && imageUrl.isNotEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(8),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(
-                    child: SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.inventory_2, size: 32, color: Colors.grey),
-              ),
-            )
-          : provider.isLoadingImages
-          ? const Center(
-              child: SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          : Center(
-              child: Icon(Icons.inventory_2, size: 40, color: Colors.grey[400]),
-            ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isAdding = provider.addingToCartVariantIds.contains(
-      product.variantId,
-    );
-
-    return Container(
-      width: _cardWidth,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEFEFEF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildThumbnail(),
-          const SizedBox(height: 8),
-          Text(
-            product.productName,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            product.packSize,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(
-                product.pricePerBag,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  product.stockStatus,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _inStock
-                        ? const Color(0xFF2E7D32)
-                        : Colors.orange[800],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            height: 34,
-            child: ElevatedButton(
-              onPressed: (!_inStock || isAdding)
-                  ? null
-                  : () => _handleAddToCart(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey[300],
-                elevation: 0,
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: isAdding
-                  ? const SizedBox(
-                      height: 14,
-                      width: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      _inStock ? 'Add to Cart' : 'Out of Stock',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

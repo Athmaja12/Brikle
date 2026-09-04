@@ -16,6 +16,8 @@
 //   CartController, identical logic for every calculator.
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
+import 'package:brikle/Category/Model/categorydetail_model.dart';
+import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -27,6 +29,8 @@ class SharedProductCard extends StatelessWidget {
   final bool isImageLoading;
   final IconData placeholderIcon;
   final int variantId;
+  final int materialId; // ← NEW, required
+  final double price;
   final bool inStock;
   final String? stockLabel;
 
@@ -40,10 +44,28 @@ class SharedProductCard extends StatelessWidget {
     required this.imageUrl,
     required this.isImageLoading,
     required this.variantId,
+    required this.materialId, // ← NEW
+    required this.price,
     this.placeholderIcon = Icons.shopping_bag_outlined,
     this.inStock = true,
     this.stockLabel,
   });
+  void _openProductDetail(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(
+          product: CategoryProductItem(
+            variantId: variantId,
+            materialId: materialId,
+            name: title,
+            imageUrl: imageUrl ?? '',
+            price: price,
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _handleAddToCart(BuildContext context) async {
     final cartController = Get.find<CartController>();
@@ -88,16 +110,16 @@ class SharedProductCard extends StatelessWidget {
                 ),
               )
             : isImageLoading
-                ? const Center(
-                    child: SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : Center(
-                    child: Icon(placeholderIcon, size: 32, color: Colors.grey),
-                  ),
+            ? const Center(
+                child: SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : Center(
+                child: Icon(placeholderIcon, size: 32, color: Colors.grey),
+              ),
       ),
     );
   }
@@ -118,51 +140,81 @@ class SharedProductCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildThumbnail(),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-            ),
-          ),
-          if (subtitle != null && subtitle!.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              subtitle!,
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
-          ],
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(
-                priceText,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              if (stockLabel != null) ...[
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    stockLabel!,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: inStock ? const Color(0xFF2E7D32) : Colors.orange[800],
+          // ── Scrollable, flexible content area — prevents overflow ──
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openProductDetail(context),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildThumbnail(),
+                        const SizedBox(height: 8),
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                        if (subtitle != null && subtitle!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        priceText,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (stockLabel != null) ...[
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            stockLabel!,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: inStock
+                                  ? const Color(0xFF2E7D32)
+                                  : Colors.orange[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 8),
 
-          // ── Add to Cart button OR +/- stepper, driven by cart state ──
+          // ── Add to Cart button OR +/- stepper — UNCHANGED ──────────
           Obx(() {
             final cartItem = cartController.cartItems.firstWhereOrNull(
               (i) => i.variantId == variantId,
@@ -187,7 +239,10 @@ class SharedProductCard extends StatelessWidget {
                   ),
                   child: Text(
                     inStock ? 'Add to Cart' : 'Out of Stock',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               );

@@ -311,7 +311,7 @@ class _CouponListCard extends StatelessWidget {
             maxLength: 10,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'Enter 10-digit phone number',
+              hintText: 'Enter a valid phone number',
               counterText: '',
             ),
           ),

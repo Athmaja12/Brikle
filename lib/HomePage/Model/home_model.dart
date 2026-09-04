@@ -143,6 +143,8 @@ class DealItem {
 /// backend response actually changes to include a variant.
 class BestSellingItem {
   final int id;
+  final int materialId;
+  final int variantId;
   final String name;
   final String? description;
   final String? productHighlights;
@@ -159,6 +161,8 @@ class BestSellingItem {
 
   const BestSellingItem({
     required this.id,
+    required this.materialId,
+    required this.variantId,
     required this.name,
     this.description,
     this.productHighlights,
@@ -203,45 +207,127 @@ class BestSellingItem {
     final subcategory = json['subcategory'] as Map<String, dynamic>?;
     final category = subcategory?['category'] as Map<String, dynamic>?;
 
-    // ── Image fallback chain ────────────────────────────────────────
-    // 1. master_image, if present and non-empty
-    // 2. first entry in images[], if the gallery has anything
-    // 3. '' — the view's _isValidImageUrl guard turns this into the
-    //    neutral icon fallback, same as any other missing image.
+    // ------------------------------------------------------------
+    // MATERIAL ID
+    // Best Selling API top-level "id" = MATERIAL ID
+    // ------------------------------------------------------------
+    final materialId = _toInt(json['id']) ?? 0;
+
+    // ------------------------------------------------------------
+    // VARIANT ID
+    // Best Selling API provides variants[] under the material.
+    //
+    // Use the first active variant as the variant represented
+    // by this Best Selling material.
+    // ------------------------------------------------------------
+    final variants = json['variants'] as List? ?? [];
+
+    Map<String, dynamic>? selectedVariant;
+
+    for (final rawVariant in variants) {
+      if (rawVariant is Map<String, dynamic>) {
+        final isActive = rawVariant['is_active'];
+
+        if (isActive == null || isActive == true) {
+          selectedVariant = rawVariant;
+          break;
+        }
+      }
+    }
+
+    // Fallback if no active variant was found.
+    if (selectedVariant == null && variants.isNotEmpty) {
+      final first = variants.first;
+      if (first is Map<String, dynamic>) {
+        selectedVariant = first;
+      }
+    }
+
+    final variantId = _toInt(selectedVariant?['id']) ?? 0;
+
+    debugPrint(
+      '[BestSellingItem] '
+      'name=${json['name']} | '
+      'materialId=$materialId | '
+      'variantId=$variantId',
+    );
+
+    // ------------------------------------------------------------
+    // IMAGE
+    // ------------------------------------------------------------
     final masterImage = json['master_image']?.toString();
+
     String? resolvedRawImage = (masterImage != null && masterImage.isNotEmpty)
         ? masterImage
         : null;
 
     if (resolvedRawImage == null) {
       final imagesList = json['images'] as List? ?? [];
+
       if (imagesList.isNotEmpty) {
-        final firstImage = imagesList.first as Map<String, dynamic>?;
-        final galleryPath = firstImage?['image']?.toString();
-        if (galleryPath != null && galleryPath.isNotEmpty) {
-          resolvedRawImage = galleryPath;
+        final firstImage = imagesList.first;
+
+        if (firstImage is Map<String, dynamic>) {
+          final galleryPath = firstImage['image']?.toString();
+
+          if (galleryPath != null && galleryPath.isNotEmpty) {
+            resolvedRawImage = galleryPath;
+          }
         }
       }
     }
 
+    // ------------------------------------------------------------
+    // PRICE
+    //
+    // Prefer variant price because variant is what is actually
+    // used for cart/wishlist operations.
+    // ------------------------------------------------------------
+    final variantRetailPrice = selectedVariant?['retail_price_with_gst'];
+
+    final variantRetailPriceFallback = selectedVariant?['retail_price'];
+
+    final retailPrice = variantRetailPrice != null
+        ? toDouble(variantRetailPrice)
+        : variantRetailPriceFallback != null
+        ? toDouble(variantRetailPriceFallback)
+        : toDouble(json['retail_price']);
+
     return BestSellingItem(
-      id: json['id'] as int,
+      id: materialId,
+
+      // IMPORTANT
+      materialId: materialId,
+      variantId: variantId,
+
       name: json['name']?.toString() ?? '',
+
       description: json['description']?.toString(),
+
       productHighlights: json['product_highlights']?.toString(),
+
       imageUrl: _fullImageUrl(resolvedRawImage),
+
       brandName: brand?['name']?.toString(),
+
       categoryName: category?['name']?.toString(),
+
       subcategoryName: subcategory?['name']?.toString(),
-      retailPrice: toDouble(json['retail_price']),
+
+      retailPrice: retailPrice,
+
       isBestSelling: json['is_best_selling'] == true,
+
       discountPercent: toIntOrNull(
         json['discount_percentage'] ?? json['discount_percent'],
       ),
+
       dealPrice: toDoubleOrNull(
         json['deal_price'] ?? json['offer_price'] ?? json['special_price'],
       ),
-      isAssured: json['is_assured'] == true, // NEW
+
+      isAssured: json['is_assured'] == true,
+
       assuredCertificate: _fullCertUrl(json['assured_certificate']),
     );
   }

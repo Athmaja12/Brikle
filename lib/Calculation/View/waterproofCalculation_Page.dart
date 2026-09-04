@@ -659,6 +659,16 @@ class _ProductsSection extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final product = products[index];
+
+              // priceDisplay is a formatted string (e.g. "₹450") —
+              // strip non-numeric chars to get the numeric value
+              // SharedProductCard.price needs.
+              final parsedPrice =
+                  double.tryParse(
+                    product.priceDisplay.replaceAll(RegExp(r'[^\d.]'), ''),
+                  ) ??
+                  0;
+
               return SharedProductCard(
                 title: product.name,
                 subtitle: product.quantityDisplay,
@@ -666,8 +676,9 @@ class _ProductsSection extends StatelessWidget {
                 imageUrl: provider.getProductImage(product.variantId),
                 isImageLoading: provider.isLoadingImages,
                 variantId: product.variantId,
+                materialId: product.materialId,
+                price: parsedPrice, // now defined ✓
                 placeholderIcon: Icons.water_drop,
-                // No stock field in this API — treat as always available.
                 inStock: true,
               );
             },

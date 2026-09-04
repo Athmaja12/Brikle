@@ -534,6 +534,16 @@ class _RelatedProductsSection extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = items[index];
+
+              // priceText (item.pricePerUnit) is a formatted display
+              // string (e.g. "₹450") — strip non-numeric chars to get
+              // the numeric value SharedProductCard.price needs.
+              final parsedPrice =
+                  double.tryParse(
+                    item.pricePerUnit.replaceAll(RegExp(r'[^\d.]'), ''),
+                  ) ??
+                  0;
+
               return SharedProductCard(
                 title: item.productName,
                 subtitle: item.unitStyle,
@@ -541,6 +551,8 @@ class _RelatedProductsSection extends StatelessWidget {
                 imageUrl: item.imageUrl,
                 isImageLoading: item.imageLoading,
                 variantId: item.variantId,
+                materialId: item.materialId,
+                price: parsedPrice, // ← ADDED, fixes the error
                 placeholderIcon: Icons.construction,
                 inStock: item.inStock,
                 stockLabel: item.stockStatus,
