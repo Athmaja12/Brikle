@@ -897,6 +897,19 @@ class ApiService {
     return list.map((e) => SmartSuggestion.fromJson(e)).toList();
   }
 
+    static Future<CombinedSuggestionResponse> getCombinedSuggestions(
+    int materialId,
+  ) async {
+    final response = await _get(
+      ApiConfig.materialCombinedSuggestionsUrl(materialId),
+      headers: await _authHeaders(),
+    );
+    debugPrint(
+      '[getCombinedSuggestions] raw response for materialId=$materialId: $response',
+    );
+    return CombinedSuggestionResponse.fromJson(response);
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // ADDRESSES (customer's saved delivery addresses)
   // ══════════════════════════════════════════════════════════════════════════

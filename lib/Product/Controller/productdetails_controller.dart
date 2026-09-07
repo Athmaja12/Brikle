@@ -43,6 +43,10 @@ class ProductDetailController extends GetxController {
 
   final RxList<SmartSuggestion> suggestedProducts = <SmartSuggestion>[].obs;
 
+  final RxList<CombinedSuggestionItem> combinedSuggestions =
+      <CombinedSuggestionItem>[].obs;
+  final RxBool isLoadingCombinedSuggestions = false.obs;
+
   // NEW: Computed price with offer
   double get discountedPrice {
     final offer = productOffer.value;
@@ -90,14 +94,15 @@ class ProductDetailController extends GetxController {
       debugPrint('[MaterialDetail RAW] $response');
       final materialDetail = MaterialDetail.fromJson(response);
       detail.value = materialDetail;
-      
+
       // NEW: Set product offer from API
       productOffer.value = materialDetail.offer;
-      
+
       suggestedProducts.assignAll(
         await ApiService.getMaterialSuggestions(product.materialId),
       );
       _loadOffers();
+      _loadCombinedSuggestions();
 
       if (activeProduct.value.variantId == 0) {
         final resolved = await ApiService.getSuggestedProductDetail(
@@ -135,6 +140,22 @@ class ProductDetailController extends GetxController {
     }
   }
 
+  Future<void> _loadCombinedSuggestions() async {
+    isLoadingCombinedSuggestions.value = true;
+    try {
+      final response = await ApiService.getCombinedSuggestions(
+        product.materialId,
+      );
+      combinedSuggestions.assignAll(response.suggestions);
+    } catch (e) {
+      debugPrint(
+        '[ProductDetailController] _loadCombinedSuggestions failed: $e',
+      );
+    } finally {
+      isLoadingCombinedSuggestions.value = false;
+    }
+  }
+
   Future<void> applyBulkTier(int minQty) async {
     final cart = Get.find<CartController>();
     final variantId = activeProduct.value.variantId;
@@ -160,8 +181,10 @@ class ProductDetailController extends GetxController {
 
   void selectImage(int index) => selectedImageIndex.value = index;
   void toggleWishlist() => isWishlisted.value = !isWishlisted.value;
-  void toggleHighlights() => highlightsExpanded.value = !highlightsExpanded.value;
-  void toggleDescription() => descriptionExpanded.value = !descriptionExpanded.value;
+  void toggleHighlights() =>
+      highlightsExpanded.value = !highlightsExpanded.value;
+  void toggleDescription() =>
+      descriptionExpanded.value = !descriptionExpanded.value;
   void toggleFaqs() => faqsExpanded.value = !faqsExpanded.value;
   void toggleReturns() => returnsExpanded.value = !returnsExpanded.value;
 
@@ -215,6 +238,28 @@ class ProductDetailController extends GetxController {
       imageUrl: suggestion.imageUrl,
       brandName: suggestion.brandName,
       price: 0,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(product: placeholder),
+      ),
+    );
+  }
+
+  void openCombinedSuggestion(
+    BuildContext context,
+    CombinedSuggestionItem item,
+  ) {
+    final variant = item.defaultVariant;
+    final placeholder = CategoryProductItem(
+      variantId: variant?.id ?? 0,
+      materialId: item.materialId,
+      name: item.name,
+      imageUrl: item.imageUrl,
+      brandName: item.brandName,
+      price: variant?.retailPriceWithGst ?? 0,
     );
 
     Navigator.push(

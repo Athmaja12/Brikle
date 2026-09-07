@@ -58,6 +58,10 @@ class _SharedProductCardState extends State<SharedProductCard> {
     return uri.host.isNotEmpty;
   }
 
+  bool _isEditingQuantity = false;
+  final TextEditingController _qtyEditController = TextEditingController();
+  final FocusNode _qtyFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +70,12 @@ class _SharedProductCardState extends State<SharedProductCard> {
         if (mounted) setState(() {});
       });
     }
+
+    _qtyFocusNode.addListener(() {
+      if (!_qtyFocusNode.hasFocus && _isEditingQuantity) {
+        _commitQuantityEdit();
+      }
+    });
   }
 
   @override
@@ -73,6 +83,8 @@ class _SharedProductCardState extends State<SharedProductCard> {
     _countdownTimer?.cancel();
     _unlockHideTimer?.cancel();
     _confettiHideTimer?.cancel();
+    _qtyFocusNode.dispose();
+    _qtyEditController.dispose();
     super.dispose();
   }
 
@@ -321,6 +333,44 @@ class _SharedProductCardState extends State<SharedProductCard> {
         ),
       ),
     );
+  }
+
+  void _startEditingQuantity(int currentQty) {
+    setState(() {
+      _isEditingQuantity = true;
+      _qtyEditController.text = '$currentQty';
+      _qtyEditController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _qtyEditController.text.length,
+      );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _qtyFocusNode.requestFocus();
+    });
+  }
+
+  void _commitQuantityEdit() {
+    if (!_isEditingQuantity) return;
+
+    final cartController = Get.find<CartController>();
+    final cartItem = cartController.cartItems.firstWhereOrNull(
+      (i) => i.variantId == product.variantId,
+    );
+    final entered = int.tryParse(_qtyEditController.text.trim());
+
+    setState(() => _isEditingQuantity = false);
+
+    if (cartItem == null) return;
+
+    if (entered == null || entered <= 0) {
+      cartController.removeItem(cartItem);
+      return;
+    }
+
+    if (entered == cartItem.quantity) return;
+
+    cartController.updateQuantity(cartItem, entered);
+    _maybeShowUnlockPopup(entered);
   }
 
   @override
@@ -686,7 +736,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _StepperSymbol(
                             label: '-',
@@ -698,12 +748,59 @@ class _SharedProductCardState extends State<SharedProductCard> {
                               }
                             },
                           ),
-                          Text(
-                            '$quantity',
-                            style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                          Expanded(
+                            child: Center(
+                              child: _isEditingQuantity
+                                  ? SizedBox(
+                                      width: 40,
+                                      height: 20,
+                                      child: TextField(
+                                        controller: _qtyEditController,
+                                        focusNode: _qtyFocusNode,
+                                        autofocus: true,
+                                        keyboardType: TextInputType.number,
+                                        textAlign: TextAlign.center,
+                                        textAlignVertical:
+                                            TextAlignVertical.center,
+                                        maxLines: 1,
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                        decoration: const InputDecoration(
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.zero,
+                                          border: UnderlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                          focusedBorder: UnderlineInputBorder(
+                                            borderSide: BorderSide(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        onSubmitted: (_) =>
+                                            _commitQuantityEdit(),
+                                      ),
+                                    )
+                                  : GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () =>
+                                          _startEditingQuantity(quantity),
+                                      child: Text(
+                                        '$quantity',
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: Colors.white70,
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ),
                           _StepperSymbol(

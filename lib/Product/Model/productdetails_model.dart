@@ -127,4 +127,131 @@ class MaterialDetail {
       offer: offerJson != null ? ProductOffer.fromJson(offerJson) : null, // NEW
     );
   }
+
+}
+
+double _toDouble(dynamic v) {
+  if (v == null) return 0.0;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? 0.0;
+}
+
+class CombinedTier {
+  final int minQty;
+  final double priceWithGst;
+
+  const CombinedTier({required this.minQty, required this.priceWithGst});
+}
+
+class CombinedSuggestionVariant {
+  final int id;
+  final String sizeDimension;
+  final String thicknessOrSpec;
+  final String sku;
+  final int stock;
+  final bool isActive;
+  final double retailPrice;
+  final double retailPriceWithGst;
+  final List<CombinedTier> tiers;
+
+  const CombinedSuggestionVariant({
+    required this.id,
+    required this.sizeDimension,
+    required this.thicknessOrSpec,
+    required this.sku,
+    required this.stock,
+    required this.isActive,
+    required this.retailPrice,
+    required this.retailPriceWithGst,
+    required this.tiers,
+  });
+
+  factory CombinedSuggestionVariant.fromJson(Map<String, dynamic> json) {
+    final tiers = <CombinedTier>[];
+    for (final n in [1, 2, 3]) {
+      final minQty = json['tier_${n}_min_qty'];
+      final price = json['tier_${n}_price_with_gst'];
+      // Skip tiers the backend sent as null (see tier_2/tier_3 in the
+      // ACC OPC Cement example — null minQty means "no such tier").
+      if (minQty == null || price == null) continue;
+      final parsedQty = (minQty is num) ? minQty.toInt() : int.tryParse(minQty.toString());
+      if (parsedQty == null) continue;
+      tiers.add(CombinedTier(minQty: parsedQty, priceWithGst: _toDouble(price)));
+    }
+
+    return CombinedSuggestionVariant(
+      id: json['id'] as int,
+      sizeDimension: json['size_dimension']?.toString() ?? '',
+      thicknessOrSpec: json['thickness_or_spec']?.toString() ?? '',
+      sku: json['sku']?.toString() ?? '',
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
+      isActive: json['is_active'] as bool? ?? true,
+      retailPrice: _toDouble(json['retail_price']),
+      retailPriceWithGst: _toDouble(json['retail_price_with_gst']),
+      tiers: tiers,
+    );
+  }
+}
+
+class CombinedSuggestionItem {
+  final int materialId;
+  final String name;
+  final String brandName;
+  final String imageUrl;
+  final bool isBestSelling;
+  final List<CombinedSuggestionVariant> variants;
+
+  const CombinedSuggestionItem({
+    required this.materialId,
+    required this.name,
+    required this.brandName,
+    required this.imageUrl,
+    required this.isBestSelling,
+    required this.variants,
+  });
+
+  /// The variant shown on the card / used when the card is tapped.
+  /// Picks the first *active* variant, falling back to the first variant
+  /// at all so a fully-inactive material still opens something.
+  CombinedSuggestionVariant? get defaultVariant {
+    if (variants.isEmpty) return null;
+    return variants.firstWhere((v) => v.isActive, orElse: () => variants.first);
+  }
+
+  factory CombinedSuggestionItem.fromJson(Map<String, dynamic> json) {
+    final variantsJson = json['variants'] as List? ?? [];
+    return CombinedSuggestionItem(
+      materialId: json['id'] as int,
+      name: json['name']?.toString() ?? '',
+      brandName: json['brand_name']?.toString() ?? '',
+      imageUrl: _fullImageUrl(json['master_image_url']?.toString()),
+      isBestSelling: json['is_best_selling'] as bool? ?? false,
+      variants: variantsJson
+          .map((e) => CombinedSuggestionVariant.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class CombinedSuggestionResponse {
+  final int primaryProductId;
+  final String primaryProductName;
+  final List<CombinedSuggestionItem> suggestions;
+
+  const CombinedSuggestionResponse({
+    required this.primaryProductId,
+    required this.primaryProductName,
+    required this.suggestions,
+  });
+
+  factory CombinedSuggestionResponse.fromJson(Map<String, dynamic> json) {
+    final list = json['combined_suggestions'] as List? ?? [];
+    return CombinedSuggestionResponse(
+      primaryProductId: (json['primary_product_id'] as num?)?.toInt() ?? 0,
+      primaryProductName: json['primary_product_name']?.toString() ?? '',
+      suggestions: list
+          .map((e) => CombinedSuggestionItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }

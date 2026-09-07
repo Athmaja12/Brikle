@@ -28,6 +28,7 @@ class PriceTier {
 class CartItem {
   final int id;
   final int variantId;
+  final int materialId;
   final String materialName;
   final String sizeDimension;
   final String imageUrl;
@@ -42,6 +43,7 @@ class CartItem {
   const CartItem({
     required this.id,
     required this.variantId,
+    required this.materialId,
     required this.materialName,
     required this.sizeDimension,
     required this.imageUrl,
@@ -73,6 +75,7 @@ class CartItem {
     return CartItem(
       id: json['id'] as int,
       variantId: json['variant'] as int,
+       materialId: (json['material_id'] as num?)?.toInt() ?? 0, 
       materialName: json['material_name']?.toString() ?? '',
       sizeDimension: json['size_dimension']?.toString() ?? '',
       imageUrl: _fullImageUrl(json['master_image']?.toString()),
@@ -92,6 +95,7 @@ class CartItem {
   Map<String, dynamic> toJson() => {
     'id': id,
     'variant': variantId,
+    'material_id': materialId,
     'material_name': materialName,
     'size_dimension': sizeDimension,
     'master_image': imageUrl,
@@ -109,6 +113,7 @@ class CartItem {
   }) => CartItem(
     id: id,
     variantId: variantId,
+    materialId: materialId,
     materialName: materialName,
     sizeDimension: sizeDimension,
     imageUrl: imageUrl,

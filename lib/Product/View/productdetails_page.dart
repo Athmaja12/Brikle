@@ -681,6 +681,56 @@ class ProductDetailScreen extends StatelessWidget {
                 ),
 
                 Obx(() {
+                  if (controller.combinedSuggestions.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: Responsive.space(context, 20)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: Responsive.space(context, 16),
+                        ),
+                        child: Text(
+                          'Frequently bought with this',
+                          style: AppTextStyles.welcomeBackTitle(
+                            context,
+                          ).copyWith(fontSize: 16),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.space(context, 12)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: Responsive.space(context, 16),
+                        ),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: controller.combinedSuggestions.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                                childAspectRatio: 0.65,
+                              ),
+                          itemBuilder: (context, index) =>
+                              _CombinedSuggestionCard(
+                                item: controller.combinedSuggestions[index],
+                                onTap: () => controller.openCombinedSuggestion(
+                                  context,
+                                  controller.combinedSuggestions[index],
+                                ),
+                              ),
+                        ),
+                      ),
+                      SizedBox(height: Responsive.space(context, 24)),
+                    ],
+                  );
+                }),
+
+                Obx(() {
                   if (controller.suggestedProducts.isEmpty) {
                     return const SizedBox.shrink();
                   }
@@ -743,6 +793,120 @@ class ProductDetailScreen extends StatelessWidget {
             (route) => false,
           );
         },
+      ),
+    );
+  }
+}
+
+// ── Combined Suggestion Card ────────────────────────────────────────────
+class _CombinedSuggestionCard extends StatelessWidget {
+  final CombinedSuggestionItem item;
+  final VoidCallback onTap;
+
+  const _CombinedSuggestionCard({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final variant = item.defaultVariant;
+    final hasTiers = variant != null && variant.tiers.isNotEmpty;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: item.imageUrl.isNotEmpty
+                      ? Image.network(
+                          item.imageUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.inventory_2_outlined,
+                            size: 50,
+                            color: Colors.black26,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.inventory_2_outlined,
+                          size: 50,
+                          color: Colors.black26,
+                        ),
+                ),
+                if (item.isBestSelling)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF7A00),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'BESTSELLER',
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (item.brandName.isNotEmpty)
+              Text(
+                item.brandName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.termsText(context),
+              ),
+            const SizedBox(height: 2),
+            Text(
+              item.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 6),
+            if (variant != null)
+              Text(
+                '₹${variant.retailPriceWithGst.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryGreen,
+                ),
+              ),
+            if (hasTiers)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Bulk pricing available',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textGray,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

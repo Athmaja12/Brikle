@@ -838,7 +838,6 @@ class CartController extends GetxController {
         earnedCouponsCount.value = result.earnedCouponsCount;
         debugPrint('$_tag placeOrder — earned ${earnedCoupons.length} coupons');
       }
-
       lastOrderResponse.value = result;
 
       debugPrint(
@@ -850,16 +849,43 @@ class CartController extends GetxController {
       selectedCoupon.value = null;
       couponCode.value = '';
 
-      debugPrint('$_tag placeOrder — clearing cart after successful order');
-      await clearCart();
-      _resetCheckoutStateForNewOrder();
-      await fetchMyCoupons();
-
-      if (Get.isRegistered<ProfileController>()) {
-        await Get.find<ProfileController>().fetchCoupons();
-      }
+      // FIX: previously this awaited clearCart()/_resetCheckoutStateForNewOrder()
+      // /fetchMyCoupons()/ProfileController.fetchCoupons() BEFORE returning.
+      // CartScreen is still the visible route at this point, so its Obx saw
+      // cartItems go empty and rendered "Your Cart is Empty" for a frame
+      // before the caller's Get.offAll() to OrderSuccessScreen ever ran.
+      // Returning immediately lets the caller navigate away first; the
+      // cleanup below still runs the exact same steps, in the exact same
+      // order, just in the background — nothing about what it does changes,
+      // only when the UI is allowed to observe it.
+      debugPrint(
+        '$_tag placeOrder — order confirmed, returning immediately; '
+        'post-order cleanup (cart clear, reset, coupons) scheduled in background',
+      );
+      unawaited(_postOrderCleanup());
 
       return result;
+      // lastOrderResponse.value = result;
+
+      // debugPrint(
+      //   '$_tag placeOrder parsed — orderId: ${result.orderDetails.id}, '
+      //   'status: ${result.orderDetails.orderStatus}, grandTotal: '
+      //   '${result.orderDetails.grandTotal}',
+      // );
+
+      // selectedCoupon.value = null;
+      // couponCode.value = '';
+
+      // debugPrint('$_tag placeOrder — clearing cart after successful order');
+      // await clearCart();
+      // _resetCheckoutStateForNewOrder();
+      // await fetchMyCoupons();
+
+      // if (Get.isRegistered<ProfileController>()) {
+      //   await Get.find<ProfileController>().fetchCoupons();
+      // }
+
+      // return result;
     } on ApiException catch (e) {
       debugPrint(
         '$_tag placeOrder failed: ${e.message} (status ${e.statusCode})',
@@ -1044,5 +1070,25 @@ class CartController extends GetxController {
 
     billDetailsExpanded.value = true;
     cancellationPolicyExpanded.value = false;
+  }
+
+
+  Future<void> _postOrderCleanup() async {
+    try {
+      debugPrint(
+        '$_tag _postOrderCleanup — clearing cart after successful order',
+      );
+      await clearCart();
+      _resetCheckoutStateForNewOrder();
+      await fetchMyCoupons();
+
+      if (Get.isRegistered<ProfileController>()) {
+        await Get.find<ProfileController>().fetchCoupons();
+      }
+      debugPrint('$_tag _postOrderCleanup — finished');
+    } catch (e, st) {
+      debugPrint('$_tag _postOrderCleanup — unexpected error: $e');
+      debugPrint('$_tag _postOrderCleanup stack: $st');
+    }
   }
 }

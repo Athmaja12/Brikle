@@ -57,6 +57,8 @@ class ApiConfig {
 
   static String materialSuggestionsUrl(int materialId) =>
       '$baseUrl/api/materials/$materialId/suggestions/';
+  static String materialCombinedSuggestionsUrl(int materialId) =>
+      '$baseUrl/api/materials/$materialId/combined-suggestions/';
   // ==========================================================================
   // HOME
   // ==========================================================================

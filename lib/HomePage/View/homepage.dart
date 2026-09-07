@@ -374,6 +374,24 @@ class _CarouselSectionState extends State<_CarouselSection> {
       final items = widget.controller.carousels;
       if (items.isEmpty) return const SizedBox.shrink();
 
+      // ── Media-query-driven sizing ─────────────────────────────────────
+      // The banner height used to be a flat 172px regardless of device.
+      // On narrow phones that made the text overlay cramped (title +
+      // description squeezed into very little vertical room, forcing the
+      // description onto 1 line and truncating mid-word); on wide/tablet
+      // screens the same 172px looked too short for the image. Deriving
+      // the height from the actual screen width keeps the banner's
+      // aspect ratio consistent and gives the overlay room to breathe.
+      final screenWidth = MediaQuery.of(context).size.width;
+      final carouselHeight = (screenWidth * 0.46).clamp(150.0, 230.0);
+
+      // Overlay text also scales off the same MediaQuery-derived value
+      // (via Responsive.font, which itself reads MediaQuery) instead of
+      // fixed 15/12 sizes, and the description gets a 2nd line instead
+      // of being cut off after a few words.
+      final titleSize = Responsive.font(context, 15).clamp(13.0, 17.0);
+      final descriptionSize = Responsive.font(context, 12).clamp(10.5, 13.5);
+
       return Padding(
         padding: EdgeInsets.only(
           left: Responsive.space(context, 6),
@@ -384,8 +402,7 @@ class _CarouselSectionState extends State<_CarouselSection> {
         child: Column(
           children: [
             SizedBox(
-              // Slightly taller to give the peek-scale effect room to breathe.
-              height: Responsive.height(context, 172),
+              height: carouselHeight,
               child: NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
                   if (notification is ScrollStartNotification &&
@@ -467,17 +484,19 @@ class _CarouselSectionState extends State<_CarouselSection> {
                                     },
                                   ),
                                   if (item.title.isNotEmpty ||
-                                      item.description.isNotEmpty)
+                                      item.description.isNotEmpty ||
+                                      item.material != null ||
+                                      item.category != null)
                                     Positioned(
                                       left: 0,
                                       right: 0,
                                       bottom: 0,
                                       child: Container(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          16,
-                                          36,
-                                          16,
-                                          14,
+                                        padding: EdgeInsets.fromLTRB(
+                                          Responsive.space(context, 16),
+                                          Responsive.space(context, 30),
+                                          Responsive.space(context, 16),
+                                          Responsive.space(context, 12),
                                         ),
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
@@ -485,10 +504,10 @@ class _CarouselSectionState extends State<_CarouselSection> {
                                             end: Alignment.bottomCenter,
                                             colors: [
                                               Colors.transparent,
-                                              Colors.black.withOpacity(0.05),
-                                              Colors.black.withOpacity(0.55),
+                                              Colors.black.withOpacity(0.08),
+                                              Colors.black.withOpacity(0.62),
                                             ],
-                                            stops: const [0.0, 0.45, 1.0],
+                                            stops: const [0.0, 0.35, 1.0],
                                           ),
                                         ),
                                         child: Column(
@@ -501,28 +520,114 @@ class _CarouselSectionState extends State<_CarouselSection> {
                                                 item.title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   color: Colors.white,
-                                                  fontSize: 15,
+                                                  fontSize: titleSize,
                                                   fontWeight: FontWeight.w700,
                                                   letterSpacing: 0.1,
+                                                  height: 1.2,
                                                 ),
                                               ),
-                                            if (item.description.isNotEmpty)
+                                            // if (item.description.isNotEmpty)
+                                            //   Padding(
+                                            //     padding: EdgeInsets.only(
+                                            //       top: Responsive.space(
+                                            //         context,
+                                            //         3,
+                                            //       ),
+                                            //     ),
+                                            //     child: Text(
+                                            //       item.description,
+                                            //       // 2 lines instead of 1 —
+                                            //       // this is what actually
+                                            //       // fixes the mid-word
+                                            //       // truncation seen on
+                                            //       // narrower screens.
+                                            //       maxLines: 2,
+                                            //       overflow:
+                                            //           TextOverflow.ellipsis,
+                                            //       style: TextStyle(
+                                            //         color: Colors.white
+                                            //             .withOpacity(0.90),
+                                            //         fontSize: descriptionSize,
+                                            //         fontWeight: FontWeight.w400,
+                                            //         height: 1.3,
+                                            //       ),
+                                            //     ),
+                                            //   ),
+                                            // ── "Shop Now" CTA — only
+                                            // shown when the banner is
+                                            // actually navigable (same
+                                            // guard _onBannerTap itself
+                                            // uses), so it's never shown
+                                            // as a dead-end button.
+                                            if (item.material != null ||
+                                                item.category != null)
                                               Padding(
-                                                padding: const EdgeInsets.only(
-                                                  top: 3,
+                                                padding: EdgeInsets.only(
+                                                  top: Responsive.space(
+                                                    context,
+                                                    8,
+                                                  ),
                                                 ),
-                                                child: Text(
-                                                  item.description,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    color: Colors.white
-                                                        .withOpacity(0.88),
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w400,
+                                                child: GestureDetector(
+                                                  onTap: () =>
+                                                      _onBannerTap(item),
+                                                  child: Container(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          horizontal:
+                                                              Responsive.space(
+                                                                context,
+                                                                14,
+                                                              ),
+                                                          vertical:
+                                                              Responsive.space(
+                                                                context,
+                                                                7,
+                                                              ),
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          'Shop Now',
+                                                          style: TextStyle(
+                                                            color: AppColors
+                                                                .primaryGreen,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            fontSize:
+                                                                Responsive.font(
+                                                                  context,
+                                                                  12,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        SizedBox(
+                                                          width:
+                                                              Responsive.space(
+                                                                context,
+                                                                4,
+                                                              ),
+                                                        ),
+                                                        Icon(
+                                                          Icons
+                                                              .arrow_forward_rounded,
+                                                          size: 14,
+                                                          color: AppColors
+                                                              .primaryGreen,
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
                                               ),

@@ -483,7 +483,7 @@ class _SwipeableCartItemRowState extends State<_SwipeableCartItemRow> {
         builder: (_) => ProductDetailScreen(
           product: CategoryProductItem(
             variantId: widget.item.variantId,
-            materialId: widget.item.variantId,
+            materialId: widget.item.materialId,
             name: widget.item.materialName,
             imageUrl: widget.item.imageUrl,
             price: widget.item.unitPriceWithGst,
