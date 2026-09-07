@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 
 /// Persists auth tokens + customer id + guest device id across app restarts.
 class SessionManager {
@@ -81,6 +82,29 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
 
     return prefs.getString(_keyGuestDeviceId);
+  }
+
+  static Future<String> getOrCreateGuestDeviceId() async {
+    final existing = await getGuestDeviceId();
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+
+    final generated = _generateDeviceId();
+    await saveGuestDeviceId(generated);
+    return generated;
+  }
+
+  static String _generateDeviceId() {
+    // Simple UUID-v4-shaped random id — good enough as an opaque client
+    // identifier; the backend doesn't need it to be a "real" UUID, just
+    // unique per install.
+    final rand = Random.secure();
+    String hex(int length) =>
+        List.generate(length, (_) => rand.nextInt(16).toRadixString(16)).join();
+
+    return '${hex(8)}-${hex(4)}-4${hex(3)}-'
+        '${(8 + rand.nextInt(4)).toRadixString(16)}${hex(3)}-${hex(12)}';
   }
 
   static Future<void> clearGuestDeviceId() async {

@@ -225,9 +225,34 @@ class CartController extends GetxController {
 
       final parsed = CartResponse.fromJson(response);
 
-      cartItems.value = parsed.items;
+      // Preserve existing local item order when reconciling with server items
+      if (cartItems.isNotEmpty && parsed.items.isNotEmpty) {
+        final Map<int, CartItem> serverMap = {
+          for (final item in parsed.items) item.variantId: item,
+        };
+
+        final List<CartItem> orderedItems = [];
+
+        // 1. Maintain relative positions of items already in cartItems
+        for (final existing in cartItems) {
+          if (serverMap.containsKey(existing.variantId)) {
+            orderedItems.add(serverMap.remove(existing.variantId)!);
+          }
+        }
+
+        // 2. Append any newly added items from server
+        orderedItems.addAll(serverMap.values);
+
+        cartItems.value = orderedItems;
+      } else {
+        cartItems.value = parsed.items;
+      }
 
       grandTotal.value = parsed.grandTotalWithGst;
+
+      if (!await AuthGate.isLoggedIn()) {
+        await GuestCartService.save(cartItems);
+      }
 
       debugPrint('$_tag SERVER CART loaded successfully');
 
@@ -401,7 +426,6 @@ class CartController extends GetxController {
     final loggedIn = await AuthGate.isLoggedIn();
     if (!loggedIn) {
       await GuestCartService.save(cartItems);
-      return;
     }
 
     try {
@@ -446,7 +470,6 @@ class CartController extends GetxController {
     final loggedIn = await AuthGate.isLoggedIn();
     if (!loggedIn) {
       await GuestCartService.save(cartItems);
-      return;
     }
 
     try {
@@ -465,19 +488,34 @@ class CartController extends GetxController {
 
   Future<void> clearCart() async {
     debugPrint('$_tag clearCart called — removing ${cartItems.length} items');
-    final loggedIn = await AuthGate.isLoggedIn();
-
-    if (!loggedIn) {
-      cartItems.clear();
-      grandTotal.value = 0;
-      await GuestCartService.clear();
-      debugPrint('$_tag clearCart finished (guest)');
-      return;
-    }
 
     final items = List<CartItem>.from(cartItems);
     cartItems.clear();
     grandTotal.value = 0;
+
+    final loggedIn = await AuthGate.isLoggedIn();
+
+    if (!loggedIn) {
+      for (final item in items) {
+        try {
+          await ApiService.removeCartItem(variantId: item.variantId);
+          debugPrint(
+            '$_tag clearCart (guest): removed variant ${item.variantId} '
+            'from server cart',
+          );
+        } catch (e) {
+          debugPrint(
+            '$_tag clearCart (guest): failed removing variant '
+            '${item.variantId} from server: $e',
+          );
+        }
+      }
+      await GuestCartService.clear();
+      await fetchCart(showLoader: false);
+      debugPrint('$_tag clearCart finished (guest)');
+      return;
+    }
+
     for (final item in items) {
       try {
         await ApiService.removeCartItem(variantId: item.variantId);
@@ -1071,7 +1109,6 @@ class CartController extends GetxController {
     billDetailsExpanded.value = true;
     cancellationPolicyExpanded.value = false;
   }
-
 
   Future<void> _postOrderCleanup() async {
     try {

@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
-import 'package:brikle/AddtoCart/View/addtocart_view.dart';
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/Category/Model/categorydetail_model.dart';
 import 'package:brikle/Product/View/productdetails_page.dart';
 import 'package:brikle/Wishlist/View/wishlistheart.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';

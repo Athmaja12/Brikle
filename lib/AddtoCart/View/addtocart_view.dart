@@ -444,6 +444,9 @@ class _CartItemsCard extends StatelessWidget {
             separatorBuilder: (_, __) =>
                 const Divider(height: 1, color: Color(0xFFF0F0F0)),
             itemBuilder: (_, index) => _SwipeableCartItemRow(
+              key: ValueKey(
+                'cart_item_${controller.cartItems[index].variantId}',
+              ),
               item: controller.cartItems[index],
               controller: controller,
               index: index,
@@ -461,6 +464,7 @@ class _SwipeableCartItemRow extends StatefulWidget {
   final int index;
 
   const _SwipeableCartItemRow({
+    super.key,
     required this.item,
     required this.controller,
     required this.index,

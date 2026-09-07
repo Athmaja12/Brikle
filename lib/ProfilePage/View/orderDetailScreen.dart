@@ -424,7 +424,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 Responsive.space(context, 16),
                 Responsive.space(context, 12),
               ),
-              child: _buildItemCard(context, item),
+              child: _buildItemCard(context, item, order),
             ),
           ),
 
@@ -448,9 +448,42 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildItemCard(BuildContext context, OrderItemModel item) {
+  Widget _buildItemCard(BuildContext context, OrderItemModel item, OrderModel order) {
     final materialData = _materialDetails[item.variant];
     final String imageUrl = materialData?['image']?.toString() ?? '';
+
+    final int qty = item.quantity <= 0 ? 1 : item.quantity;
+    double unitPrice = item.unitPrice;
+    double totalPrice = item.totalPrice;
+
+    // Fallback 1: If parsed unit/total price is 0, check fetched materialData
+    if (unitPrice <= 0 || totalPrice <= 0) {
+      final matPriceRaw = materialData?['price'] ??
+          materialData?['retail_price'] ??
+          materialData?['unit_price'] ??
+          materialData?['unit_price_with_gst'];
+      if (matPriceRaw != null) {
+        final parsedMatPrice = double.tryParse(matPriceRaw.toString()) ?? 0.0;
+        if (parsedMatPrice > 0) {
+          unitPrice = parsedMatPrice;
+          totalPrice = unitPrice * qty;
+        }
+      }
+    }
+
+    // Fallback 2: If still 0, check order's itemsSubtotal
+    if (unitPrice <= 0 || totalPrice <= 0) {
+      final subtotal = double.tryParse(order.itemsSubtotal) ?? 0.0;
+      if (subtotal > 0) {
+        if (order.items.length == 1) {
+          totalPrice = subtotal;
+          unitPrice = subtotal / qty;
+        } else {
+          totalPrice = subtotal / order.items.length;
+          unitPrice = totalPrice / qty;
+        }
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -509,7 +542,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Qty: ${item.quantity} × ₹${item.priceAtPurchase}',
+                  'Qty: $qty × ₹${unitPrice.toStringAsFixed(2)}',
                   style: GoogleFonts.manrope(
                     fontSize: 12,
                     color: AppColors.textGray,
@@ -519,7 +552,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ),
           ),
           Text(
-            '₹${item.totalPrice.toStringAsFixed(2)}',
+            '₹${totalPrice.toStringAsFixed(2)}',
             style: GoogleFonts.manrope(
               fontSize: 14,
               fontWeight: FontWeight.w700,

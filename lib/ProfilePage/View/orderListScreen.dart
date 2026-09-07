@@ -293,7 +293,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
           const SizedBox(width: 8),
           // Price
           Text(
-            '₹${item.priceAtPurchase}',
+            '₹${(item.totalPrice > 0 ? item.totalPrice : (double.tryParse(order.itemsSubtotal) ?? 0.0)).toStringAsFixed(2)}',
             style: GoogleFonts.manrope(
               fontSize: 14,
               fontWeight: FontWeight.w700,

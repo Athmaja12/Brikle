@@ -897,7 +897,7 @@ class _CombinedSuggestionCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
-                  'Bulk pricing available',
+                  '',
                   style: TextStyle(
                     fontSize: 10,
                     color: AppColors.textGray,

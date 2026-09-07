@@ -1,5 +1,3 @@
-import 'package:brikle/ProfilePage/Model/review_model.dart';
-
 /// Matches GET /api/my-orders/ response exactly
 /// Order List Model for Flipkart-style order management
 
@@ -129,6 +127,7 @@ class OrderItemModel {
   final String materialName;
   final int quantity;
   final String priceAtPurchase;
+  final double? explicitTotalPrice;
 
   OrderItemModel({
     required this.id,
@@ -136,15 +135,50 @@ class OrderItemModel {
     required this.materialName,
     required this.quantity,
     required this.priceAtPurchase,
+    this.explicitTotalPrice,
   });
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
+    final rawQty = _parseInt(
+      json['quantity'] ?? json['qty'] ?? json['count'] ?? json['number_of_items'],
+    );
+    final qty = rawQty <= 0 ? 1 : rawQty;
+
+    final rawPrice = json['price_at_purchase'] ??
+        json['price'] ??
+        json['unit_price'] ??
+        json['unit_price_with_gst'] ??
+        json['total_price_with_gst'] ??
+        json['total_price'] ??
+        json['amount'] ??
+        json['total'];
+
+    final priceStr = rawPrice?.toString() ?? '0.00';
+    final double parsedPrice = double.tryParse(priceStr) ?? 0.0;
+
+    final rawTotal = json['total_price'] ??
+        json['total_price_with_gst'] ??
+        json['item_total'] ??
+        json['total'];
+
+    final double? explicitTotal = rawTotal != null
+        ? double.tryParse(rawTotal.toString())
+        : null;
+
     return OrderItemModel(
       id: _parseInt(json['id']),
-      variant: _parseInt(json['variant']),
-      materialName: json['material_name']?.toString() ?? '',
-      quantity: _parseInt(json['quantity']),
-      priceAtPurchase: json['price_at_purchase']?.toString() ?? '0.00',
+      variant: _parseInt(
+        json['variant'] ?? json['variant_id'] ?? json['material'] ?? json['material_id'],
+      ),
+      materialName: json['material_name']?.toString() ??
+          json['name'] ??
+          json['material_title'] ??
+          '',
+      quantity: qty,
+      priceAtPurchase: parsedPrice > 0
+          ? parsedPrice.toStringAsFixed(2)
+          : (priceStr.isNotEmpty ? priceStr : '0.00'),
+      explicitTotalPrice: explicitTotal,
     );
   }
 
@@ -154,9 +188,17 @@ class OrderItemModel {
     'material_name': materialName,
     'quantity': quantity,
     'price_at_purchase': priceAtPurchase,
+    if (explicitTotalPrice != null) 'total_price': explicitTotalPrice,
   };
 
-  double get totalPrice => (double.tryParse(priceAtPurchase) ?? 0) * quantity;
+  double get unitPrice => double.tryParse(priceAtPurchase) ?? 0.0;
+
+  double get totalPrice {
+    if (explicitTotalPrice != null && explicitTotalPrice! > 0) {
+      return explicitTotalPrice!;
+    }
+    return unitPrice * (quantity <= 0 ? 1 : quantity);
+  }
 
   static int _parseInt(dynamic value) {
     if (value == null) return 0;

@@ -378,24 +378,16 @@ class ApiService {
   /// If the user is logged in, Authorization is also included.
   static Future<Map<String, String>> _cartHeaders() async {
     final token = await SessionManager.getAccessToken();
-    final deviceId = await SessionManager.getGuestDeviceId();
-
     final headers = <String, String>{'Content-Type': 'application/json'};
 
-    // Logged-in user
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
+      return headers;
     }
 
-    // Guest cart / device cart
-    if (deviceId != null && deviceId.isNotEmpty) {
-      headers['X-Device-ID'] = deviceId;
-
-      debugPrint('[ApiService] 🛒 X-Device-ID => $deviceId');
-    } else {
-      debugPrint('[ApiService] 🛒 No guest device ID saved yet');
-    }
-
+    final deviceId = await SessionManager.getOrCreateGuestDeviceId();
+    headers['X-Device-ID'] = deviceId;
+    debugPrint('[ApiService] 🛒 X-Device-ID => $deviceId');
     return headers;
   }
 
@@ -491,17 +483,41 @@ class ApiService {
     required int variantId,
     required int quantity,
   }) async {
-    return _patch(ApiConfig.cartUrl, {
+    final headers = await _cartHeaders();
+
+    debugPrint('[ApiService] 🛒 UPDATE CART');
+    debugPrint('[ApiService] 🛒 URL => ${ApiConfig.cartUrl}');
+    debugPrint('[ApiService] 🛒 Headers => $headers');
+    debugPrint(
+      '[ApiService] 🛒 Body => {variant: $variantId, quantity: $quantity}',
+    );
+
+    final response = await _patch(ApiConfig.cartUrl, {
       'variant': variantId,
       'quantity': quantity,
-    }, headers: await _authHeaders());
+    }, headers: headers);
+
+    final deviceId = response['device_id']?.toString();
+    if (deviceId != null && deviceId.isNotEmpty) {
+      await SessionManager.saveGuestDeviceId(deviceId);
+    }
+
+    debugPrint('[ApiService] 🛒 UPDATE CART response => $response');
+
+    return response;
   }
 
   static Future<void> removeCartItem({required int variantId}) async {
+    final headers = await _cartHeaders();
+
+    debugPrint('[ApiService] 🛒 REMOVE CART variantId=$variantId');
+    debugPrint('[ApiService] 🛒 URL => ${ApiConfig.cartUrl}');
+    debugPrint('[ApiService] 🛒 Headers => $headers');
+
     await _delete(
       ApiConfig.cartUrl,
       body: {'variant': variantId},
-      headers: await _authHeaders(),
+      headers: headers,
     );
   }
 
@@ -897,7 +913,7 @@ class ApiService {
     return list.map((e) => SmartSuggestion.fromJson(e)).toList();
   }
 
-    static Future<CombinedSuggestionResponse> getCombinedSuggestions(
+  static Future<CombinedSuggestionResponse> getCombinedSuggestions(
     int materialId,
   ) async {
     final response = await _get(
