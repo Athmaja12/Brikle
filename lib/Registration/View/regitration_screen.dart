@@ -1,6 +1,5 @@
 import 'package:brikle/AppStyle/appcolors.dart';
 import 'package:brikle/AppStyle/appstyle.dart';
-import 'package:brikle/AppStyle/circularbackbutton.dart';
 import 'package:brikle/AppStyle/custombutton.dart';
 import 'package:brikle/AppStyle/customiconfield.dart';
 import 'package:brikle/AppStyle/responsive.dart';
@@ -85,30 +84,31 @@ class SignupView extends GetView<SignupController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.space(context, 24),
-                    ).copyWith(top: Responsive.space(context, 16)),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: CircularBackButton(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => LoginView(
-                                checkoutReason: isModal
-                                    ? 'Please log in to continue'
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
+                  // Padding(
+                  //   padding: EdgeInsets.symmetric(
+                  //     horizontal: Responsive.space(context, 24),
+                  //   ).copyWith(top: Responsive.space(context, 16)),
+                  //   child: Align(
+                  //     alignment: Alignment.centerLeft,
+                  //     child: CircularBackButton(
+                  //       onTap: () {
+                  //         Navigator.pushReplacement(
+                  //           context,
+                  //           MaterialPageRoute(
+                  //             builder: (_) => LoginView(
+                  //               checkoutReason: isModal
+                  //                   ? 'Please log in to continue'
+                  //                   : null,
+                  //             ),
+                  //           ),
+                  //         );
+                  //       },
+                  //     ),
+                  //   ),
+                  // ),
 
-                  SizedBox(height: Responsive.space(context, 16)),
+                  // SizedBox(height: Responsive.space(context, 16)),
+                  SizedBox(height: Responsive.space(context, 50)),
 
                   Center(
                     child: RichText(

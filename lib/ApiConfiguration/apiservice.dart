@@ -1167,6 +1167,26 @@ class ApiService {
       );
     }
   }
+/// Authoritative fetch for a single order's review.
+/// GET /api/orders/{orderId}/review/ — confirmed to return the review
+/// object directly (not wrapped in "results"), matching OrderReviewModel.
+/// Returns null only when the order genuinely has no review yet (404).
+static Future<OrderReviewModel?> getOrderReview(int orderId) async {
+  debugPrint('[ApiService] getOrderReview($orderId)');
+  try {
+    final response = await _get(
+      ApiConfig.orderReviewUrl(orderId),
+      headers: await _authHeaders(),
+    );
+    if (response.isEmpty || response['id'] == null) return null;
+    return OrderReviewModel.fromJson(response);
+  } on ApiException catch (e) {
+    debugPrint('[ApiService] getOrderReview ApiException: ${e.message}');
+    if (e.statusCode == 404) return null;
+    rethrow;
+  }
+}
+
 
   // /// Get all reviews for a material (like Flipkart product reviews)
   // static Future<List<ReviewModel>> getMaterialReviews(int materialId) async {

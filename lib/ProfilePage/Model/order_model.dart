@@ -39,8 +39,15 @@ class OrderModel {
   bool get isDelivered => orderStatus.toUpperCase() == 'DELIVERED';
 
   bool get hasReview => review != null;
+  double get itemsAmountInclGst {
+    final subtotal = double.tryParse(itemsSubtotal) ?? 0.0;
+    final gst = double.tryParse(totalGstTax) ?? 0.0;
+    return subtotal + gst;
+  }
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
+    final dynamic reviewJson =
+        json['review'] ?? json['order_review'] ?? json['rating_review'];
     return OrderModel(
       id: _parseInt(json['id']),
       paymentMethod: json['payment_method']?.toString() ?? 'COD',
@@ -59,8 +66,8 @@ class OrderModel {
           .toList(),
       createdAt: json['created_at']?.toString() ?? '',
       materialId: _parseInt(json['material_id']),
-      review: json['review'] != null
-          ? OrderReviewModel.fromJson(json['review'] as Map<String, dynamic>)
+      review: reviewJson is Map<String, dynamic>
+          ? OrderReviewModel.fromJson(reviewJson)
           : null,
     );
   }
@@ -125,60 +132,84 @@ class OrderItemModel {
   final int id;
   final int variant;
   final String materialName;
+  final String materialImage; // image URL sent directly in items[]
   final int quantity;
-  final String priceAtPurchase;
-  final double? explicitTotalPrice;
+  final String priceAtPurchase; // GST-inclusive unit price
+  final double? explicitTotalPrice; // GST-inclusive line total
 
   OrderItemModel({
     required this.id,
     required this.variant,
     required this.materialName,
+    this.materialImage = '',
     required this.quantity,
     required this.priceAtPurchase,
     this.explicitTotalPrice,
   });
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
-    final rawQty = _parseInt(
-      json['quantity'] ?? json['qty'] ?? json['count'] ?? json['number_of_items'],
-    );
-    final qty = rawQty <= 0 ? 1 : rawQty;
+    final rawQtyStr =
+        (json['quantity'] ??
+                json['qty'] ??
+                json['count'] ??
+                json['number_of_items'])
+            ?.toString();
+    final double parsedQty = double.tryParse(rawQtyStr ?? '') ?? 0;
+    final int qty = parsedQty > 0 ? parsedQty.round() : 1;
 
-    final rawPrice = json['price_at_purchase'] ??
-        json['price'] ??
-        json['unit_price'] ??
-        json['unit_price_with_gst'] ??
-        json['total_price_with_gst'] ??
-        json['total_price'] ??
-        json['amount'] ??
-        json['total'];
-
-    final priceStr = rawPrice?.toString() ?? '0.00';
-    final double parsedPrice = double.tryParse(priceStr) ?? 0.0;
-
-    final rawTotal = json['total_price'] ??
-        json['total_price_with_gst'] ??
-        json['item_total'] ??
-        json['total'];
-
-    final double? explicitTotal = rawTotal != null
-        ? double.tryParse(rawTotal.toString())
+    final double? apiTotalWithTax = json['total_item_price_with_tax'] != null
+        ? double.tryParse(json['total_item_price_with_tax'].toString())
         : null;
+
+    double unitPriceInclGst;
+    if (apiTotalWithTax != null && apiTotalWithTax > 0 && qty > 0) {
+      unitPriceInclGst = apiTotalWithTax / qty;
+    } else {
+      final double basePrice =
+          double.tryParse(json['price_at_purchase']?.toString() ?? '') ?? 0.0;
+      final double gstPerUnit =
+          double.tryParse(json['gst_amount_per_unit']?.toString() ?? '') ?? 0.0;
+      if (basePrice > 0) {
+        unitPriceInclGst = basePrice + gstPerUnit;
+      } else {
+        final rawPrice =
+            json['unit_price_with_gst'] ??
+            json['price_with_gst'] ??
+            json['price'] ??
+            json['unit_price'] ??
+            json['amount'] ??
+            json['total'];
+        unitPriceInclGst = double.tryParse(rawPrice?.toString() ?? '') ?? 0.0;
+      }
+    }
+
+    final double explicitTotal = apiTotalWithTax ?? (unitPriceInclGst * qty);
 
     return OrderItemModel(
       id: _parseInt(json['id']),
       variant: _parseInt(
-        json['variant'] ?? json['variant_id'] ?? json['material'] ?? json['material_id'],
+        json['variant'] ??
+            json['variant_id'] ??
+            json['material'] ??
+            json['material_id'],
       ),
-      materialName: json['material_name']?.toString() ??
+      materialName:
+          json['material_name']?.toString() ??
           json['name'] ??
           json['material_title'] ??
           '',
+      // Real field from your payload: "material_image".
+      // A couple of alternate spellings kept as fallback only.
+      materialImage:
+          json['material_image']?.toString() ??
+          json['image']?.toString() ??
+          json['material_image_url']?.toString() ??
+          '',
       quantity: qty,
-      priceAtPurchase: parsedPrice > 0
-          ? parsedPrice.toStringAsFixed(2)
-          : (priceStr.isNotEmpty ? priceStr : '0.00'),
-      explicitTotalPrice: explicitTotal,
+      priceAtPurchase: unitPriceInclGst > 0
+          ? unitPriceInclGst.toStringAsFixed(2)
+          : '0.00',
+      explicitTotalPrice: explicitTotal > 0 ? explicitTotal : null,
     );
   }
 
@@ -186,6 +217,7 @@ class OrderItemModel {
     'id': id,
     'variant': variant,
     'material_name': materialName,
+    'material_image': materialImage,
     'quantity': quantity,
     'price_at_purchase': priceAtPurchase,
     if (explicitTotalPrice != null) 'total_price': explicitTotalPrice,
@@ -209,6 +241,7 @@ class OrderItemModel {
     return 0;
   }
 }
+
 /// Matches POST /api/orders/{orderId}/review/ response exactly:
 /// { "id": 1, "order": 153, "customer_name": "Albert", "rating": 5,
 ///   "comment": "...", "created_at": "..." }
@@ -232,11 +265,20 @@ class OrderReviewModel {
   factory OrderReviewModel.fromJson(Map<String, dynamic> json) {
     return OrderReviewModel(
       id: _parseInt(json['id']),
-      order: _parseInt(json['order']),
-      customerName: json['customer_name']?.toString() ?? '',
+      order: _parseInt(json['order'] ?? json['order_id']),
+      customerName:
+          (json['customer_name'] ??
+                  json['user_name'] ??
+                  json['reviewer_name'] ??
+                  json['name'])
+              ?.toString() ??
+          '',
       rating: _parseInt(json['rating']),
       comment: json['comment']?.toString() ?? '',
-      createdAt: json['created_at']?.toString() ?? '',
+      createdAt:
+          (json['created_at'] ?? json['createdAt'] ?? json['date'])
+              ?.toString() ??
+          '',
     );
   }
 

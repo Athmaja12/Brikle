@@ -186,7 +186,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
           ),
           SizedBox(height: Responsive.space(context, 10)),
           ...order.items.map((item) => _buildItemRow(context, order, item)),
-           if (order.hasReview) ...[
+          if (order.hasReview) ...[
             SizedBox(height: Responsive.space(context, 8)),
             Row(
               children: [
@@ -231,38 +231,60 @@ class _OrderListScreenState extends State<OrderListScreen> {
           // Product image
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _materialFuture(materialId),
-              builder: (context, snapshot) {
-                final imageUrl = snapshot.data?['image']?.toString() ?? '';
-                return Container(
-                  width: 56,
-                  height: 56,
-                  color: Colors.grey.shade100,
-                  child: imageUrl.isNotEmpty
-                      ? Image.network(
-                          imageUrl,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(
+            child: item.materialImage.isNotEmpty
+                // Order payload already carries the image — use it directly,
+                // no extra API call needed for the common case.
+                ? Image.network(
+                    item.materialImage,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 56,
+                      height: 56,
+                      color: Colors.grey.shade100,
+                      child: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.primaryGreen,
+                        size: 24,
+                      ),
+                    ),
+                  )
+                // Fallback: only hit the per-variant material endpoint if the
+                // order itself didn't include an image.
+                : FutureBuilder<Map<String, dynamic>>(
+                    future: _materialFuture(materialId),
+                    builder: (context, snapshot) {
+                      final imageUrl =
+                          snapshot.data?['image']?.toString() ?? '';
+                      return Container(
+                        width: 56,
+                        height: 56,
+                        color: Colors.grey.shade100,
+                        child: imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl,
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                      Icons.inventory_2_outlined,
+                                      color: AppColors.primaryGreen,
+                                      size: 24,
+                                    ),
+                              )
+                            : const Icon(
                                 Icons.inventory_2_outlined,
                                 color: AppColors.primaryGreen,
                                 size: 24,
                               ),
-                        )
-                      : const Icon(
-                          Icons.inventory_2_outlined,
-                          color: AppColors.primaryGreen,
-                          size: 24,
-                        ),
-                );
-              },
-            ),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(width: 12),
-          // Name + delivery date
+          // Name + delivery date — unchanged
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,7 +313,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Price
+          // Price — unchanged
           Text(
             '₹${(item.totalPrice > 0 ? item.totalPrice : (double.tryParse(order.itemsSubtotal) ?? 0.0)).toStringAsFixed(2)}',
             style: GoogleFonts.manrope(

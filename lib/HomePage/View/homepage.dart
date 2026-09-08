@@ -1031,7 +1031,17 @@ class _TopDealsSection extends StatelessWidget {
         materialId: deal.materialId,
         name: deal.name,
         imageUrl: deal.imageUrl,
-        price: deal.dealPrice,
+        // FIX: `price` must always be the RAW GST-inclusive retail price.
+        // This used to be deal.dealPrice (already discounted), which then
+        // got discounted a SECOND time on Product Details, since that
+        // screen fetches its own offer and multiplies `price` by it.
+        // The discount now travels via `offer` and is applied exactly
+        // once, by CategoryProductItem.finalPrice.
+        price: deal.retailPrice,
+        offer: OfferTag(
+          discountPercentage: deal.discountPercent.toDouble(),
+          dealId: deal.dealId,
+        ),
         isAssured: deal.isAssured, // NEW
         assuredCertificate: deal.assuredCertificate,
       ),
@@ -1157,19 +1167,28 @@ class _BestsellingSection extends StatelessWidget {
   }
 
   Widget _bestsellingCard(BestSellingItem item) {
+    final hasOffer = item.hasOffer;
     return SharedProductCard(
       product: CategoryProductItem(
         variantId: item.id,
         materialId: item.id,
         name: item.name,
         imageUrl: item.imageUrl,
-        price: item.hasOffer ? item.dealPrice! : item.retailPrice,
+        // FIX: same rule as _dealCard — `price` stays RAW; the discount
+        // is carried via `offer` and applied once by `finalPrice`.
+        price: item.retailPrice,
+        offer: hasOffer
+            ? OfferTag(
+                discountPercentage: item.discountPercent!.toDouble(),
+                dealId: 0, // BestSellingItem carries no deal id
+              )
+            : null,
         brandName: item.brandName,
         isAssured: item.isAssured, // NEW
         assuredCertificate: item.assuredCertificate,
       ),
-      originalPrice: item.hasOffer ? item.retailPrice : null,
-      discountPercent: item.hasOffer ? item.discountPercent : null,
+      originalPrice: hasOffer ? item.retailPrice : null,
+      discountPercent: hasOffer ? item.discountPercent : null,
     );
   }
 }

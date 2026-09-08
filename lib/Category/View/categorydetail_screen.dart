@@ -890,18 +890,22 @@ class _ProductGrid extends StatelessWidget {
               // },
               itemBuilder: (context, index) {
                 final product = products[index];
-                final offer = product.offer;
-                final discountedPrice = offer != null
-                    ? product.price * (1 - offer.discountPercentage / 100)
-                    : product.price;
+                // FIX: pass the product through UNMODIFIED. `price` stays
+                // the raw GST-inclusive retail price and `offer` stays
+                // attached — SharedProductCard's unitPriceForQuantity()
+                // (and, if opened, ProductDetailController) now apply the
+                // discount exactly once via CategoryProductItem.finalPrice.
+                // The old code pre-multiplied price here AND left offer
+                // attached, so Product Details multiplied it again.
+                final hasOffer = product.hasOffer;
 
                 return SharedProductCard(
                   key: ValueKey('product_${product.variantId}'),
-                  product: product.copyWith(
-                    price: discountedPrice,
-                  ), // see note below
-                  originalPrice: offer != null ? product.price : null,
-                  discountPercent: offer?.discountPercentage.toInt(),
+                  product: product,
+                  originalPrice: hasOffer ? product.price : null,
+                  discountPercent: hasOffer
+                      ? product.offer!.discountPercentage.toInt()
+                      : null,
                 );
               },
             );

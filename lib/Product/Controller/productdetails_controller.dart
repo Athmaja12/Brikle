@@ -48,28 +48,43 @@ class ProductDetailController extends GetxController {
   final RxBool isLoadingCombinedSuggestions = false.obs;
 
   // NEW: Computed price with offer
-  double get discountedPrice {
-    final offer = productOffer.value;
-    if (offer == null) return product.price;
-    return product.price * (1 - offer.discountPercentage / 100);
-  }
+  // double get discountedPrice {
+  //   final offer = productOffer.value;
+  //   if (offer == null) return product.price;
+  //   return product.price * (1 - offer.discountPercentage / 100);
+  // }
 
-  // NEW: Original price (MRP) for strike-through
-  double get originalPriceValue {
-    final offer = productOffer.value;
-    if (offer == null) return product.price;
-    return product.price; // The price from product is the retail price
-  }
+  // // NEW: Original price (MRP) for strike-through
+  // double get originalPriceValue {
+  //   final offer = productOffer.value;
+  //   if (offer == null) return product.price;
+  //   return product.price; // The price from product is the retail price
+  // }
 
-  // NEW: Discount percentage
+  // // NEW: Discount percentage
+  // int get discountPercentageValue {
+  //   final offer = productOffer.value;
+  //   if (offer == null) return 0;
+  //   return offer.discountPercentage.toInt();
+  // }
+
+  // // NEW: Check if offer is available
+  // bool get hasOffer => productOffer.value != null;
+
+  // These now all delegate to activeProduct, which is the same
+  // CategoryProductItem type every other screen (Top Deals, Category,
+  // Wishlist, Search) uses — so this screen can no longer disagree with
+  // where the user came from. finalPrice applies the offer exactly once.
+  double get discountedPrice => activeProduct.value.finalPrice;
+
+  double get originalPriceValue => activeProduct.value.price;
+
   int get discountPercentageValue {
-    final offer = productOffer.value;
-    if (offer == null) return 0;
-    return offer.discountPercentage.toInt();
+    final offer = activeProduct.value.offer;
+    return offer?.discountPercentage.toInt() ?? 0;
   }
 
-  // NEW: Check if offer is available
-  bool get hasOffer => productOffer.value != null;
+  bool get hasOffer => activeProduct.value.hasOffer;
 
   List<String> get galleryImages {
     final d = detail.value;
@@ -92,11 +107,27 @@ class ProductDetailController extends GetxController {
     try {
       final response = await ApiService.getMaterialDetails(product.materialId);
       debugPrint('[MaterialDetail RAW] $response');
+      // final materialDetail = MaterialDetail.fromJson(response);
+      // detail.value = materialDetail;
+
+      // // NEW: Set product offer from API
+      // productOffer.value = materialDetail.offer;
       final materialDetail = MaterialDetail.fromJson(response);
       detail.value = materialDetail;
 
-      // NEW: Set product offer from API
+      // The material-detail endpoint's offer is folded into
+      // activeProduct.offer (not multiplied into price here) so that
+      // activeProduct.finalPrice remains the ONE place the discount is
+      // ever applied — matching every other screen's CategoryProductItem.
       productOffer.value = materialDetail.offer;
+      if (materialDetail.offer != null) {
+        activeProduct.value = activeProduct.value.copyWith(
+          offer: OfferTag(
+            discountPercentage: materialDetail.offer!.discountPercentage,
+            dealId: materialDetail.offer!.dealId,
+          ),
+        );
+      }
 
       suggestedProducts.assignAll(
         await ApiService.getMaterialSuggestions(product.materialId),

@@ -89,14 +89,18 @@ class CategoryProductItem {
   /// Effective unit price for a given quantity — picks the highest tier
   /// whose min_qty is met, falling back to the base retail price.
   double unitPriceForQuantity(int quantity) {
-    if (!hasTiers || priceTiers.isEmpty) return price;
-    PriceTier? applicable;
-    for (final tier in priceTiers) {
-      if (quantity >= tier.minQty) applicable = tier;
+    if (hasTiers && priceTiers.isNotEmpty) {
+      PriceTier? applicable;
+      for (final tier in priceTiers) {
+        if (quantity >= tier.minQty) applicable = tier;
+      }
+      if (applicable != null) return applicable.price;
     }
-    return applicable?.price ?? price;
+    return finalPrice;
   }
 
+  /// Cheapest per-unit price achievable across all tiers — used for the
+  /// "Unlock Bulk Prices of ₹X" hint under the price.
   /// Cheapest per-unit price achievable across all tiers — used for the
   /// "Unlock Bulk Prices of ₹X" hint under the price.
   double get bestTierPrice {
@@ -104,7 +108,18 @@ class CategoryProductItem {
     return priceTiers.map((t) => t.price).reduce((a, b) => a < b ? a : b);
   }
 
-  CategoryProductItem copyWith({double? price}) {
+  /// True only when there's an active offer with a positive discount.
+  bool get hasOffer => offer != null && offer!.discountPercentage > 0;
+
+  /// The ONE place the offer discount is ever applied. `price` is always
+  /// the raw GST-inclusive retail price — every screen that displays a
+  /// price should read finalPrice, never multiply `price` by a discount
+  /// itself. This is what prevents the same offer being applied twice
+  /// when a CategoryProductItem is passed between screens.
+  double get finalPrice =>
+      hasOffer ? price * (1 - offer!.discountPercentage / 100) : price;
+
+  CategoryProductItem copyWith({double? price, OfferTag? offer}) {
     return CategoryProductItem(
       variantId: variantId,
       materialId: materialId,
@@ -119,7 +134,7 @@ class CategoryProductItem {
       priceTiers: priceTiers,
       isAssured: isAssured,
       assuredCertificate: assuredCertificate,
-      offer: offer,
+      offer: offer ?? this.offer,
     );
   }
 

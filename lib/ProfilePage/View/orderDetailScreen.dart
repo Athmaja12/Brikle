@@ -25,8 +25,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[OrderDetailScreen] initState with orderId: ${widget.orderId}');
-    _loadOrderDetail();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadOrderDetail();
+    });
   }
 
   int _selectedRating = 0;
@@ -43,21 +45,108 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   /// everything (items, totals, address), so we look the order up from the
   /// list already held in ProfileController instead of hitting the network.
   Future<void> _loadOrderDetail() async {
-    debugPrint('[OrderDetailScreen] _loadOrderDetail()');
-    setState(() => _isLoading = true);
+    debugPrint(
+      '[OrderDetailScreen] _loadOrderDetail() for orderId=${widget.orderId}',
+    );
 
-    var order = _ctrl.getOrderById(widget.orderId);
+    if (!mounted) return;
 
-    // Fallback: orders list wasn't populated yet (e.g. deep link / cold start)
-    if (order == null) {
-      debugPrint('[OrderDetailScreen] Order not in memory, fetching list...');
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Refresh orders only after the first frame.
+      // This prevents GetX Obx from being marked dirty during route build.
       await _ctrl.fetchOrders();
-      order = _ctrl.getOrderById(widget.orderId);
-    }
 
-    if (order == null) {
-      debugPrint('[OrderDetailScreen] Order ${widget.orderId} not found');
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+
+      // final order = _ctrl.getOrderById(widget.orderId);
+      final order =
+          await _ctrl.refreshOrderReview(widget.orderId) ??
+          _ctrl.getOrderById(widget.orderId);
+
+      if (order == null) {
+        debugPrint(
+          '[OrderDetailScreen] Order ${widget.orderId} not found after refresh',
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        Get.snackbar(
+          'Error',
+          'Failed to load order details. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.errorRed,
+          colorText: Colors.white,
+        );
+
+        return;
+      }
+
+      debugPrint(
+        '[OrderDetailScreen] Order ${order.id} loaded — '
+        'status=${order.orderStatus}, '
+        'hasReview=${order.hasReview}, '
+        'reviewId=${order.review?.id}, '
+        'rating=${order.review?.rating}',
+      );
+
+      _materialDetails.clear();
+
+      for (final item in order.items) {
+        if (!mounted) return;
+
+        debugPrint(
+          '[OrderDetailScreen] Looking up material '
+          'via variant=${item.variant}',
+        );
+
+        try {
+          final materialData = await ApiService.getMaterialDetails(
+            item.variant,
+          );
+
+          _materialDetails[item.variant] = materialData;
+
+          debugPrint(
+            '[OrderDetailScreen] Material ${item.variant} => '
+            'materialId=${materialData['id']}',
+          );
+        } catch (e) {
+          debugPrint(
+            '[OrderDetailScreen] Failed to fetch material '
+            '${item.variant}: $e',
+          );
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _order = order;
+        _isLoading = false;
+      });
+
+      debugPrint(
+        '[OrderDetailScreen] Detail loaded successfully — '
+        'orderId=${order.id}, '
+        'hasReview=${order.hasReview}',
+      );
+    } catch (e, st) {
+      debugPrint('[OrderDetailScreen] _loadOrderDetail failed: $e');
+      debugPrint('[OrderDetailScreen] stack: $st');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
 
       Get.snackbar(
         'Error',
@@ -66,53 +155,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         backgroundColor: AppColors.errorRed,
         colorText: Colors.white,
       );
-
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (Get.isDialogOpen != true) {
-          Get.back();
-        }
-      });
-      return;
     }
-
-    debugPrint('[OrderDetailScreen] Order found: ${order.id}');
-    debugPrint('[OrderDetailScreen] Items count: ${order.items.length}');
-
-    // Fetch material details (for images, and — critically — the real
-    // material ID) for each item. IMPORTANT: item.variant is a VARIANT id,
-    // not a material id. We pass it into getMaterialDetails() as a lookup
-    // key (this endpoint apparently accepts a variant id and returns the
-    // parent material's full record), and then read the material's own
-    // 'id' field out of the response — see _resolveMaterialId() below.
-    // Using item.variant directly as if it WERE the material id is what
-    // caused "You can only review products you have actually purchased"
-    // from the reviews endpoint.
-    for (var item in order.items) {
-      debugPrint(
-        '[OrderDetailScreen] Looking up material via getMaterialDetails(item.variant=${item.variant}) '
-        'for item.id=${item.id} materialName="${item.materialName}"',
-      );
-      try {
-        final materialData = await ApiService.getMaterialDetails(item.variant);
-        _materialDetails[item.variant] = materialData;
-        debugPrint(
-          '[OrderDetailScreen] getMaterialDetails(${item.variant}) RAW RESPONSE => $materialData',
-        );
-        debugPrint(
-          '[OrderDetailScreen] getMaterialDetails(${item.variant}) => response id field = '
-          '${materialData['id']} (this is what gets used as the "resolved" material id)',
-        );
-      } catch (e) {
-        debugPrint(
-          '[OrderDetailScreen] Failed to fetch material ${item.variant}: $e',
-        );
-      }
-    }
-
-    setState(() {
-      _order = order;
-      _isLoading = false;
-    });
   }
 
   /// Resolves the REAL material id for an order item. item.variant is a
@@ -440,7 +483,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 Responsive.space(context, 16),
                 Responsive.space(context, 16),
               ),
-               child: _buildReviewSection(context, order),
+              child: _buildReviewSection(context, order),
             ),
           ],
         ],
@@ -448,38 +491,31 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildItemCard(BuildContext context, OrderItemModel item, OrderModel order) {
+  Widget _buildItemCard(
+    BuildContext context,
+    OrderItemModel item,
+    OrderModel order,
+  ) {
     final materialData = _materialDetails[item.variant];
-    final String imageUrl = materialData?['image']?.toString() ?? '';
+    // Prefer the image the order API sends directly on the item.
+    // Falls back to the separately-fetched material lookup only if the
+    // order payload didn't include one.
+    final String imageUrl = item.materialImage.isNotEmpty
+        ? item.materialImage
+        : (materialData?['image']?.toString() ?? '');
 
     final int qty = item.quantity <= 0 ? 1 : item.quantity;
     double unitPrice = item.unitPrice;
     double totalPrice = item.totalPrice;
 
-    // Fallback 1: If parsed unit/total price is 0, check fetched materialData
     if (unitPrice <= 0 || totalPrice <= 0) {
-      final matPriceRaw = materialData?['price'] ??
-          materialData?['retail_price'] ??
-          materialData?['unit_price'] ??
-          materialData?['unit_price_with_gst'];
-      if (matPriceRaw != null) {
-        final parsedMatPrice = double.tryParse(matPriceRaw.toString()) ?? 0.0;
-        if (parsedMatPrice > 0) {
-          unitPrice = parsedMatPrice;
-          totalPrice = unitPrice * qty;
-        }
-      }
-    }
-
-    // Fallback 2: If still 0, check order's itemsSubtotal
-    if (unitPrice <= 0 || totalPrice <= 0) {
-      final subtotal = double.tryParse(order.itemsSubtotal) ?? 0.0;
-      if (subtotal > 0) {
+      final inclGstAmount = order.itemsAmountInclGst;
+      if (inclGstAmount > 0) {
         if (order.items.length == 1) {
-          totalPrice = subtotal;
-          unitPrice = subtotal / qty;
+          totalPrice = inclGstAmount;
+          unitPrice = inclGstAmount / qty;
         } else {
-          totalPrice = subtotal / order.items.length;
+          totalPrice = inclGstAmount / order.items.length;
           unitPrice = totalPrice / qty;
         }
       }
@@ -542,7 +578,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Qty: $qty × ₹${unitPrice.toStringAsFixed(2)}',
+                  'Qty: $qty × ₹${unitPrice.toStringAsFixed(2)} (incl. GST)',
                   style: GoogleFonts.manrope(
                     fontSize: 12,
                     color: AppColors.textGray,
@@ -610,7 +646,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           style: GoogleFonts.manrope(fontSize: 13, color: AppColors.inputText),
           decoration: InputDecoration(
             hintText: 'Share your experience (optional)',
-            hintStyle: GoogleFonts.manrope(fontSize: 13, color: AppColors.textGray),
+            hintStyle: GoogleFonts.manrope(
+              fontSize: 13,
+              color: AppColors.textGray,
+            ),
             filled: true,
             fillColor: Colors.grey.shade50,
             contentPadding: const EdgeInsets.all(12),
@@ -686,6 +725,34 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Future<void> _submitReview(OrderModel order) async {
+    // ------------------------------------------------------------
+    // 1. Prevent duplicate review locally
+    // ------------------------------------------------------------
+    if (order.hasReview) {
+      debugPrint(
+        '[OrderDetailScreen] Review already exists '
+        'for orderId=${order.id}',
+      );
+
+      Get.snackbar(
+        'Already Reviewed',
+        'You have already submitted a review for this order.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 2. Prevent double tap
+    // ------------------------------------------------------------
+    if (_isSubmittingReview) {
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 3. Rating validation
+    // ------------------------------------------------------------
     if (_selectedRating == 0) {
       Get.snackbar(
         'Rating required',
@@ -694,28 +761,66 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         backgroundColor: AppColors.errorRed,
         colorText: Colors.white,
       );
+
       return;
     }
 
-    setState(() => _isSubmittingReview = true);
-    final success = await _ctrl.submitOrderReview(
-      orderId: order.id,
-      rating: _selectedRating,
-      comment: _commentController.text.trim(),
-    );
-
-    if (!mounted) return;
     setState(() {
-      _isSubmittingReview = false;
+      _isSubmittingReview = true;
+    });
+
+    try {
+      final success = await _ctrl.submitOrderReview(
+        orderId: order.id,
+        rating: _selectedRating,
+        comment: _commentController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      // ------------------------------------------------------------
+      // Always get the latest order from controller.
+      //
+      // This is important when backend says:
+      // "You have already submitted a review for this order."
+      // ------------------------------------------------------------
+      final updatedOrder = _ctrl.getOrderById(order.id);
+
       if (success) {
-        _order = _ctrl.getOrderById(order.id); // pulls in the saved review
-        _commentController.clear();
-        _selectedRating = 0;
+        setState(() {
+          _order = updatedOrder;
+          _commentController.clear();
+          _selectedRating = 0;
+        });
+
+        debugPrint(
+          '[OrderDetailScreen] Review submitted successfully — '
+          'orderId=${order.id}, '
+          'hasReview=${updatedOrder?.hasReview}',
+        );
+      } else if (updatedOrder?.hasReview == true) {
+        // Backend already had the review.
+        // Update the screen immediately so the existing review is displayed.
+        setState(() {
+          _order = updatedOrder;
+          _commentController.clear();
+          _selectedRating = 0;
+        });
+
+        debugPrint(
+          '[OrderDetailScreen] Existing review loaded after duplicate '
+          'submission response — orderId=${order.id}',
+        );
       }
-    }); 
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingReview = false;
+        });
+      }
+    }
   }
- 
- 
+
   // ── Price details card ───────────────────────────────────────────────────
   Widget _buildPriceDetails(BuildContext context, OrderModel order) {
     return _sectionCard(
@@ -725,8 +830,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         children: [
           _sectionTitle('Price Details'),
           const SizedBox(height: 12),
-          _priceRow('Items Subtotal', '₹${order.itemsSubtotal}'),
-          _priceRow('GST Tax', '₹${order.totalGstTax}'),
+          // Subtotal already includes GST — items_subtotal + total_gst_tax
+          // from the API (see OrderModel.itemsAmountInclGst). No separate
+          // GST/Tax line is shown, and GST is never added a second time.
+          _priceRow(
+            'Subtotal',
+            '₹${order.itemsAmountInclGst.toStringAsFixed(2)}',
+          ),
           _priceRow('Delivery Charge', '₹${order.deliveryCharge}'),
           Divider(height: 20, color: Colors.grey.shade200),
           _priceRow('Grand Total', '₹${order.grandTotal}', isTotal: true),

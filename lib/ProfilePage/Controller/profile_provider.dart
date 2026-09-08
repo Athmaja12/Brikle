@@ -341,40 +341,47 @@ class ProfileController extends GetxController {
       isDeleting.value = false;
     }
   }
+
   // ══════════════════════════════════════════════════════════════════════════
   // ORDERS - NEW (Flipkart-style)
   // ══════════════════════════════════════════════════════════════════════════
-
   Future<void> fetchOrders() async {
     debugPrint('[ProfileController] fetchOrders()');
     isOrdersLoading.value = true;
 
     try {
       final response = await ApiService.getMyOrders();
-      // Print the raw response to see the data structure
       debugPrint('[ProfileController] fetchOrders RAW RESPONSE: $response');
+
+      // Snapshot reviews we already confirmed BEFORE replacing the list —
+      // /api/my-orders/ isn't guaranteed to always embed the review, so a
+      // refresh here must never silently erase a review we already know
+      // exists (confirmed via POST or the dedicated review GET).
+      final Map<int, OrderReviewModel> knownReviews = {
+        for (final o in orders)
+          if (o.review != null) o.id: o.review!,
+      };
 
       orders.clear();
       orders.addAll(response);
-      debugPrint('[ProfileController] Orders Loaded => ${orders.length}');
 
-      // DEBUG — dump every order's parsed items so we can see exactly
-      // what fields OrderItemModel captured (or silently dropped) from
-      // the raw JSON above. This is the key thing to check when reviews
-      // fail with "You can only review products you have actually
-      // purchased" — item.variant is being used as a material id lookup
-      // key, which may not be correct.
+      for (var i = 0; i < orders.length; i++) {
+        if (orders[i].review == null &&
+            knownReviews.containsKey(orders[i].id)) {
+          debugPrint(
+            '[ProfileController] Order #${orders[i].id} missing review in '
+            '/api/my-orders/ — restoring previously confirmed review.',
+          );
+          orders[i].review = knownReviews[orders[i].id];
+        }
+      }
+
+      debugPrint('[ProfileController] Orders Loaded => ${orders.length}');
       for (final order in orders) {
         debugPrint(
           '[ProfileController] Order #${order.id} status=${order.orderStatus} '
-          'materialId(order-level, likely unused/wrong)=${order.materialId}',
+          'hasReview=${order.hasReview}',
         );
-        for (final item in order.items) {
-          debugPrint(
-            '[ProfileController]   item.id=${item.id} item.variant=${item.variant} '
-            'materialName="${item.materialName}" qty=${item.quantity}',
-          );
-        }
       }
     } on ApiException catch (e) {
       debugPrint(
@@ -397,6 +404,35 @@ class ProfileController extends GetxController {
     }
   }
 
+  /// Authoritative review check for one order — bypasses whatever
+  /// /api/my-orders/ did or didn't embed and calls
+  /// GET /api/orders/{orderId}/review/ directly.
+  Future<OrderModel?> refreshOrderReview(int orderId) async {
+    try {
+      final review = await ApiService.getOrderReview(orderId);
+
+      final index = orders.indexWhere((o) => o.id == orderId);
+      if (index != -1) {
+        orders[index].review = review; // null is a legitimate "no review yet"
+        orders.refresh();
+        debugPrint(
+          '[ProfileController] refreshOrderReview($orderId) => '
+          'hasReview=${review != null}',
+        );
+        return orders[index];
+      }
+      return getOrderById(orderId);
+    } on ApiException catch (e) {
+      debugPrint(
+        '[ProfileController] refreshOrderReview ApiException => ${e.message}',
+      );
+      return getOrderById(orderId);
+    } catch (e) {
+      debugPrint('[ProfileController] refreshOrderReview unexpected => $e');
+      return getOrderById(orderId);
+    }
+  }
+
   Future<bool> submitOrderReview({
     required int orderId,
     required int rating,
@@ -405,7 +441,18 @@ class ProfileController extends GetxController {
     debugPrint(
       '[ProfileController] submitOrderReview($orderId, rating: $rating)',
     );
+
+    // Prevent duplicate requests from controller side as well.
+    if (isSubmittingReview.value) {
+      debugPrint(
+        '[ProfileController] Review submission already in progress '
+        'for orderId=$orderId',
+      );
+      return false;
+    }
+
     isSubmittingReview.value = true;
+
     try {
       final result = await ApiService.postOrderReview(
         orderId: orderId,
@@ -415,22 +462,67 @@ class ProfileController extends GetxController {
 
       if (result.success && result.review != null) {
         final index = orders.indexWhere((o) => o.id == orderId);
+
         if (index != -1) {
           orders[index].review = result.review;
-          orders.refresh(); // trigger Obx rebuild on the order list screen
+          orders.refresh();
         }
+
         _showStatusSnackbar('Review submitted successfully');
+
+        debugPrint(
+          '[ProfileController] Review submitted successfully '
+          'for orderId=$orderId',
+        );
+
         return true;
-      } else {
-        _showStatusSnackbar(result.message, isError: true);
+      }
+
+      _showStatusSnackbar(
+        result.message.isNotEmpty ? result.message : 'Failed to submit review.',
+        isError: true,
+      );
+
+      return false;
+    } on ApiException catch (e) {
+      debugPrint(
+        '[ProfileController] submitOrderReview ApiException '
+        'orderId=$orderId => ${e.message}',
+      );
+
+      final message = e.message.toLowerCase();
+
+      // Backend says this order was already reviewed.
+      if (message.contains('already submitted') ||
+          message.contains('already reviewed')) {
+        debugPrint(
+          '[ProfileController] Backend reports existing review for '
+          'orderId=$orderId — fetching it authoritatively.',
+        );
+
+        await refreshOrderReview(orderId);
+
+        _showStatusSnackbar(
+          'You have already submitted a review for this order.',
+          isError: true,
+        );
+
         return false;
       }
+
+      _showStatusSnackbar(e.message, isError: true);
+      return false;
     } catch (e) {
-      debugPrint('[ProfileController] submitOrderReview unexpected => $e');
+      debugPrint(
+        '[ProfileController] submitOrderReview unexpected '
+        'orderId=$orderId => $e',
+      );
+
       _showStatusSnackbar(
         'Failed to submit review. Please try again.',
         isError: true,
       );
+
       return false;
     } finally {
       isSubmittingReview.value = false;
