@@ -47,6 +47,24 @@ class ApiService {
     };
   }
 
+  /// Headers used for calculator requests. Sends Authorization header if a
+  /// token is present, but allows unauthenticated guest access without
+  /// requiring login.
+  static Future<Map<String, String>> _calculatorHeaders() async {
+    final token = await SessionManager.getAccessToken();
+    if (token != null && token.isNotEmpty) {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+        'X-Is-Calculator': 'true',
+      };
+    }
+    return {
+      'Content-Type': 'application/json',
+      'X-Is-Calculator': 'true',
+    };
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // TOKEN REFRESH
   // ══════════════════════════════════════════════════════════════════════════
@@ -130,6 +148,7 @@ class ApiService {
     );
     return true;
   }
+  static Future<bool> refreshSessionOnStartup() => _refreshAccessToken();
 
   // ══════════════════════════════════════════════════════════════════════════
   // AUTH
@@ -528,7 +547,7 @@ class ApiService {
   static Future<CalculatorListResponse> getCalculatorList() async {
     final response = await _get(
       ApiConfig.calculatorListUrl,
-      headers: await _authHeaders(),
+      headers: await _calculatorHeaders(),
     );
     return CalculatorListResponse.fromJson(response);
   }
@@ -536,7 +555,7 @@ class ApiService {
   static Future<CalculatorDetailModel> getCalculatorDetail(int id) async {
     final response = await _get(
       ApiConfig.calculatorDetailUrl(id),
-      headers: await _authHeaders(),
+      headers: await _calculatorHeaders(),
     );
     return CalculatorDetailModel.fromJson(response);
   }
@@ -544,7 +563,7 @@ class ApiService {
   static Future<List<PaintDropdownItem>> getPaintDropdown() async {
     final response = await _get(
       ApiConfig.paintDropdownUrl,
-      headers: await _authHeaders(),
+      headers: await _calculatorHeaders(),
     );
     final paints = response['paints'] as List? ?? [];
     return paints.map((e) => PaintDropdownItem.fromJson(e)).toList();
@@ -563,7 +582,7 @@ class ApiService {
       'wall_height': wallHeight,
       'number_of_walls': numberOfWalls,
       'number_of_coats': numberOfCoats,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return PaintEstimateModel.fromJson(response);
   }
 
@@ -574,7 +593,7 @@ class ApiService {
   static Future<CementDropdownResponse> getCementDropdown() async {
     final response = await _get(
       ApiConfig.plasteringDropdownUrl,
-      headers: await _authHeaders(),
+      headers: await _calculatorHeaders(),
     );
     return CementDropdownResponse.fromJson(response);
   }
@@ -590,7 +609,7 @@ class ApiService {
       'thickness_mm': thicknessMm,
       'mortar_ratio': mortarRatio,
       'cement_bag_price': cementBagPrice,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return PlasteringCalculatorResponse.fromJson(response);
   }
 
@@ -609,7 +628,7 @@ class ApiService {
       'column_depth_mm': columnDepthMm,
       'column_height_ft': columnHeightFt,
       'cement_bag_price': cementBagPrice,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return ColumnConcreteCalculatorResponse.fromJson(response);
   }
 
@@ -626,7 +645,7 @@ class ApiService {
       'thickness_mm': thicknessMm,
       'concrete_grade': concreteGrade,
       'cement_bag_price': cementBagPrice,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return RoofSlabCalculatorResponse.fromJson(response);
   }
 
@@ -637,7 +656,7 @@ class ApiService {
     final response = await _post(ApiConfig.steelCalculateUrl, {
       'price_per_kg': pricePerKg,
       'items': items.map((e) => e.toJson()).toList(),
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return SteelCalculatorResponse.fromJson(response);
   }
 
@@ -648,7 +667,7 @@ class ApiService {
   static Future<BlockDropdownResponse> getBlockDropdown() async {
     final response = await _get(
       ApiConfig.blockDropdownUrl,
-      headers: await _authHeaders(),
+      headers: await _calculatorHeaders(),
     );
     return BlockDropdownResponse.fromJson(response);
   }
@@ -668,7 +687,7 @@ class ApiService {
       'block_length_mm': blockLengthMm,
       'block_height_mm': blockHeightMm,
       'block_thickness_mm': blockThicknessMm,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return BlockCalculatorResponse.fromJson(response);
   }
 
@@ -685,7 +704,7 @@ class ApiService {
       'terrace_length_ft': terraceLengthFt,
       'terrace_width_ft': terraceWidthFt,
       'coats_applied': coatsApplied,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return WaterproofingCalculatorResponse.fromJson(response);
   }
 
@@ -699,7 +718,7 @@ class ApiService {
       'floor_length_ft': floorLengthFt,
       'floor_width_ft': floorWidthFt,
       'wall_height_to_coat_ft': wallHeightToCoatFt,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return WaterproofingCalculatorResponse.fromJson(response);
   }
 
@@ -714,7 +733,7 @@ class ApiService {
       'tank_width_ft': tankWidthFt,
       'tank_height_ft': tankHeightFt,
       'number_of_walls': numberOfWalls,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return WaterproofingCalculatorResponse.fromJson(response);
   }
 
@@ -727,7 +746,7 @@ class ApiService {
       'wall_length_ft': wallLengthFt,
       'wall_height_ft': wallHeightFt,
       'coats_applied': coatsApplied,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return WaterproofingCalculatorResponse.fromJson(response);
   }
 
@@ -736,7 +755,7 @@ class ApiService {
   }) async {
     final response = await _post(ApiConfig.liquidWaterproofingUrl, {
       'number_of_cement_bags': numberOfCementBags,
-    }, headers: await _authHeaders());
+    }, headers: await _calculatorHeaders());
     return WaterproofingCalculatorResponse.fromJson(response);
   }
 
@@ -891,7 +910,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getMaterialDetails(int materialId) async {
     final response = await _get(
       ApiConfig.materialDetailUrl(materialId),
-      headers: await _authHeaders(),
+      headers: await _calculatorHeaders(),
     );
     return response;
   }
@@ -1280,6 +1299,13 @@ static Future<OrderReviewModel?> getOrderReview(int orderId) async {
     }
 
     if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      if (headers?.containsKey('X-Is-Calculator') == true) {
+        return _get(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          isRetry: true,
+        );
+      }
       final refreshed = await _refreshAccessToken();
       if (refreshed) {
         return _get(url, headers: await _authHeaders(), isRetry: true);
@@ -1343,6 +1369,14 @@ static Future<OrderReviewModel?> getOrderReview(int orderId) async {
     }
 
     if (response.statusCode == 401 && _wasAuthenticated(headers) && !isRetry) {
+      if (headers?.containsKey('X-Is-Calculator') == true) {
+        return _post(
+          url,
+          body,
+          headers: {'Content-Type': 'application/json'},
+          isRetry: true,
+        );
+      }
       final refreshed = await _refreshAccessToken();
       if (refreshed) {
         return _post(url, body, headers: await _authHeaders(), isRetry: true);

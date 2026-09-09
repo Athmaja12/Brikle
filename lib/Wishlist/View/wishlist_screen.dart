@@ -291,7 +291,7 @@ class _WishlistItemRow extends StatelessWidget {
             // it doesn't recompute GST itself. Pass the GST-inclusive
             // price so it matches what's shown on the Wishlist card
             // instead of falling back to the base retail price.
-            price: item.priceWithGst,
+            price: item.finalPrice,
           ),
         ),
       ),
@@ -364,13 +364,27 @@ class _WishlistItemRow extends StatelessWidget {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        _formatPrice(item.priceWithGst),
+                        _formatPrice(item.finalPrice),
                         style: GoogleFonts.manrope(
                           fontSize: Responsive.font(context, 14),
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textDark,
+                          color: item.hasDiscount
+                              ? AppColors.primaryGreen
+                              : AppColors.textDark,
                         ),
                       ),
+                      if (item.hasDiscount) ...[
+                        SizedBox(width: Responsive.space(context, 6)),
+                        Text(
+                          _formatPrice(item.retailPriceWithGst),
+                          style: GoogleFonts.manrope(
+                            fontSize: Responsive.font(context, 11.5),
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textGray,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ],
                       SizedBox(width: Responsive.space(context, 4)),
                       Text(
                         'incl. GST',

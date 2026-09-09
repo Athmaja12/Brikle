@@ -21,6 +21,7 @@ class WishlistController extends GetxController {
   }
 
   // GET /api/wishlist/
+  // GET /api/wishlist/
   Future<void> fetchWishlist() async {
     debugPrint('[Wishlist] fetchWishlist() start');
     isLoading.value = true;
@@ -45,7 +46,7 @@ class WishlistController extends GetxController {
 
       debugPrint(
         '[Wishlist] fetchWishlist success — '
-        'items: ${parsed.map((e) => "(id:${e.id}, variantId:${e.variantId})").toList()}',
+        'items: ${parsed.map((e) => "(id:${e.id}, variantId:${e.variantId}, finalPrice:${e.finalPrice})").toList()}',
       );
       debugPrint(
         '[Wishlist] _wishlistedVariantIds now: $_wishlistedVariantIds',
@@ -65,6 +66,8 @@ class WishlistController extends GetxController {
       debugPrint('[Wishlist] fetchWishlist() end — isLoading=false');
     }
   }
+
+  // toggle(), removeItem(), moveToCart() — UNCHANGED, keep exactly as-is
 
   // POST /api/wishlist/  |  DELETE /api/wishlist/{id}/
   Future<void> toggle(int variantId) async {

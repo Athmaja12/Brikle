@@ -2,6 +2,8 @@
 
 import 'package:brikle/AddtoCart/Controller/addtocart_provider.dart';
 import 'package:brikle/ApiConfiguration/apiconfig.dart';
+import 'package:brikle/ApiConfiguration/apiservice.dart';
+import 'package:brikle/ApiConfiguration/tokenrefresh.dart';
 import 'package:brikle/BottomNavigation/mainscreen.dart';
 import 'package:brikle/Calculation/View/blockCalculation_Page.dart';
 import 'package:brikle/Calculation/View/calculatiorPage.dart';
@@ -33,17 +35,25 @@ Future<void> main() async {
   debugPrint('[DEBUG] ApiConfig.baseUrl      = ${ApiConfig.baseUrl}');
   debugPrint('[DEBUG] AuthApiService.baseUrl = ${AuthApiService.baseUrl}');
 
+  // ⬇️ NEW CODE GOES HERE — before any Get.put() calls
+  if (await SessionManager.isLoggedIn()) {
+    debugPrint('[main] existing session found — attempting proactive refresh');
+    try {
+      await ApiService.refreshSessionOnStartup();
+    } catch (e) {
+      debugPrint('[main] proactive refresh failed (non-fatal): $e');
+    }
+  }
+  // ⬆️ NEW CODE ENDS HERE
+
   // All tab-level / app-lifetime controllers must be permanent so they
   // survive Get.offAll() calls (e.g. post-checkout navigation resets),
   // which otherwise dispose any controller tied to the cleared route stack.
   Get.put(CartController(), permanent: true);
   Get.put(HomeController(), permanent: true);
   Get.put(WishlistController(), permanent: true);
-  Get.put(
-    GlobalSearchController(),
-    permanent: true,
-  ); // was missing permanent: true
-  Get.put(CategoryController(), permanent: true); // was missing entirely
+  Get.put(GlobalSearchController(), permanent: true);
+  Get.put(CategoryController(), permanent: true);
   final prefs = await SharedPreferences.getInstance();
   final seenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
