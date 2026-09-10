@@ -491,6 +491,12 @@ class _SwipeableCartItemRowState extends State<_SwipeableCartItemRow> {
             name: widget.item.materialName,
             imageUrl: widget.item.imageUrl,
             price: widget.item.unitPriceWithGst,
+            offer: widget.item.hasDiscount
+                ? OfferTag(
+                    discountPercentage: widget.item.discountPercentage,
+                    dealId: 0,
+                  )
+                : null,
           ),
         ),
       ),
@@ -841,6 +847,31 @@ class _CartItemContent extends StatelessWidget {
                   fontSize: 15,
                 ),
               ),
+              if (item.hasDiscount) ...[
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '₹${(item.unitPriceWithGst * item.quantity).toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${item.discountPercentage.toInt()}% Off',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               _QuantityStepper(item: item, controller: controller),
             ],
@@ -863,10 +894,16 @@ class _CartItemRow extends StatelessWidget {
         builder: (_) => ProductDetailScreen(
           product: CategoryProductItem(
             variantId: item.variantId,
-            materialId: item.variantId,
+            materialId: item.materialId,
             name: item.materialName,
             imageUrl: item.imageUrl,
             price: item.unitPriceWithGst,
+            offer: item.hasDiscount
+                ? OfferTag(
+                    discountPercentage: item.discountPercentage,
+                    dealId: 0,
+                  )
+                : null,
           ),
         ),
       ),

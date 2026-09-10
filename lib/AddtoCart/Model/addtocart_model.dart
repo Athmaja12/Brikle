@@ -34,6 +34,7 @@ class CartItem {
   final String imageUrl;
   final int quantity;
   final double unitPriceWithGst;
+  final double discountPercentage;
   final double totalPriceWithGst;
 
   final List<PriceTier>? _priceTiers;
@@ -49,14 +50,34 @@ class CartItem {
     required this.imageUrl,
     required this.quantity,
     required this.unitPriceWithGst,
+    this.discountPercentage = 0,
     required this.totalPriceWithGst,
     List<PriceTier>? priceTiers,
   }) : _priceTiers = priceTiers;
 
+  bool get hasDiscount => discountPercentage > 0;
+
+  /// GST-inclusive offer unit price (same formula as ProductDetails/Home/Category)
+  double get discountedUnitPrice =>
+      hasDiscount ? unitPriceWithGst * (1 - discountPercentage / 100) : unitPriceWithGst;
+
+  /// Effective unit price taking into account wholesale price tiers (if active)
+  /// or offer discount.
+  double get effectiveUnitPrice {
+    if (hasTiers && priceTiers.isNotEmpty) {
+      PriceTier? applicable;
+      for (final tier in priceTiers) {
+        if (quantity >= tier.minQty) applicable = tier;
+      }
+      if (applicable != null) return applicable.price;
+    }
+    return discountedUnitPrice;
+  }
+
   bool get hasTiers => priceTiers.isNotEmpty;
 
   double get bestTierPrice =>
-      priceTiers.isEmpty ? unitPriceWithGst : priceTiers.last.price;
+      priceTiers.isEmpty ? discountedUnitPrice : priceTiers.last.price;
 
   int get bestTierMinQty => priceTiers.isEmpty ? 1 : priceTiers.last.minQty;
 
@@ -72,17 +93,40 @@ class CartItem {
           .toList();
     }
 
+    final rawUnitPrice = (json['unit_price_with_gst'] as num?)?.toDouble() ?? 0;
+    final discount = json['discount_percentage'] is num
+        ? (json['discount_percentage'] as num).toDouble()
+        : double.tryParse(json['discount_percentage']?.toString() ?? '0') ?? 0;
+    final qty = (json['quantity'] as num?)?.toInt() ?? 0;
+
+    double effectiveUnit = rawUnitPrice;
+    if (discount > 0) {
+      effectiveUnit = rawUnitPrice * (1 - discount / 100);
+    }
+    if (tiers.isNotEmpty && qty > 0) {
+      PriceTier? applicable;
+      for (final tier in tiers) {
+        if (qty >= tier.minQty) applicable = tier;
+      }
+      if (applicable != null) effectiveUnit = applicable.price;
+    }
+
+    final calculatedTotal = effectiveUnit * qty;
+    final serverTotal =
+        (json['total_price_with_gst'] as num?)?.toDouble() ?? 0;
+
     return CartItem(
-      id: json['id'] as int,
-      variantId: json['variant'] as int,
-       materialId: (json['material_id'] as num?)?.toInt() ?? 0, 
+      id: json['id'] as int? ?? 0,
+      variantId: json['variant'] as int? ?? 0,
+      materialId: (json['material_id'] as num?)?.toInt() ?? 0,
       materialName: json['material_name']?.toString() ?? '',
       sizeDimension: json['size_dimension']?.toString() ?? '',
       imageUrl: _fullImageUrl(json['master_image']?.toString()),
-      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      unitPriceWithGst: (json['unit_price_with_gst'] as num?)?.toDouble() ?? 0,
+      quantity: qty,
+      unitPriceWithGst: rawUnitPrice,
+      discountPercentage: discount,
       totalPriceWithGst:
-          (json['total_price_with_gst'] as num?)?.toDouble() ?? 0,
+          calculatedTotal > 0 ? calculatedTotal : serverTotal,
       priceTiers: tiers,
     );
   }
@@ -101,6 +145,7 @@ class CartItem {
     'master_image': imageUrl,
     'quantity': quantity,
     'unit_price_with_gst': unitPriceWithGst,
+    'discount_percentage': discountPercentage,
     'total_price_with_gst': totalPriceWithGst,
     'price_tiers': priceTiers.map((t) => t.toJson()).toList(),
   };
@@ -108,20 +153,45 @@ class CartItem {
   CartItem copyWith({
     int? quantity,
     double? unitPriceWithGst,
+    double? discountPercentage,
     double? totalPriceWithGst,
     List<PriceTier>? priceTiers,
-  }) => CartItem(
-    id: id,
-    variantId: variantId,
-    materialId: materialId,
-    materialName: materialName,
-    sizeDimension: sizeDimension,
-    imageUrl: imageUrl,
-    quantity: quantity ?? this.quantity,
-    unitPriceWithGst: unitPriceWithGst ?? this.unitPriceWithGst,
-    totalPriceWithGst: totalPriceWithGst ?? this.totalPriceWithGst,
-    priceTiers: priceTiers ?? this.priceTiers,
-  );
+  }) {
+    final newQty = quantity ?? this.quantity;
+    final newUnitPrice = unitPriceWithGst ?? this.unitPriceWithGst;
+    final newDiscount = discountPercentage ?? this.discountPercentage;
+    final newTiers = priceTiers ?? this.priceTiers;
+
+    double newTotal = totalPriceWithGst ?? this.totalPriceWithGst;
+    if (quantity != null ||
+        unitPriceWithGst != null ||
+        discountPercentage != null) {
+      double effectiveUnit =
+          newDiscount > 0 ? newUnitPrice * (1 - newDiscount / 100) : newUnitPrice;
+      if (newTiers.isNotEmpty && newQty > 0) {
+        PriceTier? applicable;
+        for (final tier in newTiers) {
+          if (newQty >= tier.minQty) applicable = tier;
+        }
+        if (applicable != null) effectiveUnit = applicable.price;
+      }
+      newTotal = effectiveUnit * newQty;
+    }
+
+    return CartItem(
+      id: id,
+      variantId: variantId,
+      materialId: materialId,
+      materialName: materialName,
+      sizeDimension: sizeDimension,
+      imageUrl: imageUrl,
+      quantity: newQty,
+      unitPriceWithGst: newUnitPrice,
+      discountPercentage: newDiscount,
+      totalPriceWithGst: newTotal,
+      priceTiers: newTiers,
+    );
+  }
 }
 
 class CartResponse {

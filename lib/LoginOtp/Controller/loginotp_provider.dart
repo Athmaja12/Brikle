@@ -180,64 +180,85 @@ class OtpController extends GetxController {
   Future<void> _verifySignupOtp() async {
     debugPrint('[OtpController] hitting /customer-verify-otp/');
 
-    final response = await ApiService.verifyRegisterOtp(
-      phoneNumber: model.phoneNumber,
-      otp: model.otpCode,
-    );
+    Map<String, dynamic> response;
+    try {
+      response = await ApiService.verifyRegisterOtp(
+        phoneNumber: model.phoneNumber,
+        otp: model.otpCode,
+      );
+      debugPrint('[OtpController] signup verify response: $response');
+    } catch (e) {
+      debugPrint(
+        '[OtpController] verifyRegisterOtp failed: $e — attempting verifyLoginOtp fallback',
+      );
+      response = await ApiService.verifyLoginOtp(
+        phoneNumber: model.phoneNumber,
+        otp: model.otpCode,
+      );
+    }
 
-    debugPrint(
-      '[OtpController] signup verify SUCCESS — '
-      '${response['message']}',
-    );
+    String? accessToken = response['access'] as String?;
+    String? refreshToken = response['refresh'] as String?;
+    int? customerId = response['customer_id'] as int?;
+
+    // If verifyRegisterOtp succeeded but didn't return tokens directly, obtain them via verifyLoginOtp
+    if (accessToken == null || accessToken.isEmpty) {
+      debugPrint(
+        '[OtpController] signup response had no tokens — calling verifyLoginOtp',
+      );
+      try {
+        final loginVerifyResponse = await ApiService.verifyLoginOtp(
+          phoneNumber: model.phoneNumber,
+          otp: model.otpCode,
+        );
+        accessToken = loginVerifyResponse['access'] as String?;
+        refreshToken = loginVerifyResponse['refresh'] as String?;
+        customerId = customerId ?? loginVerifyResponse['customer_id'] as int?;
+      } catch (e) {
+        debugPrint('[OtpController] verifyLoginOtp token fetch error: $e');
+      }
+    }
+
+    if (accessToken != null && accessToken.isNotEmpty && refreshToken != null) {
+      await SessionManager.saveSession(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        customerId: customerId,
+        phoneNumber: model.phoneNumber,
+      );
+      debugPrint('[OtpController] signup session saved successfully');
+    } else {
+      debugPrint(
+        '[OtpController] WARNING: Access token not available after signup verification',
+      );
+    }
+
+    _verificationCompleted = true;
+    _verificationInProgress = false;
+    isLoading.value = false;
 
     Get.snackbar(
       'Account Created',
-      response['message']?.toString() ?? 'Now logging you in...',
-    );
-
-    isTransitioningToLogin.value = true;
-
-    // Clear the signup OTP.
-    _clearDigits();
-
-    debugPrint('[OtpController] signup verified — kicking off login OTP');
-
-    final loginResponse = await ApiService.login(
-      phoneNumber: model.phoneNumber,
-    );
-
-    final loginOtp = loginResponse['otp']?.toString();
-
-    debugPrint('POST-SIGNUP LOGIN OTP received');
-
-    // ------------------------------------------------------------
-    // NEW LOGIN OTP = NEW VERIFICATION CYCLE
-    // ------------------------------------------------------------
-
-    flow.value = OtpFlow.login;
-
-    _verificationCompleted = false;
-    _verificationInProgress = false;
-
-    resendCooldown.value = 0;
-
-    isTransitioningToLogin.value = false;
-    isLoading.value = false;
-
-    if (loginOtp != null && loginOtp.length == 4) {
-      _maybeAutoFill(loginOtp);
-    }
-
-    Get.snackbar(
-      'OTP Sent',
-      'Enter the code to finish logging in',
+      'Welcome to Brikle! Your account has been created.',
       backgroundColor: const Color(0xFF12914C),
       colorText: Colors.white,
-      duration: const Duration(seconds: 6),
+      duration: const Duration(seconds: 4),
       snackPosition: SnackPosition.TOP,
     );
 
-    debugPrint('[OtpController] switched to LOGIN OTP mode');
+    // ------------------------------------------------------------
+    // NAVIGATION & SESSION SYNC
+    // ------------------------------------------------------------
+    if (isModal) {
+      debugPrint('[OtpController] modal signup flow — popping true to caller');
+      Get.back(result: true);
+      _completePostLoginSync();
+      return;
+    }
+
+    debugPrint('[OtpController] new registration verified — navigating to Cart');
+    Get.offAll(() => const CartScreen());
+    _completePostLoginSync();
   }
 
   Future<void> _verifyLoginOtp() async {

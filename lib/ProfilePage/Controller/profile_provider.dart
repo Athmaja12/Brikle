@@ -184,6 +184,15 @@ class ProfileController extends GetxController {
     );
   }
 
+  /// Turns a raw 401 ApiException into a friendly, action-specific message.
+  /// Any other status code keeps the server's original message untouched.
+  String _friendlyErrorMessage(ApiException e, String action) {
+    if (e.statusCode == 401) {
+      return 'Please register to $action.';
+    }
+    return e.message;
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROFILE
   // ══════════════════════════════════════════════════════════════════════════
@@ -199,7 +208,7 @@ class ProfileController extends GetxController {
       debugPrint(
         '[ProfileController] fetchProfile ApiException → ${e.message}',
       );
-      Get.snackbar('Error', e.message);
+      Get.snackbar('Error', _friendlyErrorMessage(e, 'view your profile'));
     } catch (e) {
       debugPrint('[ProfileController] fetchProfile unexpected → $e');
       Get.snackbar('Error', 'Failed to load profile. Please try again.');
@@ -261,7 +270,10 @@ class ProfileController extends GetxController {
       debugPrint(
         '[ProfileController] updateProfile ApiException → ${e.message}',
       );
-      _showStatusSnackbar(e.message, isError: true);
+      _showStatusSnackbar(
+        _friendlyErrorMessage(e, 'update your profile'),
+        isError: true,
+      );
       return false;
     } catch (e) {
       debugPrint('[ProfileController] updateProfile unexpected → $e');
@@ -333,7 +345,7 @@ class ProfileController extends GetxController {
       debugPrint(
         '[ProfileController] deleteAccount ApiException → ${e.message}',
       );
-      Get.snackbar('Error', e.message);
+      Get.snackbar('Error', _friendlyErrorMessage(e, 'delete your account'));
     } catch (e) {
       debugPrint('[ProfileController] deleteAccount unexpected → $e');
       Get.snackbar('Error', 'Failed to delete account. Please try again.');
@@ -387,7 +399,7 @@ class ProfileController extends GetxController {
       debugPrint(
         '[ProfileController] fetchOrders ApiException => ${e.message}',
       );
-      Get.snackbar('Error', e.message);
+      Get.snackbar('Error', _friendlyErrorMessage(e, 'view your orders'));
     } catch (e) {
       debugPrint('[ProfileController] fetchOrders unexpected => $e');
       Get.snackbar('Error', 'Failed to load orders.');
@@ -510,7 +522,10 @@ class ProfileController extends GetxController {
         return false;
       }
 
-      _showStatusSnackbar(e.message, isError: true);
+      _showStatusSnackbar(
+        _friendlyErrorMessage(e, 'submit a review'),
+        isError: true,
+      );
       return false;
     } catch (e) {
       debugPrint(
@@ -577,7 +592,7 @@ class ProfileController extends GetxController {
       debugPrint(
         '[ProfileController] fetchCoupons ApiException => ${e.message}',
       );
-      Get.snackbar('Error', e.message);
+      Get.snackbar('Error', _friendlyErrorMessage(e, 'view your coupons'));
     } catch (e) {
       debugPrint('[ProfileController] fetchCoupons unexpected => $e');
       Get.snackbar('Error', 'Failed to load coupons.');
@@ -663,7 +678,10 @@ class ProfileController extends GetxController {
       debugPrint(
         '[ProfileController] shareCouponViaWhatsapp ApiException: ${e.message}',
       );
-      _showStatusSnackbar(e.message, isError: true);
+      _showStatusSnackbar(
+        _friendlyErrorMessage(e, 'share coupons'),
+        isError: true,
+      );
     } catch (e) {
       debugPrint('[ProfileController] shareCouponViaWhatsapp error: $e');
       _showStatusSnackbar('Failed to share. Please try again.', isError: true);
@@ -683,7 +701,7 @@ class ProfileController extends GetxController {
       addresses.addAll(list);
       debugPrint('[ProfileController] Addresses Loaded => ${addresses.length}');
     } on ApiException catch (e) {
-      Get.snackbar('Error', e.message);
+      Get.snackbar('Error', _friendlyErrorMessage(e, 'view your addresses'));
     } catch (e) {
       debugPrint('[ProfileController] fetchAddresses unexpected => $e');
       Get.snackbar('Error', 'Failed to load addresses.');
@@ -716,7 +734,10 @@ class ProfileController extends GetxController {
       _showStatusSnackbar('Address added successfully');
       return true;
     } on ApiException catch (e) {
-      _showStatusSnackbar(e.message, isError: true);
+      _showStatusSnackbar(
+        _friendlyErrorMessage(e, 'add an address'),
+        isError: true,
+      );
       return false;
     } catch (e) {
       debugPrint('[ProfileController] addAddress unexpected => $e');
@@ -761,7 +782,10 @@ class ProfileController extends GetxController {
       _showStatusSnackbar('Address updated successfully');
       return true;
     } on ApiException catch (e) {
-      _showStatusSnackbar(e.message, isError: true);
+      _showStatusSnackbar(
+        _friendlyErrorMessage(e, 'update your address'),
+        isError: true,
+      );
       return false;
     } catch (e) {
       debugPrint('[ProfileController] updateAddress unexpected => $e');
@@ -796,7 +820,10 @@ class ProfileController extends GetxController {
       _showStatusSnackbar('Address removed');
       return true;
     } on ApiException catch (e) {
-      _showStatusSnackbar(e.message, isError: true);
+      _showStatusSnackbar(
+        _friendlyErrorMessage(e, 'delete this address'),
+        isError: true,
+      );
       return false;
     } catch (e) {
       debugPrint('[ProfileController] deleteAddress unexpected => $e');

@@ -266,9 +266,11 @@ class HomeController extends GetxController {
         checkPincode(deliverToPincode.value);
       }
     } on ApiException catch (e) {
-      debugPrint('[HomeController] ❌ getProfile FAILED: ${e.message}');
-      // Non-fatal — logged-in profile fetch failing (expired token mid-
-      // session, etc.) shouldn't block the rest of Home from rendering.
+      debugPrint('[HomeController] checkPincode FAILED: ${e.message}');
+      isPincodeServiceable.value = false;
+      pincodeMessage.value = e.statusCode == 401
+          ? 'Please register to check delivery for this pincode.'
+          : e.message;
     } catch (e, stack) {
       debugPrint('[HomeController] ❌ getProfile unexpected error: $e');
       debugPrint('[HomeController] stack: $stack');

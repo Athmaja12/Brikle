@@ -248,7 +248,7 @@ class CartController extends GetxController {
         cartItems.value = parsed.items;
       }
 
-      grandTotal.value = parsed.grandTotalWithGst;
+      _recalculateGrandTotal();
 
       if (!await AuthGate.isLoggedIn()) {
         await GuestCartService.save(cartItems);
@@ -266,6 +266,8 @@ class CartController extends GetxController {
           'variantId=${item.variantId}, '
           'quantity=${item.quantity}, '
           'unitPrice=${item.unitPriceWithGst}, '
+          'discountPercentage=${item.discountPercentage}, '
+          'discountedUnitPrice=${item.discountedUnitPrice}, '
           'total=${item.totalPriceWithGst}',
         );
       }
@@ -318,10 +320,7 @@ class CartController extends GetxController {
     final idx = cartItems.indexWhere((i) => i.variantId == item.variantId);
     if (idx != -1) {
       final newQty = cartItems[idx].quantity + item.quantity;
-      cartItems[idx] = cartItems[idx].copyWith(
-        quantity: newQty,
-        totalPriceWithGst: cartItems[idx].unitPriceWithGst * newQty,
-      );
+      cartItems[idx] = cartItems[idx].copyWith(quantity: newQty);
     } else {
       cartItems.add(item);
     }
@@ -405,11 +404,7 @@ class CartController extends GetxController {
 
     final index = cartItems.indexWhere((i) => i.variantId == item.variantId);
     if (index != -1) {
-      final unitPrice = item.unitPriceWithGst;
-      cartItems[index] = item.copyWith(
-        quantity: newQuantity,
-        totalPriceWithGst: unitPrice * newQuantity,
-      );
+      cartItems[index] = item.copyWith(quantity: newQuantity);
       cartItems.refresh();
       _recalculateGrandTotal();
       debugPrint(
