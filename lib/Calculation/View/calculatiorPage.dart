@@ -57,24 +57,44 @@ class _MaterialCalculatorViewState extends State<_MaterialCalculatorView> {
           switch (provider.state) {
             case CalculatorLoadState.loading:
             case CalculatorLoadState.idle:
+              // No RefreshIndicator here — there's nothing loaded yet to
+              // pull against, and fetchCalculators() is already in flight
+              // (or about to run) from initState.
               return const Center(child: CircularProgressIndicator());
+
             case CalculatorLoadState.error:
-              return Center(child: Text('Error: ${provider.errorMessage}'));
-            case CalculatorLoadState.loaded:
-              return ListView.builder(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  16 +
-                      kBottomNavigationBarHeight +
-                      MediaQuery.of(context).padding.bottom,
+              return RefreshIndicator(
+                onRefresh: provider.fetchCalculators,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.75,
+                    child: Center(
+                      child: Text('Error: ${provider.errorMessage}'),
+                    ),
+                  ),
                 ),
-                itemCount: provider.calculators.length,
-                itemBuilder: (context, index) {
-                  final calc = provider.calculators[index];
-                  return _CalculatorCard(calculator: calc);
-                },
+              );
+
+            case CalculatorLoadState.loaded:
+              return RefreshIndicator(
+                onRefresh: provider.fetchCalculators,
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    16 +
+                        kBottomNavigationBarHeight +
+                        MediaQuery.of(context).padding.bottom,
+                  ),
+                  itemCount: provider.calculators.length,
+                  itemBuilder: (context, index) {
+                    final calc = provider.calculators[index];
+                    return _CalculatorCard(calculator: calc);
+                  },
+                ),
               );
           }
         },

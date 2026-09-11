@@ -46,7 +46,17 @@ class CouponScreen extends StatelessWidget {
         }
 
         if (controller.coupons.isEmpty) {
-          return const _EmptyCoupons();
+          return RefreshIndicator(
+            color: AppColors.primaryGreen,
+            onRefresh: controller.fetchCoupons,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.75,
+                child: const _EmptyCoupons(),
+              ),
+            ),
+          );
         }
 
         // Split coupons into active and expired

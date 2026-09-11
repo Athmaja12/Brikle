@@ -158,6 +158,47 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  /// Lightweight refresh for pull-to-refresh — reloads the order and its
+  /// material details without toggling the full-screen loading spinner,
+  /// so the pull-to-refresh indicator stays visible instead of being
+  /// replaced by a blank loading screen.
+  Future<void> _refreshOrderDetail() async {
+    try {
+      await _ctrl.fetchOrders();
+      if (!mounted) return;
+
+      final order =
+          await _ctrl.refreshOrderReview(widget.orderId) ??
+          _ctrl.getOrderById(widget.orderId);
+
+      if (order == null || !mounted) return;
+
+      final Map<int, Map<String, dynamic>> refreshedMaterials = {};
+      for (final item in order.items) {
+        try {
+          refreshedMaterials[item.variant] =
+              await ApiService.getMaterialDetails(item.variant);
+        } catch (e) {
+          debugPrint(
+            '[OrderDetailScreen] refresh: failed to fetch material '
+            '${item.variant}: $e',
+          );
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _order = order;
+        _materialDetails
+          ..clear()
+          ..addAll(refreshedMaterials);
+      });
+    } catch (e, st) {
+      debugPrint('[OrderDetailScreen] _refreshOrderDetail failed: $e');
+      debugPrint('[OrderDetailScreen] stack: $st');
+    }
+  }
+
   /// Resolves the REAL material id for an order item. item.variant is a
   /// variant id, not a material id — the material's true primary key
   /// comes from the 'id' field of the material record fetched via
@@ -209,7 +250,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             )
           : _order == null
           ? const Center(child: Text('Order not found'))
-          : _buildOrderDetail(context),
+          : RefreshIndicator(
+              color: AppColors.primaryGreen,
+              onRefresh: _refreshOrderDetail,
+              child: _buildOrderDetail(context),
+            ),
     );
   }
 
@@ -252,6 +297,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final gap = SizedBox(height: Responsive.space(context, 16));
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(), // ← added
       padding: EdgeInsets.all(Responsive.space(context, 16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
