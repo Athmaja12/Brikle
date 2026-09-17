@@ -1170,8 +1170,8 @@ class _BestsellingSection extends StatelessWidget {
     final hasOffer = item.hasOffer;
     return SharedProductCard(
       product: CategoryProductItem(
-        variantId: item.id,
-        materialId: item.id,
+        variantId: item.variantId,
+        materialId: item.materialId,
         name: item.name,
         imageUrl: item.imageUrl,
         // FIX: same rule as _dealCard — `price` stays RAW; the discount

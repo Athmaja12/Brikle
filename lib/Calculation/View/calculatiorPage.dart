@@ -64,7 +64,7 @@ class _MaterialCalculatorViewState extends State<_MaterialCalculatorView> {
 
             case CalculatorLoadState.error:
               return RefreshIndicator(
-                onRefresh: provider.fetchCalculators,
+                onRefresh: provider.fetchCalculators, 
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: SizedBox(

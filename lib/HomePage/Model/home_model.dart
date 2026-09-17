@@ -184,6 +184,27 @@ class BestSellingItem {
   bool get hasOffer =>
       discountPercent != null && discountPercent! > 0 && dealPrice != null;
 
+  BestSellingItem copyWith({int? variantId, double? retailPrice}) {
+    return BestSellingItem(
+      id: id,
+      materialId: materialId,
+      variantId: variantId ?? this.variantId,
+      name: name,
+      description: description,
+      productHighlights: productHighlights,
+      imageUrl: imageUrl,
+      brandName: brandName,
+      categoryName: categoryName,
+      subcategoryName: subcategoryName,
+      retailPrice: retailPrice ?? this.retailPrice,
+      isBestSelling: isBestSelling,
+      discountPercent: discountPercent,
+      dealPrice: dealPrice,
+      isAssured: isAssured,
+      assuredCertificate: assuredCertificate,
+    );
+  }
+
   factory BestSellingItem.fromJson(Map<String, dynamic> json) {
     double toDouble(dynamic v) {
       if (v == null) return 0;

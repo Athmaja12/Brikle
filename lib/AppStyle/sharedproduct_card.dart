@@ -384,6 +384,7 @@ class _SharedProductCardState extends State<SharedProductCard> {
       // this card's own rounded border into whatever sits next to it.
       clipBehavior: Clip.antiAlias,
       child: Obx(() {
+        final cartItemCount = cartController.cartItems.length;
         final cartItem = _canAddToCart
             ? cartController.cartItems.firstWhereOrNull(
                 (i) => i.variantId == product.variantId,

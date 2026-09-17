@@ -283,9 +283,6 @@ class HomeController extends GetxController {
       '[HomeController] _loadBestselling(categoryId: $categoryId) started',
     );
 
-    // Resolve the display name for whichever category we're loading —
-    // independent of selectedCategoryIndex, so the "Bestselling on X"
-    // title works whether or not a tile is actually highlighted.
     CategoryItem? matched;
     for (final c in categories) {
       if (c.id == categoryId) {
@@ -300,15 +297,43 @@ class HomeController extends GetxController {
       debugPrint(
         '[HomeController] ✅ getBestSelling OK — ${results.length} items for categoryId=$categoryId',
       );
-      debugPrint(results.toString());
-      bestselling.value = results
+
+      final parsed = results
           .map((e) => BestSellingItem.fromJson(e as Map<String, dynamic>))
           .toList();
+
+      // FIX: the best-selling endpoint returns material-level data only —
+      // no `variants` array — so BestSellingItem.fromJson always parses
+      // variantId as 0, which disabled "Add to Cart" on every card and
+      // silently fell back to "View Details". Resolve the real variant +
+      // price per item the same way the carousel does, in parallel, before
+      // publishing the list.
+      final resolved = await Future.wait(
+        parsed.map((item) async {
+          try {
+            final detail = await ApiService.getSuggestedProductDetail(
+              item.materialId,
+            );
+            if (detail != null && detail.variantId > 0) {
+              return item.copyWith(
+                variantId: detail.variantId,
+                retailPrice: detail.price > 0 ? detail.price : item.retailPrice,
+              );
+            }
+          } catch (e) {
+            debugPrint(
+              '[HomeController] ⚠️ could not resolve variant for materialId=${item.materialId}: $e',
+            );
+          }
+          return item; // falls back to View Details for this one item only
+        }),
+      );
+
+      bestselling.value = resolved;
     } on ApiException catch (e) {
       debugPrint(
         '[HomeController] ❌ getBestSelling FAILED for categoryId=$categoryId: ${e.message}',
       );
-      debugPrint('[HomeController] full exception object: $e');
       bestselling.clear();
     } catch (e, stack) {
       debugPrint('[HomeController] ❌ getBestSelling unexpected error: $e');
