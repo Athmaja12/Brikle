@@ -12,6 +12,7 @@ class HomeController extends GetxController {
   final RxBool isLoading = true.obs;
 
   final GlobalKey categoriesSectionKey = GlobalKey();
+
   final RxString deliverToPincode = '—'.obs;
   final RxString customerName = ''.obs;
 

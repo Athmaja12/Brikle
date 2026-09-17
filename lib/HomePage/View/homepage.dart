@@ -36,8 +36,34 @@ bool _isValidImageUrl(String? url) {
   return true;
 }
 
-class HomeScreen extends GetView<HomeController> {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Owns the CustomScrollView's scroll position so promo tiles can
+  // scroll back to the top of Home instead of navigating away.
+  final ScrollController _scrollController = ScrollController();
+
+  HomeController get controller => Get.find<HomeController>();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +88,7 @@ class HomeScreen extends GetView<HomeController> {
           return RefreshIndicator(
             onRefresh: controller.refresh,
             child: CustomScrollView(
+              controller: _scrollController,
               slivers: [
                 SliverToBoxAdapter(child: _Header(controller: controller)),
                 SliverToBoxAdapter(
@@ -82,7 +109,12 @@ class HomeScreen extends GetView<HomeController> {
                 SliverToBoxAdapter(
                   child: _BestsellingSection(controller: controller),
                 ),
-                SliverToBoxAdapter(child: _PromoGrid(controller: controller)),
+                SliverToBoxAdapter(
+                  child: _PromoGrid(
+                    controller: controller,
+                    onTileTap: _scrollToTop,
+                  ),
+                ),
                 const SliverToBoxAdapter(child: SizedBox(height: 12)),
               ],
             ),
@@ -1053,10 +1085,45 @@ class _TopDealsSection extends StatelessWidget {
   }
 }
 
-// ── Category banner (image only, tap → Category page) ───────────────────
+// ── Category banner (image only, tap → Cement category products page) ───
 class _CategoryBanner extends StatelessWidget {
   final HomeController controller;
   const _CategoryBanner({required this.controller});
+
+  // FIX: previously always opened the generic CategoryPage (a category
+  // *picker*, not a product listing). Now looks up "Cement" in the
+  // already-loaded categories list and opens its actual product grid —
+  // same pattern used by _PromoGrid's goToCategory. Falls back to the
+  // old CategoryPage behavior only if "Cement" isn't found (e.g. the
+  // backend renames/removes it), so the banner never dead-ends.
+  void _goToCementCategory(BuildContext context) {
+    final cementCategory = controller.categories.firstWhereOrNull(
+      (c) => c.name.trim().toLowerCase() == 'cement',
+    );
+
+    if (cementCategory != null) {
+      debugPrint(
+        '[_CategoryBanner] navigating to Cement category '
+        '(id=${cementCategory.id})',
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              CategoryProductsScreenWrapper(categoryId: cementCategory.id),
+        ),
+      );
+    } else {
+      debugPrint(
+        '[_CategoryBanner] "Cement" category not found in '
+        'controller.categories — falling back to CategoryPage',
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CategoryPage()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1068,12 +1135,7 @@ class _CategoryBanner extends StatelessWidget {
         top: Responsive.space(context, 16),
       ),
       child: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CategoryPage()),
-          );
-        },
+        onTap: () => _goToCementCategory(context),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: AspectRatio(
@@ -1334,7 +1396,8 @@ class _BestsellingSection extends StatelessWidget {
 // ── Bottom 4-tile promo grid ──────────────────────────────────────────────
 class _PromoGrid extends StatelessWidget {
   final HomeController controller;
-  const _PromoGrid({required this.controller});
+  final VoidCallback onTileTap;
+  const _PromoGrid({required this.controller, required this.onTileTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1356,7 +1419,9 @@ class _PromoGrid extends StatelessWidget {
         itemBuilder: (context, index) {
           final tile = controller.promoTiles[index];
           return GestureDetector(
-            onTap: () => controller.goToCategory(tile.categoryName),
+            // FIX: promo tiles no longer navigate to a category page —
+            // they scroll the Home screen back up to the top instead.
+            onTap: onTileTap,
             child: Semantics(
               button: true,
               label: tile.semanticLabel,
